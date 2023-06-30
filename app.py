@@ -24,7 +24,7 @@ from  application.employee_view.employee import employee
 
 
 
-    
+app =app 
 
     
 #     #doctor_id = db.Column(db.Integer,db.ForeignKey('user.id'))
