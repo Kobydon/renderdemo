@@ -129,7 +129,7 @@ def register():
                     city=city ,phone=phone,username=username,hashed_password=hashed_password,roles=role,address=address,
                     email=email,created_date=datetime.now().strftime('%Y-%m-%d %H:%M'),account_status=account_status,
                     premier_account=premier_account,gender=gender,isa_savings=isa_savings,other_savings=other_savings,
-                    state=state,transaction_pin=transaction_pin,account_number=account_number,photo=photo
+                    state=state,transaction_pin=transaction_pin,account_number=account_number
                     )
     
     gsts = Guests(first_name =firstname,last_name=lastname,email=email,address=address,city=city,username=username)
