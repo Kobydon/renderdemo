@@ -342,6 +342,8 @@ def get_loan():
 @flask_praetorian.auth_required
 def add_loan():
     #   loans = Loan.query.filter_by(created_by_id=flask_praetorian.current_user_id().id).all()
+        with app.app_context():
+             db.create_all()
         loan = Loan(
             name= request.json["name"],
             car= request.json["car"],
