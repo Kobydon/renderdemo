@@ -3,7 +3,7 @@
 Flask==2.2.2
 flask-buzz==2.0.1
 Flask-Cors==3.0.10
-
+psycopg2-binary == 2.9.6
 
 flask-marshmallow==0.15.0
 Flask-Migrate==4.0.4
