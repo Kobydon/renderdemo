@@ -5,7 +5,7 @@ from  application.extensions.extensions import *
 from  application.settings.settings import *
 from  application.settings.setup import app
 # from application.forms import LoginForm
-from application.database.user.user_db import User,db,RoomType,Guests,Transaction,Loan,Insurance
+from application.database.user.user_db import User,db,RoomType,Guests,Transaction,Loan,Insurance,Card
 from sqlalchemy import or_,desc,and_
 from datetime import datetime
 from datetime import date
@@ -49,6 +49,15 @@ class insuranceSchema(ma.Schema):
         fields=("id","name","policy_number","email","created_date","phone","address","comments",
                 "branch_name","status","branch_name"
 )
+
+
+        
+class cardSchema(ma.Schema):
+    class Meta:
+        fields=("id","name","card_type","card_number","pin","created_date","expiry_date","status"
+)
+
+card_schema= cardSchema(many=True)
 
 loan_schema =loanSchema(many=True)
 insurance_schema = insuranceSchema(many=True)
@@ -342,8 +351,7 @@ def get_loan():
 @flask_praetorian.auth_required
 def add_loan():
     #   loans = Loan.query.filter_by(created_by_id=flask_praetorian.current_user_id().id).all()
-        with app.app_context():
-             db.create_all()
+     
         loan = Loan(
             name= request.json["name"],
             car= request.json["car"],
@@ -424,6 +432,64 @@ def cancel_insurance(id):
      insur = Insurance.query.filter_by(id=id).first()
      insur.status ="cancelled"
      db.sesiion.commit()
+     db.session.close()
+     resp = jsonify("success")
+     resp.status_code=200
+     return resp
+
+
+          
+@user.route("/get_card",methods=["GET"])
+@flask_praetorian.auth_required
+def get_card():
+      card = Card.query.filter_by(created_by_id=flask_praetorian.current_user().id).all()
+     
+      result = card_schema.dump(card)
+      return jsonify(result)
+
+
+@user.route("/get_my_card",methods=["GET"])
+@flask_praetorian.auth_required
+def get_my_card(): 
+      user = User.query.filter_by(id=flask_praetorian.current_user().id).first()
+      card = Card.query.filter_by(name=user.firstname+' '+ user.lastname).all()
+     
+      result = card_schema.dump(card)
+      return jsonify(result)
+         
+
+@user.route("/add_card",methods=["POST"])
+@flask_praetorian.auth_required
+def add_card():
+     card = Card(
+           
+          name =request.json["name"],
+          card_type =request.json["card_type"],
+          card_number =request.json["card_number"],
+          pin =request.json["pin"],    
+     
+          expiry_date =request.json["expiry_date"],
+  
+
+          status =request.json["status"],
+          created_by_id = flask_praetorian.current_user().id,
+          created_date=datetime.now().strftime('%Y-%m-%d %H:%M')
+     )
+
+     db.session.add(card)
+     db.session.commit()
+     db.session.close()
+     resp = jsonify("success")
+     resp.status_code=200
+     return resp
+
+
+@user.route("/delete_card/<id>",methods=["DELETE"])
+@flask_praetorian.auth_required
+def delete_card(id):
+     card = Card.query.filter_by(id =id).first()
+     db.session.delete(card)
+     db.session.commit()
      db.session.close()
      resp = jsonify("success")
      resp.status_code=200

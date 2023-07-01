@@ -14,6 +14,7 @@ from  application.user_view.user import user
 from  application.room_view.room import room
 from  application.guest_view.guest import guest
 from  application.employee_view.employee import employee
+from application.database.user.user_db import db
 # from  application.client_view.client import client
 #from  application.room_view.room import room
 #from  application.employee_view.employee import employee
@@ -25,6 +26,9 @@ from  application.employee_view.employee import employee
 
 
 app =app 
+
+with app.app_context():
+             db.create_all()
 
     
 #     #doctor_id = db.Column(db.Integer,db.ForeignKey('user.id'))
