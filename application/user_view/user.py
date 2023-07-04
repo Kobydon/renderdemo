@@ -22,7 +22,7 @@ class User_schema(ma.Schema):
         fields=("id","firstname","lastname","about","email","username","hashed_password",
                 "roles","city","country","address","phone","created_date",
                 "isa_savings","other_savings","account_status",
-                    "state","transaction_pin" ,"account_number","premier_account","other_savings"
+                    "state","transaction_pin" ,"account_number","premier_account","other_savings","photo"
 )
         
 
@@ -141,7 +141,7 @@ def register():
                     state=state,transaction_pin=transaction_pin,account_number=account_number
                     )
     
-    gsts = Guests(first_name =firstname,last_name=lastname,email=email,address=address,city=city,username=username)
+    gsts = Guests(first_name =firstname,last_name=lastname,email=email,address=address,city=city,username=username,photo=photo)
     db.session.add(owner)
     db.session.add(gsts)
     db.session.commit()
