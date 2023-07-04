@@ -105,8 +105,6 @@ user_schema=User_schema(many=True)
 @user.route("/register",methods=["POST"])
 def register():
     
-    with app.app_context():
-             db.create_all()
     firstname =request.json["firstname"]
     username = request.json["username"]
     password = request.json["password"]

@@ -6,7 +6,7 @@ from  application.extensions.extensions import *
 from  application.settings.setup import app
 # from application.forms import LoginForm
 from application.database import *
-from application.database.user.user_db import User
+# from application.database.user.user_db import User
 from sqlalchemy import or_,desc,and_
 from datetime import datetime
 from flask import session
@@ -27,6 +27,8 @@ from application.database.user.user_db import db
 
 app =app 
 
+with app.app_context():
+             db.create_all()
 
     
 #     #doctor_id = db.Column(db.Integer,db.ForeignKey('user.id'))
