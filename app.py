@@ -27,8 +27,6 @@ from application.database.user.user_db import db
 
 app =app 
 
-with app.app_context():
-             db.create_all()
 
     
 #     #doctor_id = db.Column(db.Integer,db.ForeignKey('user.id'))
