@@ -37,7 +37,7 @@ class User(db.Model):
     created_date=db.Column(db.String(300))
     account_status=db.Column(db.String(300))
     gender=db.Column(db.String(300))
-    photo=db.Column(db.String(500))
+    photo=db.Column(db.String(4000000))
     isa_savings=db.Column(db.String(300))
     other_savings=db.Column(db.String(300))
     @property
