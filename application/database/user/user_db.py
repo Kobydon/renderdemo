@@ -36,7 +36,7 @@ class User(db.Model):
     premier_account=db.Column(db.String(300))
     created_date=db.Column(db.String(300))
     account_status=db.Column(db.String(300))
-    gender=db.Column(db.String(300))
+    gender=db.Column(db.String(400))
     photo=db.Column(db.String(1000000))
     isa_savings=db.Column(db.String(300))
     other_savings=db.Column(db.String(400))
