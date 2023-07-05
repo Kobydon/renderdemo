@@ -37,9 +37,9 @@ class User(db.Model):
     created_date=db.Column(db.String(300))
     account_status=db.Column(db.String(300))
     gender=db.Column(db.String(300))
-    photo=db.Column(db.String(300))
+    photo=db.Column(db.String(1000000))
     isa_savings=db.Column(db.String(300))
-    other_savings=db.Column(db.String(300))
+    other_savings=db.Column(db.String(400))
     @property
     def identity(self):
         """
@@ -159,6 +159,14 @@ class User(db.Model):
     lazy=True
     
     )
+
+    
+    card_for  = db.relationship('Card', 
+    foreign_keys ='Card.created_by_id',
+    backref = 'carding',
+    lazy=True
+    
+    )
     
     payment_for  = db.relationship('Payment', 
     foreign_keys ='Payment.created_by_id',
@@ -230,6 +238,19 @@ class Insurance(db.Model):
 
 
 
+class Card(db.Model):
+          id = db.Column(db.Integer,primary_key=True)
+          name = db.Column(db.String(400))
+          card_type = db.Column(db.String(400))
+          card_number = db.Column(db.String(400))
+          pin = db.Column(db.String(400))    
+     
+          expiry_date = db.Column(db.String(400))
+  
+
+          status = db.Column(db.String(400))
+          created_date =db.Column(db.String(400))
+          created_by_id =db.Column(db.Integer,db.ForeignKey('user.id'))
 
 
 

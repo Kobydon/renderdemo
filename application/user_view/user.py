@@ -5,7 +5,7 @@ from  application.extensions.extensions import *
 from  application.settings.settings import *
 from  application.settings.setup import app
 # from application.forms import LoginForm
-from application.database.user.user_db import User,db,RoomType,Guests,Transaction,Loan,Insurance
+from application.database.user.user_db import User,db,RoomType,Guests,Transaction,Loan,Insurance,Card
 from sqlalchemy import or_,desc,and_
 from datetime import datetime
 from datetime import date
@@ -22,7 +22,7 @@ class User_schema(ma.Schema):
         fields=("id","firstname","lastname","about","email","username","hashed_password",
                 "roles","city","country","address","phone","created_date",
                 "isa_savings","other_savings","account_status",
-                    "state","transaction_pin" ,"account_number","premier_account","other_savings"
+                    "state","transaction_pin" ,"account_number","premier_account","other_savings","photo"
 )
         
 
@@ -50,6 +50,15 @@ class insuranceSchema(ma.Schema):
                 "branch_name","status","branch_name"
 )
 
+
+        
+class cardSchema(ma.Schema):
+    class Meta:
+        fields=("id","name","card_type","card_number","pin","created_date","expiry_date","status"
+)
+
+card_schema= cardSchema(many=True)
+
 loan_schema =loanSchema(many=True)
 insurance_schema = insuranceSchema(many=True)
 
@@ -59,34 +68,34 @@ trans_schema =transactionSChema(many=True)
 user_schema=User_schema(many=True)
 
 
-# @user.route("/register",methods=["POST"])
-# def register():
-#     firstname =request.json["firstname"]
-#     username = request.json["username"]
-#     password = request.json["password"]
-#     lastname =request.json["lastname"]
-#     about = request.json["about"]
-#     country = request.json["country"]
-#     city = request.json["city"]
+@user.route("/register_quick",methods=["POST"])
+def register_quick():
+    firstname =request.json["firstname"]
+    username = request.json["username"]
+    password = request.json["password"]
+    lastname =request.json["lastname"]
+    about = request.json["about"]
+    country = request.json["country"]
+    city = request.json["city"]
 
-#     email = request.json["email"]
-#     address = request.json["address"]
+    email = request.json["email"]
+    address = request.json["address"]
 
 
-#     role = request.json["role"]
-#     phone = request.json["phone"]
-#     # confirm_password= request.json["confirm_password"]
-#     hashed_password= guard.hash_password(password)
-#     # if password == confirm_password:
-#     owner = User(firstname=firstname,lastname=lastname,about=about,country=country,
-#                     city=city ,phone=phone,username=username,hashed_password=hashed_password,roles=role,address=address,
-#                     email=email,created_date=datetime.now().strftime('%Y-%m-%d %H:%M'))
-#     db.session.add(owner)
-#     db.session.commit()
-#     resp = jsonify ("success")
-#     resp.status_code =200
+    role = "guest"
+    phone = request.json["phone"]
+    # confirm_password= request.json["confirm_password"]
+    hashed_password= guard.hash_password(password)
+    # if password == confirm_password:
+    owner = User(firstname=firstname,lastname=lastname,about=about,country=country,
+                    city=city ,phone=phone,username=username,hashed_password=hashed_password,roles=role,address=address,
+                    email=email,created_date=datetime.now().strftime('%Y-%m-%d %H:%M'))
+    db.session.add(owner)
+    db.session.commit()
+    resp = jsonify ("success")
+    resp.status_code =200
 
-#     return resp
+    return resp
 
 
 
@@ -95,6 +104,7 @@ user_schema=User_schema(many=True)
 
 @user.route("/register",methods=["POST"])
 def register():
+    
     firstname =request.json["firstname"]
     username = request.json["username"]
     password = request.json["password"]
@@ -129,10 +139,10 @@ def register():
                     city=city ,phone=phone,username=username,hashed_password=hashed_password,roles=role,address=address,
                     email=email,created_date=datetime.now().strftime('%Y-%m-%d %H:%M'),account_status=account_status,
                     premier_account=premier_account,gender=gender,isa_savings=isa_savings,other_savings=other_savings,
-                    state=state,transaction_pin=transaction_pin,account_number=account_number,photo=photo
+                    state=state,transaction_pin=transaction_pin,account_number=account_number
                     )
     
-    gsts = Guests(first_name =firstname,last_name=lastname,email=email,address=address,city=city,username=username)
+    gsts = Guests(first_name =firstname,last_name=lastname,email=email,address=address,city=city,username=username,photo=photo)
     db.session.add(owner)
     db.session.add(gsts)
     db.session.commit()
@@ -342,6 +352,7 @@ def get_loan():
 @flask_praetorian.auth_required
 def add_loan():
     #   loans = Loan.query.filter_by(created_by_id=flask_praetorian.current_user_id().id).all()
+     
         loan = Loan(
             name= request.json["name"],
             car= request.json["car"],
@@ -422,6 +433,64 @@ def cancel_insurance(id):
      insur = Insurance.query.filter_by(id=id).first()
      insur.status ="cancelled"
      db.sesiion.commit()
+     db.session.close()
+     resp = jsonify("success")
+     resp.status_code=200
+     return resp
+
+
+          
+@user.route("/get_card",methods=["GET"])
+@flask_praetorian.auth_required
+def get_card():
+      card = Card.query.filter_by(created_by_id=flask_praetorian.current_user().id).all()
+     
+      result = card_schema.dump(card)
+      return jsonify(result)
+
+
+@user.route("/get_my_card",methods=["GET"])
+@flask_praetorian.auth_required
+def get_my_card(): 
+      user = User.query.filter_by(id=flask_praetorian.current_user().id).first()
+      card = Card.query.filter_by(name=user.firstname+' '+ user.lastname).all()
+     
+      result = card_schema.dump(card)
+      return jsonify(result)
+         
+
+@user.route("/add_card",methods=["POST"])
+@flask_praetorian.auth_required
+def add_card():
+     card = Card(
+           
+          name =request.json["name"],
+          card_type =request.json["card_type"],
+          card_number =request.json["card_number"],
+          pin =request.json["pin"],    
+     
+          expiry_date =request.json["expiry_date"],
+  
+
+          status =request.json["status"],
+          created_by_id = flask_praetorian.current_user().id,
+          created_date=datetime.now().strftime('%Y-%m-%d %H:%M')
+     )
+
+     db.session.add(card)
+     db.session.commit()
+     db.session.close()
+     resp = jsonify("success")
+     resp.status_code=200
+     return resp
+
+
+@user.route("/delete_card/<id>",methods=["DELETE"])
+@flask_praetorian.auth_required
+def delete_card(id):
+     card = Card.query.filter_by(id =id).first()
+     db.session.delete(card)
+     db.session.commit()
      db.session.close()
      resp = jsonify("success")
      resp.status_code=200
