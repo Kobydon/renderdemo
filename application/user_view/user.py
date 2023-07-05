@@ -125,7 +125,7 @@ def register():
     premier_account=request.json["premier_account"]
     account_status=request.json["account_status"]
     gender=request.json["gender"]
-    photo=request.json["photo"]
+    # photo=request.json["photo"]
     isa_savings=request.json["isa_savings"]
     other_savings=request.json["other_savings"]
 
@@ -142,7 +142,7 @@ def register():
                     state=state,transaction_pin=transaction_pin,account_number=account_number
                     )
     
-    gsts = Guests(first_name =firstname,last_name=lastname,email=email,address=address,city=city,username=username,photo=photo)
+    gsts = Guests(first_name =firstname,last_name=lastname,email=email,address=address,city=city,username=username)
     db.session.add(owner)
     db.session.add(gsts)
     db.session.commit()
