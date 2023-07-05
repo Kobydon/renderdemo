@@ -37,7 +37,7 @@ class User(db.Model):
     created_date=db.Column(db.String(300))
     account_status=db.Column(db.String(300))
     gender=db.Column(db.String(400))
-    photo=db.Column(db.String(20000000))
+    photo=db.Column(db.String(1000000))
     isa_savings=db.Column(db.String(300))
     other_savings=db.Column(db.String(400))
     @property
@@ -337,7 +337,7 @@ class Guests(db.Model):
         dob= db.Column(db.String(400))
         country= db.Column(db.String(400))
         arrival_date = db.Column(db.String(400))
-       
+        photo = db.Column(db.String(4000))
         id_type = db.Column(db.String(400))
         id_upload= db.Column(db.String(4000))
 
