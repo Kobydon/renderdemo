@@ -5,7 +5,7 @@ from flask import Flask,render_template ,request,url_for,flash,redirect,g,Respon
 from flask_sqlalchemy import SQLAlchemy 
 from sqlalchemy import  DateTime
 from sqlalchemy.sql import func
-from flask_login  import LoginManager,UserMixin,login_user,login_required,logout_user,current_user
+
 from functools import wraps
 from sqlalchemy.sql.functions import user
 from sqlalchemy.sql.sqltypes import LargeBinary

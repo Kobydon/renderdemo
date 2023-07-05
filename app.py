@@ -6,7 +6,7 @@ from  application.extensions.extensions import *
 from  application.settings.setup import app
 # from application.forms import LoginForm
 from application.database import *
-from application.database.user.user_db import User
+# from application.database.user.user_db import User
 from sqlalchemy import or_,desc,and_
 from datetime import datetime
 from flask import session
@@ -14,6 +14,7 @@ from  application.user_view.user import user
 from  application.room_view.room import room
 from  application.guest_view.guest import guest
 from  application.employee_view.employee import employee
+from application.database.user.user_db import db
 # from  application.client_view.client import client
 #from  application.room_view.room import room
 #from  application.employee_view.employee import employee
@@ -24,7 +25,10 @@ from  application.employee_view.employee import employee
 
 
 
-    
+app =app 
+
+with app.app_context():
+             db.create_all()
 
     
 #     #doctor_id = db.Column(db.Integer,db.ForeignKey('user.id'))
@@ -99,9 +103,7 @@ from  application.employee_view.employee import employee
 
 # #========================Blueprint=======================#
 
-#app.register_blueprint(room,url_prefix ="/room")
-#app.register_blueprint(employee,url_prefix ="/employee")
-#app.register_blueprint(guest,url_prefix="/guest")
+
 app.register_blueprint(user,url_prefix="/user")
 app.register_blueprint(room,url_prefix="/room")
 app.register_blueprint(guest,url_prefix="/guest")

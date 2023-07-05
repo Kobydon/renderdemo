@@ -44,13 +44,13 @@ guard = flask_praetorian.Praetorian()
 
 app.secret_key = 'secrete key'
 # postgres://app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://jhecdolqdalqng:b2b9fda8055bc1519e4cfd2d5051bbc44b51374830f3bcdf333c1359855b4461@ec2-52-21-136-176.compute-1.amazonaws.com:5432/deeuuokl7c54s8'
-
-app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://yaalexholdings_user:ctPwtOh20F3RWqbqXLiQlchUAoZS5jm8@dpg-cif97g98g3n3ipqoab20-a/yaalexholdings'
+app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://kev:aNsdesQaWzpN6VZkPYlEQ4nuyKcI1dlu@dpg-ciioeet9aq012etlb1f0-a/financesome'
+# app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///hotel.db'
 #local_database = tempfile.NamedTemporaryFile(prefix="local", suffix=".db")
 app.config['SECRET_KEY'] = '0527'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['TESTING'] = False
-app.config["JWT_ACCESS_LIFESPAN"] = {"hours": 24}
+app.config["JWT_ACCESS_LIFESPAN"] = {"hours": 43}
 app.config["JWT_REFRESH_LIFESPAN"] = {"days": 30}
 
 # guard.init_app(app, User)
