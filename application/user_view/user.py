@@ -257,7 +257,7 @@ def update_user_profile():
             user.premier_account=request.json["premier_account"]
             user.account_status=request.json["account_status"]
             user.gender=request.json["gender"]
-            user.photo=request.json["photo"]
+            # user.photo=request.json["photo"]
             user.isa_savings=request.json["isa_savings"]
             user.other_savings=request.json["other_savings"]
             user.hashed_password =  guard.hash_password(password)
