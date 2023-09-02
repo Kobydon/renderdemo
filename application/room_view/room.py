@@ -195,7 +195,7 @@ def get_rooms():
 @room.route("/get_room_type",methods=["GET"])
 @flask_praetorian.auth_required
 def get_room_type():
-    rooms = db.session.query(RoomType).all()
+    rooms = db.session.query(RoomType).filter_by(created_by_id=flask_praetorian.current_user().id).all()
     results = room_schema.dump(rooms)
 
     return jsonify(results)
@@ -262,7 +262,7 @@ def delete_room(id):
 @room.route("/get_all_bookings",methods=["GET"])
 @flask_praetorian.auth_required
 def get_all_bookings():
-    rooms = db.session.query(Booking).filter(Booking.create_date)
+    rooms = db.session.query(Booking).filter(Booking.create_date,Booking.created_by_id==flask_praetorian.current_user().id)
     lst = rooms.order_by(desc(Booking.create_date))
     results = booking_schema.dump(lst)
 

@@ -115,7 +115,7 @@ def add_guest():
 @guest.route("/get_all_guest",methods=["GET"])
 @flask_praetorian.auth_required
 def get_all_guest():
-    guests = Guests.query.all()
+    guests = Guests.query.filter_by(created_by_id=flask_praetorian.current_user().id).all()
     results = guest_schema.dump(guests)
 
     return jsonify(results)
@@ -279,7 +279,7 @@ def add_payment():
 @guest.route("/get_payment",methods=["GET"])
 @flask_praetorian.auth_required
 def get_payment():
-     pay = Payment.query.filter(Payment.payment_date)
+     pay = Payment.query.filter(Payment.payment_date,Payment.created_by_id==flask_praetorian.current_user(),id)
      lst =  pay.order_by(desc(Payment.payment_date))
      result = pay_schema.dump(lst)
      return jsonify(result)
