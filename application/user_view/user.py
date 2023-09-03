@@ -190,7 +190,7 @@ def get_info():
 @user.route("/get_users",methods=['GET'])
 @flask_praetorian.auth_required
 def get_users():
-    info = db.session.query(User).filter_by(created_by_id=flask_praetorian.current_user().id).all()
+    info = db.session.query(User).all()
     results =user_schema.dump(info)
     return jsonify(results)
 
