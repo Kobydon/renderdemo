@@ -5,7 +5,7 @@ from  application.extensions.extensions import *
 from  application.settings.settings import *
 from  application.settings.setup import app
 # from application.forms import LoginForm
-from application.database.user.user_db import User,db,RoomType,Guests,Transaction,Loan,Insurance,Card,Message
+from application.database.user.user_db import User,db,RoomType,Guests,Transaction,Loan,Insurance,Card,Message,Messager
 from sqlalchemy import or_,desc,and_
 from datetime import datetime
 from datetime import date
@@ -387,7 +387,7 @@ def send_message():
         client= request.json["client"]
         message= request.json["message"]
         print(client)
-        messge = Message(message=message)
+        messge = Messager(message=message,client=client)
             
             # name= request.json["model"],
 
@@ -405,7 +405,7 @@ def send_message():
 @user.route("/get_message_for_client",methods=["GET"])
 @flask_praetorian.auth_required
 def get_message_for_client():
-      trans = Message.query.filter(Message.client==flask_praetorian.current_user.username)
+      trans = Messager.query.filter(Message.client==flask_praetorian.current_user.username)
       lst = trans.order_by(desc(trans.created_date))
       result = message_schema.dump(lst)
       return jsonify(result)
@@ -419,7 +419,7 @@ def get_message_for_client():
 @user.route("/delete_message",methods=["GET"])
 @flask_praetorian.auth_required
 def delete_message():
-      trans = Message.query.filter(id=id).first()
+      trans = Messager.query.filter(id=id).first()
       db.session.dete(trans)  
       db.session.commit()    
       resp = jsonify("success")
@@ -434,7 +434,7 @@ def delete_message():
 @user.route("/get_message",methods=["GET"])
 @flask_praetorian.auth_required
 def get_message():
-      trans = Message.query.all()
+      trans = Messager.query.all()
       result = message_schema.dump(trans)
       return jsonify(result)
 
