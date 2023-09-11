@@ -387,7 +387,7 @@ def send_message():
      
         messge = Message(
             client= request.json["client"],
-            message= request.json["message"],
+            message= request.json["message"]
             # name= request.json["model"],
         )
 
