@@ -384,12 +384,11 @@ def add_loan():
 @flask_praetorian.auth_required
 def send_message():
     #   loans = Loan.query.filter_by(created_by_id=flask_praetorian.current_user_id().id).all()
-     
-        messge = Message(
-            client= request.json["client"],
-            message= request.json["message"]
+        client= request.json["client"]
+        message= request.json["message"]
+        messge = Message(client=client,message=message)
+            
             # name= request.json["model"],
-        )
 
          
        
