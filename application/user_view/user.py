@@ -5,7 +5,7 @@ from  application.extensions.extensions import *
 from  application.settings.settings import *
 from  application.settings.setup import app
 # from application.forms import LoginForm
-from application.database.user.user_db import User,db,RoomType,Guests,Transaction,Loan,Insurance,Card
+from application.database.user.user_db import User,db,RoomType,Guests,Transaction,Loan,Insurance,Card,Message
 from sqlalchemy import or_,desc,and_
 from datetime import datetime
 from datetime import date
