@@ -57,6 +57,15 @@ class cardSchema(ma.Schema):
         fields=("id","name","card_type","card_number","pin","created_date","expiry_date","status"
 )
 
+class MessageSchema(ma.Schema):
+    class Meta:
+        fields=("id","message","client"
+)
+
+
+message_schema = MessageSchema(many=True)
+
+
 card_schema= cardSchema(many=True)
 
 loan_schema =loanSchema(many=True)
@@ -370,7 +379,64 @@ def add_loan():
         resp = jsonify("success")
         resp.status_code=200
         return resp
+
+@user.route("/send_message",methods=["POST"])
+@flask_praetorian.auth_required
+def send_message():
+    #   loans = Loan.query.filter_by(created_by_id=flask_praetorian.current_user_id().id).all()
      
+        messge = Message(
+            client= request.json["client"],
+            message= request.json["message"],
+            # name= request.json["model"],
+        )
+
+         
+       
+        db.session.add(messge)
+        db.session.commit()
+        resp = jsonify("success")
+        resp.status_code=200
+        return resp
+     
+
+
+
+@user.route("/get_message_for_client",methods=["GET"])
+@flask_praetorian.auth_required
+def get_message_for_client():
+      trans = Message.query.filter(Message.client==flask_praetorian.current_user.username)
+      lst = trans.order_by(desc(trans.created_date))
+      result = message_schema.dump(lst)
+      return jsonify(result)
+
+
+
+
+
+
+
+@user.route("/delete_message",methods=["GET"])
+@flask_praetorian.auth_required
+def delete_message():
+      trans = Message.query.filter(id=id).first()
+      db.session.dete(trans)  
+      db.session.commit()    
+      resp = jsonify("success")
+      resp.status_code=200
+      return resp
+
+
+
+
+
+
+@user.route("/get_message",methods=["GET"])
+@flask_praetorian.auth_required
+def get_message():
+      trans = Message.query.all()
+      result = message_schema.dump(trans)
+      return jsonify(result)
 
 @user.route("/cancel_loan/<id>",methods=["PUT"])
 @flask_praetorian.auth_required
