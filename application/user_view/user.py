@@ -5,7 +5,7 @@ from  application.extensions.extensions import *
 from  application.settings.settings import *
 from  application.settings.setup import app
 # from application.forms import LoginForm
-from application.database.user.user_db import User,db,RoomType,Guests,Transaction,Loan,Insurance,Card,Message,Messager
+from application.database.user.user_db import User,db,RoomType,Guests,Transaction,Loan,Insurance,Card
 from sqlalchemy import or_,desc,and_
 from datetime import datetime
 from datetime import date
@@ -378,37 +378,37 @@ def add_loan():
         db.session.commit()
         resp = jsonify("success")
         resp.status_code=200
-        return resp
+#         return resp
 
-@user.route("/send_message",methods=["POST"])
-@flask_praetorian.auth_required
-def send_message():
-    #   loans = Loan.query.filter_by(created_by_id=flask_praetorian.current_user_id().id).all()
-        client= request.json["client"]
-        message= request.json["message"]
-        print(client)
-        messge = Messager(message=message,client=client)
+# @user.route("/send_message",methods=["POST"])
+# @flask_praetorian.auth_required
+# def send_message():
+#     #   loans = Loan.query.filter_by(created_by_id=flask_praetorian.current_user_id().id).all()
+#         client= request.json["client"]
+#         message= request.json["message"]
+#         print(client)
+#         messge = Messager(message=message,client=client)
             
-            # name= request.json["model"],
+#             # name= request.json["model"],
 
          
        
-        db.session.add(messge)
-        db.session.commit()
-        resp = jsonify("success")
-        resp.status_code=200
-        return resp
+#         db.session.add(messge)
+#         db.session.commit()
+#         resp = jsonify("success")
+#         resp.status_code=200
+#         return resp
      
 
 
 
-@user.route("/get_message_for_client",methods=["GET"])
-@flask_praetorian.auth_required
-def get_message_for_client():
-      trans = Messager.query.filter(Message.client==flask_praetorian.current_user.username)
-      lst = trans.order_by(desc(trans.created_date))
-      result = message_schema.dump(lst)
-      return jsonify(result)
+# @user.route("/get_message_for_client",methods=["GET"])
+# @flask_praetorian.auth_required
+# def get_message_for_client():
+#       trans = Messager.query.filter(Message.client==flask_praetorian.current_user.username)
+#       lst = trans.order_by(desc(trans.created_date))
+#       result = message_schema.dump(lst)
+#       return jsonify(result)
 
 
 
@@ -416,27 +416,27 @@ def get_message_for_client():
 
 
 
-@user.route("/delete_message",methods=["GET"])
-@flask_praetorian.auth_required
-def delete_message():
-      trans = Messager.query.filter(id=id).first()
-      db.session.dete(trans)  
-      db.session.commit()    
-      resp = jsonify("success")
-      resp.status_code=200
-      return resp
+# @user.route("/delete_message",methods=["GET"])
+# @flask_praetorian.auth_required
+# def delete_message():
+#       trans = Messager.query.filter(id=id).first()
+#       db.session.dete(trans)  
+#       db.session.commit()    
+#       resp = jsonify("success")
+#       resp.status_code=200
+#       return resp
 
 
 
 
 
 
-@user.route("/get_message",methods=["GET"])
-@flask_praetorian.auth_required
-def get_message():
-      trans = Messager.query.all()
-      result = message_schema.dump(trans)
-      return jsonify(result)
+# @user.route("/get_message",methods=["GET"])
+# @flask_praetorian.auth_required
+# def get_message():
+#       trans = Messager.query.all()
+#       result = message_schema.dump(trans)
+#       return jsonify(result)
 
 @user.route("/cancel_loan/<id>",methods=["PUT"])
 @flask_praetorian.auth_required

@@ -231,18 +231,18 @@ class Insurance(db.Model):
   
       
 
-class Message(db.Model):
-      id = db.Column(db.Integer,primary_key=True)
-      name = db.Column(db.String(400))
-      message = db.Column(db.String(400))
-      client = db.Column(db.String(400)) 
+# class Message(db.Model):
+#       id = db.Column(db.Integer,primary_key=True)
+#       name = db.Column(db.String(400))
+#       message = db.Column(db.String(400))
+#       client = db.Column(db.String(400)) 
      
 
-class Messager(db.Model):
-      id = db.Column(db.Integer,primary_key=True)
-      name = db.Column(db.String(400))
-      message = db.Column(db.String(400))
-      client = db.Column(db.String(400)) 
+# class Messager(db.Model):
+#       id = db.Column(db.Integer,primary_key=True)
+#       name = db.Column(db.String(400))
+#       message = db.Column(db.String(400))
+#       client = db.Column(db.String(400)) 
      
      
   
