@@ -228,7 +228,22 @@ class Insurance(db.Model):
       created_date = db.Column(db.String(400))
       created_by_id =db.Column(db.Integer,db.ForeignKey('user.id'))
      
-  
+
+class Task(db.Model):
+      id = db.Column(db.Integer,primary_key=True)
+      name = db.Column(db.String(300))
+
+class RoomReport(db.Model):
+          id =db.Column(db.Integer,primary_key=True)
+          room_number =db.Column(db.String(400))
+          room_type =db.Column(db.String(400))
+          employee =db.Column(db.String(400))
+          status =db.Column(db.String(400))
+          type =db.Column(db.String(400))
+          description =db.Column(db.String(400))
+         
+          created_date =db.Column(db.String(400))
+         
       
 
 # class Message(db.Model):

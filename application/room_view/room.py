@@ -5,7 +5,7 @@ from  application.extensions.extensions import *
 from  application.settings.settings import *
 from  application.settings.setup import app
 # from application.forms import LoginForm
-from application.database.user.user_db import db,RoomType,Rooms,Booking
+from application.database.user.user_db import db,RoomType,Rooms,Booking,RoomReport,Task
 from sqlalchemy import or_,desc,and_
 from datetime import datetime
 from datetime import date
@@ -34,11 +34,28 @@ class BookingSchema(ma.Schema):
                 "created_date","room_number"
 )
 
+class ReportSchema(ma.Schema):
+    class Meta:
+        fields=("id","employee","description", "created_date","status","room_number","room_type")
 
+
+class TaskSchema(ma.Schema):
+    class Meta:
+        fields=("name","id")
 
 room_schema = Room_schema(many=True)
 
+
+
+
+
+
+task_schema =TaskSchema(many=True)
+
+
 booking_schema = BookingSchema(many=True)
+
+report_schema = ReportSchema(many=True)
 
 
 
@@ -84,6 +101,26 @@ def add_room_type():
     return resp
 
 
+
+@room.route("/add_task",methods=["POST"])
+@flask_praetorian.auth_required
+def add_task():
+    name = request.json["name"]
+    tsk = Task(name=name)
+    db.session.add(tsk)
+    db.session.commit()
+    db.session.close()
+    resp = jsonify ("success")
+    resp.status_code =200
+
+    return resp
+
+@room.route("/get_task",methods=["GET"])
+@flask_praetorian.auth_required
+def get_task():
+    tsk= Task.query.all()
+    result = task_schema.dump(tsk)
+    return jsonify(result)
 
 
 @room.route("/update_room_type",methods =["PUT"])
@@ -324,6 +361,58 @@ def update_booking():
     
     return resp
 
+
+
+
+@room.route("/add_room_report",methods=["POST"])
+@flask_praetorian.auth_required
+def add_room_report():
+          rpt = RoomReport(
+                    description =request.json["description"],
+                    room_number =request.json["room_number"],
+                    room_type =request.json["room_type"],
+                    employee =flask_praetorian.current_user().firstname+" "+flask_praetorian.current_user().firstname ,
+                    status ="Not attended",
+                    created_date =datetime.now().strftime('%Y-%m-%d %H:%M')
+          )
+
+          db.session.add(rpt)
+          db.session.commit()
+          db.session.close()
+          resp = jsonify("success")
+          resp.status_code=200
+          return resp
+       
+
+@room.route("/get_room_report",methods=["GET"])
+@flask_praetorian.auth_required
+def get_room_report():
+    rpt = RoomReport.query.all()
+    results = report_schema.dump(rpt)
+    return jsonify(results)
+
+
+
+@room.route("/get_report_detail/<id>",methods=["GET"])
+@flask_praetorian.auth_required
+def get_report_detail(id):
+    rpt = RoomReport.query.filter_by(id = id).all()
+    results = report_schema.dump(rpt)
+    return jsonify(results)
+
+
+
+@room.route("/update_room_report",methods=["PUT"])
+@flask_praetorian.auth_required
+def update_room_report():
+    id = request.json["id"]
+    rpt = RoomReport.query.filter_by(id = id).first()
+    rpt.status = request.json["status"]
+    db.session.commit()
+    db.session.close()
+    resp = jsonify("success")
+    resp.status_code=200
+    return resp
 
 
 
