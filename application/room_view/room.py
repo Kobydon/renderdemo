@@ -90,7 +90,7 @@ def add_room_type():
     
     owner = RoomType( room_type=type,base_occupancy=base_occupancy,extral_bed_price=extral_bed_price,
            kids_occupancy=kids_occupancy,   base_price=base_price  ,amenities=amenities,
-              description=description 
+              description=description, 
               created_by_id= created_by_id
               ) 
     db.session.add(owner)
