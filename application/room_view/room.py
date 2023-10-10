@@ -82,7 +82,7 @@ def add_room_type():
     amenities =request.json["amenities"]
     description =request.json["description"]
 
-    image_one =request.json["image_one"]
+    # image_one =request.json["image_one"]
     # image_two =request.json["image_two"]
     # image_three = request.json["image_three"]
 
@@ -90,7 +90,7 @@ def add_room_type():
     
     owner = RoomType( room_type=type,base_occupancy=base_occupancy,extral_bed_price=extral_bed_price,
            kids_occupancy=kids_occupancy,   base_price=base_price  ,amenities=amenities,
-              description=description ,image_one=image_one,
+              description=description 
               created_by_id= created_by_id
               ) 
     db.session.add(owner)
@@ -203,7 +203,7 @@ def add_room():
                       duration=request.json["duration"],
                       reserved=request.json["reserved"],
                       description=request.json["description"],
-                      image_one = request.json["image_one"], 
+                    #   image_one = request.json["image_one"], 
                       session=request.json["session"], 
                       status = "clean",
                       occupied_by =  "none",occupied_state =  "available",
