@@ -1,6 +1,8 @@
 from application.extensions.extensions import *
 from application.settings.setup import app
 from application.settings.settings import *
+from flask_migrate import Migrate
+
 
 
 # from application.database.user.user_db import User
@@ -10,6 +12,7 @@ db = SQLAlchemy(app)
 # with app.app_context():
 #         db.create_all()
 # 
+migrate = Migrate(app, db)
 
 class User(db.Model):
     id = db.Column(db.Integer,primary_key =True)
@@ -288,7 +291,7 @@ class Card(db.Model):
 
 class Messager(db.Model):
     id =db.Column(db.Integer,primary_key=True)
-    info = db.Column(db.String(2000000))
+    info = db.Column(db.String(5000))
     reciever_id =db.Column(db.Integer,db.ForeignKey('user.id'))
     created_by_id =db.Column(db.Integer,db.ForeignKey('user.id'))
     
@@ -298,18 +301,18 @@ class Messager(db.Model):
 class RoomType(db.Model):
     id =db.Column(db.Integer,primary_key=True)
    
-    room_type= db.Column(db.String(2000000))
-    base_occupancy = db.Column(db.String(2000000))
-    extral_bed_price=db.Column(db.String(2000000))
-    kids_occupancy = db.Column(db.String(2000000))
+    room_type= db.Column(db.String(5000))
+    base_occupancy = db.Column(db.String(5000))
+    extral_bed_price=db.Column(db.String(5000))
+    kids_occupancy = db.Column(db.String(5000))
 
-    base_price=db.Column(db.String(2000000))
-    amenities =db.Column(db.String(2000000))
-    description =db.Column(db.String(2000000))
+    base_price=db.Column(db.String(5000))
+    amenities =db.Column(db.String(5000))
+    description =db.Column(db.String(5000))
 
-    image_one =    db.Column(db.String(2000000))
-    image_two = db.Column(db.String(2000000))
-    image_three =  db.Column(db.String(2000000))
+    image_one =    db.Column(db.String(5000))
+    image_two = db.Column(db.String(5000))
+    image_three =  db.Column(db.String(5000))
 
     created_by_id =db.Column(db.Integer,db.ForeignKey('user.id'))
     
@@ -318,20 +321,20 @@ class RoomType(db.Model):
 
 class Rooms(db.Model):
         id=db.Column(db.Integer,primary_key=True)
-        room_number=db.Column(db.String(2000000))
-        room_type=db.Column(db.String(2000000))
+        room_number=db.Column(db.String(5000))
+        room_type=db.Column(db.String(5000))
 
     
-        floor=db.Column(db.String(2000000))
-        duration=db.Column(db.String(2000000))
-        reserved=db.Column(db.String(2000000))
-        description=db.Column(db.String(2000000))
-        image_one = db.Column(db.String(2000000))
+        floor=db.Column(db.String(5000))
+        duration=db.Column(db.String(5000))
+        reserved=db.Column(db.String(5000))
+        description=db.Column(db.String(5000))
+        image_one = db.Column(db.String(5000))
     
-        session=db.Column(db.String(2000000))
-        status = db.Column(db.String(2000000))
-        occupied_by =  db.Column(db.String(2000000))
-        occupied_state =  db.Column(db.String(2000000))
+        session=db.Column(db.String(5000))
+        status = db.Column(db.String(5000))
+        occupied_by =  db.Column(db.String(5000))
+        occupied_state =  db.Column(db.String(5000))
         # assignee = db.Column(db.String(400))
         # maintance_state = db.Column(db.String(400))
 
@@ -368,9 +371,9 @@ class Guests(db.Model):
         dob= db.Column(db.String(400))
         country= db.Column(db.String(400))
         arrival_date = db.Column(db.String(400))
-        photo = db.Column(db.String(2000000))
+        photo = db.Column(db.String(5000))
         id_type = db.Column(db.String(400))
-        id_upload= db.Column(db.String(2000000))
+        id_upload= db.Column(db.String(5000))
 
         id_number= db.Column(db.String(400))
         checkout_date= db.Column(db.String(400))
@@ -450,7 +453,7 @@ class Employee(db.Model):
         gender =db.Column(db.String(400))
         id_type =db.Column(db.String(400))
         id_upload=db.Column(db.String(400))
-        photo=db.Column(db.String(2000000))
+        photo=db.Column(db.String(5000))
         id_number =db.Column(db.String(400))
         address=db.Column(db.String(400))
 
@@ -493,8 +496,8 @@ class Reservation(db.Model):
         room_type =db.Column(db.String(400))
         price =db.Column(db.String(400))
         created_date=db.Column(db.String(400))
-        Payment_status =  db.Column(db.String(2000000))
-        status =  db.Column(db.String(2000000))
+        Payment_status =  db.Column(db.String(5000))
+        status =  db.Column(db.String(5000))
         created_by_id =db.Column(db.Integer,db.ForeignKey('user.id'))
 
 
