@@ -68,6 +68,8 @@ def get_all_rooms():
 
 
 
+
+
 @room.route("/add_room_type",methods =["POST"])
 @flask_praetorian.auth_required
 def add_room_type():
@@ -78,29 +80,28 @@ def add_room_type():
     extral_bed_price=request.json["extral_bed_price"]
     kids_occupancy = request.json["kids_occupancy"]
 
-    base_price=request.json["base_price"]
+    base_occupancy=request.json["base_occupancy"]
     amenities =request.json["amenities"]
     description =request.json["description"]
 
-    # image_one =request.json["image_one"]
+    image_one =request.json["image_one"]
     # image_two =request.json["image_two"]
     # image_three = request.json["image_three"]
 
     created_by_id = flask_praetorian.current_user().id
     
     owner = RoomType( room_type=type,base_occupancy=base_occupancy,extral_bed_price=extral_bed_price,
-           kids_occupancy=kids_occupancy,   base_price=base_price  ,amenities=amenities,
-              description=description, 
+           kids_occupancy=kids_occupancy ,amenities=amenities,
+              description=description ,image_one=image_one,
               created_by_id= created_by_id
               ) 
     db.session.add(owner)
     db.session.commit()
+    db.session.close()
     resp = jsonify ("success")
     resp.status_code =200
 
     return resp
-
-
 
 @room.route("/add_task",methods=["POST"])
 @flask_praetorian.auth_required
