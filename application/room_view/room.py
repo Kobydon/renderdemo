@@ -5,7 +5,7 @@ from  application.extensions.extensions import *
 from  application.settings.settings import *
 from  application.settings.setup import app
 # from application.forms import LoginForm
-from application.database.user.user_db import db,RoomType,Rooms,Booking,RoomReport,Task
+from application.database.user.user_db import db,RoomType,Rooms,Booking,RoomReport,Task,Payment
 from sqlalchemy import or_,desc,and_
 from datetime import datetime
 from datetime import date
@@ -83,7 +83,7 @@ def add_room_type():
     base_occupancy=request.json["base_occupancy"]
     amenities =request.json["amenities"]
     description =request.json["description"]
-
+    base_price = request.json["base_price"]
     # image_one =request.json["image_one"]
     # image_two =request.json["image_two"]
     # image_three = request.json["image_three"]
@@ -93,7 +93,7 @@ def add_room_type():
     owner = RoomType( room_type=type,base_occupancy=base_occupancy,extral_bed_price=extral_bed_price,
            kids_occupancy=kids_occupancy ,amenities=amenities,
               description=description ,
-              created_by_id= created_by_id
+              created_by_id= created_by_id,base_price=base_price
               ) 
     db.session.add(owner)
     db.session.commit()
@@ -233,7 +233,7 @@ def get_rooms():
 @room.route("/get_room_type",methods=["GET"])
 @flask_praetorian.auth_required
 def get_room_type():
-    rooms = db.session.all()
+    rooms = RoomType.query.all()
     results = room_schema.dump(rooms)
 
     return jsonify(results)
@@ -300,7 +300,7 @@ def delete_room(id):
 @room.route("/get_all_bookings",methods=["GET"])
 @flask_praetorian.auth_required
 def get_all_bookings():
-    rooms = db.session.query(Booking).all()
+    rooms = db.session.query(Booking).filter(Booking.create_date)
     lst = rooms.order_by(desc(Booking.create_date))
     results = booking_schema.dump(lst)
 
@@ -336,6 +336,7 @@ def update_booking():
     booking.country=request.json["country"]
     
     booking.purpose=request.json["purpose"]
+    day= request.json["day"]
       
      
     booking.departure_date=request.json["departure_date"]
@@ -354,6 +355,15 @@ def update_booking():
     room = Rooms.query.filter_by(room_number=room_number).first()
     room.occupied_by = name
     room.occupied_state =  "occupied"
+    
+    payie = Payment.query.filter_by(name=name).first()
+    base_p = RoomType.query.filter_by(room_type=payie.room_type).first()
+    to_pay = int(base_p.base_price) * int(day)
+    if int(payie.amount) >  to_pay:
+        payie.balance = int(payie.amount) - to_pay
+        
+    else:
+        payie.balance = to_pay - int(payie.amount)
  
     db.session.commit()
     db.session.close()

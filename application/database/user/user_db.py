@@ -21,6 +21,7 @@ class User(db.Model):
     lastname = db.Column(db.String(255))
     city = db.Column(db.String(255))
     country = db.Column(db.String(255))
+   
     about = db.Column(db.String(255))
     phone = db.Column(db.String(255))
     email = db.Column(db.String(255),unique=True)
@@ -29,20 +30,15 @@ class User(db.Model):
     roles = db.Column(db.Text)
     is_active = db.Column(db.Boolean, default=True, server_default="true")
     created_date = db.Column(db.String(255))
-    account_number=db.Column(db.String(300))
-    transaction_pin=db.Column(db.String(300))
-    
+    gender = db.Column(db.String(255))
+
     city=db.Column(db.String(300))
      
-    state=db.Column(db.String(300))
-     
-    premier_account=db.Column(db.String(300))
+    
+ 
     created_date=db.Column(db.String(300))
-    account_status=db.Column(db.String(300))
-    gender=db.Column(db.String(400))
-    photo=db.Column(db.String(1000000))
-    isa_savings=db.Column(db.String(300))
-    other_savings=db.Column(db.String(400))
+
+  
     @property
     def identity(self):
         """
@@ -429,6 +425,7 @@ class Payment(db.Model):
           room_type  = db.Column(db.String(400))
           discount  = db.Column(db.String(400))
           payment_date  = db.Column(db.String(400))
+          balance=db.Column(db.String(400))
 
           checkin_date  = db.Column(db.String(400))
           children  = db.Column(db.String(400))
@@ -495,6 +492,7 @@ class Reservation(db.Model):
         country =db.Column(db.String(400))
         room_type =db.Column(db.String(400))
         price =db.Column(db.String(400))
+      
         created_date=db.Column(db.String(400))
         Payment_status =  db.Column(db.String(5000))
         status =  db.Column(db.String(5000))

@@ -30,7 +30,7 @@ class Guest_schema(ma.Schema):
         
 class PaySchema(ma.Schema):
     class Meta:
-        fields=("id","name","amount","method","children","adult","payment","checkin_date","checkout_date","room_type","discount","status","payment_date")
+        fields=("id","name","amount","balance","method","children","adult","payment","checkin_date","checkout_date","room_type","discount","status","payment_date")
 
 class ReserveSchema(ma.Schema):
     class Meta:
@@ -250,6 +250,7 @@ def add_payment():
           
           pay = Payment( name = request.json["name"],
           amount = request.json["amount"],
+          balance = request.json["balance"],
           method = request.json["method"],
           room_type  = request.json["room_type"],
           discount  = request.json["discount"],
@@ -259,7 +260,7 @@ def add_payment():
 
           checkin_date  = request.json["checkin_date"],
           checkout_date  = request.json["checkout_date"],
-          status  = request.json["status"],
+          status  = "success",
           created_by_id = flask_praetorian.current_user().id
           )
           db.session.add(pay)
@@ -279,7 +280,7 @@ def add_payment():
 @guest.route("/get_payment",methods=["GET"])
 @flask_praetorian.auth_required
 def get_payment():
-     pay = Payment.query.all()
+     pay = Payment.query.filter(Payment.payment_date)
      lst =  pay.order_by(desc(Payment.payment_date))
      result = pay_schema.dump(lst)
      return jsonify(result)
@@ -354,15 +355,20 @@ def delete_payment(id):
 def checkout(id):
   
     guest =  Guests.query.filter_by(id=id).first()
-    print(guest.first_name)
-    room = Rooms.query.filter_by(room_number =guest.room_number).first()
-    room.occupied_by = "none"
-    room.occupied_state =  "available"
-    guest.has_checkout =datetime.now().strftime('%Y-%m-%d %H:%M')
-    db.session.commit()
-    db.session.close()
-    resp= jsonify("success")
-    resp.status_code=200
+    payie = Payment.query.filter_by(name = guest.first_name +" "+ guest.last_name).first()
+    
+    if (int(payie.balance) <= 0):
+        room = Rooms.query.filter_by(room_number =guest.room_number).first()
+        room.occupied_by = "none"
+        room.occupied_state =  "available"
+        guest.has_checkout =datetime.now().strftime('%Y-%m-%d %H:%M')
+        db.session.commit()
+        db.session.close()
+        resp= jsonify("success")
+        resp.status_code=200
+    else:
+        resp = jsonify("error")
+        resp.status_code = 401
     return resp
 
 

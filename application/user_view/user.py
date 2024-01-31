@@ -124,19 +124,16 @@ def register():
 
     email = request.json["email"]
     address = request.json["address"]
-    account_number=request.json["account_number"]
-    transaction_pin=request.json["transaction_pin"]
+
     
     city=request.json["city"]
      
-    state=request.json["state"]
+    # state=request.json["state"]
      
-    premier_account=request.json["premier_account"]
-    account_status=request.json["account_status"]
-    gender=request.json["gender"]
+ 
+    # gender=request.json["gender"]
     # photo=request.json["photo"]
-    isa_savings=request.json["isa_savings"]
-    other_savings=request.json["other_savings"]
+    
 
 
     role = request.json["role"]
@@ -146,9 +143,9 @@ def register():
     # if password == confirm_password:
     owner = User(firstname=firstname,lastname=lastname,about=about,country=country,
                     city=city ,phone=phone,username=username,hashed_password=hashed_password,roles=role,address=address,
-                    email=email,created_date=datetime.now().strftime('%Y-%m-%d %H:%M'),account_status=account_status,
-                    premier_account=premier_account,gender=gender,isa_savings=isa_savings,other_savings=other_savings,
-                    state=state,transaction_pin=transaction_pin,account_number=account_number
+                    email=email,created_date=datetime.now().strftime('%Y-%m-%d %H:%M')
+                 \
+               
                     )
     
     gsts = Guests(first_name =firstname,last_name=lastname,email=email,address=address,city=city,username=username)
@@ -258,17 +255,13 @@ def update_user_profile():
             user.address = request.json["address"]
             user.email = request.json["email"]
             user.roles =  request.json["role"]
-            user.account_number:request.json["account_number"]
-            user.transaction_pin:request.json["transaction_pin"]
+         
     
     
      
-            user.premier_account=request.json["premier_account"]
-            user.account_status=request.json["account_status"]
-            user.gender=request.json["gender"]
+            # user.gender=request.json["gender"]
             # user.photo=request.json["photo"]
-            user.isa_savings=request.json["isa_savings"]
-            user.other_savings=request.json["other_savings"]
+           
             user.hashed_password =  guard.hash_password(password)
             db.session.commit()
             res = jsonify("sucess")

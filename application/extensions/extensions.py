@@ -11,9 +11,9 @@ from sqlalchemy.sql.functions import user
 from sqlalchemy.sql.sqltypes import LargeBinary
 from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime
-from flask_wtf import FlaskForm,RecaptchaField
-from wtforms import StringField,PasswordField
-from wtforms.validators import InputRequired,Length
+# from flask_wtf import FlaskForm,RecaptchaField
+# from wtforms import StringField,PasswordField
+# from wtforms.validators import InputRequired,Length
 from flask_marshmallow import Marshmallow
 from flask_restful import Api,Resource, marshal,reqparse,abort,fields,marshal_with
 from flask_cors import CORS, cross_origin
