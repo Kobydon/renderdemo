@@ -10,27 +10,18 @@ app.config['RECAPTCHA_PUBLIC_KEY']= '6LccceQaAAAAAFVTwhHp1SNNwddLxhpybkazgKYw'
 app.config['RECAPTCHA_PRIVATE_KEY'] = '6LccceQaAAAAALRTre2F1LYBWHpykc9Fgv5ATkcd'
 
 
-
 app.config['MAIL_SERVER'] = 'smtp.gmail.com'
 app.config['MAIL_PORT'] = 587
 app.config['MAIL_USE_TLS'] = True
 app.config['MAIL_USE_SSL'] = False
 app.config['MAIL_USERNAME'] = 'jxkalmhefacbuk@gmail.com'
-app.config['MAIL_PASSWORD'] = 'dfilwxnwpcalytdv'
+# app.config['MAIL_PASSWORD'] = 'Kwabena0541570527'
+app.config['MAIL_PASSWORD'] = 'jymg qsic kais pebk'
 
  
-"""
-app.config.update(dict(
-    DEBUG = True,
-    MAIL_SERVER = 'smtp.gmail.com',
-    MAIL_PORT = 587,
-    MAIL_USE_TLS = True,
-    MAIL_USE_SSL = False,
-    MAIL_USERNAME = 'jxkalmhefacbuk@gmail.com',
-    MAIL_PASSWORD = 'kelvin7322',
+ 
 
-))
-"""
+
 ma = Marshmallow(app)
 api =Api(app)
 mail = Mail(app)

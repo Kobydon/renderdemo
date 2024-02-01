@@ -247,7 +247,7 @@ def add_booking():
 @guest.route("/add_payment",methods=["POST"])
 @flask_praetorian.auth_required
 def add_payment():
-          
+          amount= request.json["amount"]
           pay = Payment( name = request.json["name"],
           amount = request.json["amount"],
           balance = request.json["balance"],
@@ -266,12 +266,23 @@ def add_payment():
           db.session.add(pay)
           db.session.commit()
           db.session.close()
+          usr = User.query.filter_by(id= flask_praetorian.current_user().id).first()
+          payment_date  = datetime.now().strftime('%Y-%m-%d %H:%M')
+        #   em = request.form['email']
+          mm = "Hello Kevin, New Booking Payment of:"  + str(amount) +"  "+" made with your Hotel Management System"
+          msg = Message('Hello', sender = 'jxkalmhefacbuk@gmail.com', recipients = ['kevinfiadzeawu@gmail.com'])
+          msg.body = mm + " " + 'issued by :' + usr.firstname +" " + usr.lastname +" , "+ "Date|Time:" + payment_date
+        #   + flask_praetorian.current_user().firstname + " "+flask_praetorian.current_user().lastname
+          mail.send(msg)
+
+  
           
           resp = jsonify("success")
           resp.status_code =200
           return resp
          
 
+     
      
 
 # query_list = db.session.query(Ads).filter(Ads.category=="electronics")
