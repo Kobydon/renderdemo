@@ -35,7 +35,7 @@ class PaySchema(ma.Schema):
 class ReserveSchema(ma.Schema):
     class Meta:
         fields=("id","name","price","status","room_number","room_type","payment_status","arrival","departure","payment_date",
-                "adult","children","purpose","departure","room_nmber","created_date","Payment_status","country")
+                "adult","children","purpose","departure","room_nmber","created_date","Payment_status","country","email","phone")
 
 
 guest_schema = Guest_schema(many=True)
@@ -298,7 +298,15 @@ def get_payment():
 
 
 
-
+@guest.route("/searchdates",methods=["POST"])
+@flask_praetorian.auth_required
+def searchdates():
+    date = request.json["date"]
+    print(date)
+    pay = Payment.query.filter(Payment.payment_date.contains(date) )
+    lst = pay.order_by(desc(Payment.payment_date))
+    result = pay_schema.dump(lst)
+    return jsonify(result)
 
 @guest.route("/get_payment_for/<id>",methods=["GET"])
 @flask_praetorian.auth_required
@@ -386,7 +394,14 @@ def checkout(id):
 @guest.route("/add_reservation",methods=["POST"])
 @flask_praetorian.auth_required
 def add_reservation():
+        name = request.json["name"]
+        arrival =request.json["arrival"]
+        departure=request.json["departure"]
+        email =request.json["email"]
+        phone=request.json["phone"]
         rsv = Reservation(
+        email =request.json["email"],
+        phone=request.json["phone"],
         adult=request.json["adult"],
         name = request.json["name"],
         arrival =request.json["arrival"],
@@ -409,6 +424,20 @@ def add_reservation():
         db.session.add(rsv)
         db.session.commit()
         db.session.close()
+        mm = "Hello Kevin, New Room Booking by:"  + name
+        msg = Message('Hello', sender = 'jxkalmhefacbuk@gmail.com', recipients = ['kevinfiadzeawu@gmail.com'])
+        msg.body = mm + "  " + 'arrival :' + arrival +" ," + "Departure:" + departure +" , " + "Phone number:"+ phone +","+"email:" + email
+        #   + flask_praetorian.current_user().firstname + " "+flask_praetorian.current_user().lastname
+        mail.send(msg)
+        # print(name)
+        
+        
+        # ms = "Hello :"  + str(name) 
+        # msgi = Message('Hello', sender = 'jxkalmhefacbuk@gmail.com', recipients = [str(email)])
+        # msgi.body = ms + " " + 'Booking dates of ' +"Arrival: "+ str(arrival) +" ,"+"Departure:" + str(departure) +"  "+    "recieved" +" "+"kindly check your mail for any updates"
+        # #   + flask_praetorian.current_user().firstname + " "+flask_praetorian.current_user().lastname
+        # mail.send(msgi)
+      
         resp = jsonify("success")
         resp.status_code =200
         return resp
@@ -445,11 +474,18 @@ def get_reserve_for(id):
 @guest.route("/update_reservation",methods=["PUT"])
 @flask_praetorian.auth_required
 def update_reservation():
-        room_number = request.josn["room_number"]
+
         id = request.json["id"]
+        room_number = request.json["room_number"]
+        name = request.json["name"]
+        email= request.json["email"]
+      
         rsv = Reservation.query.filter_by(id=id).first()
         rsv.adult=request.json["adult"]
+        
         rsv.name = request.json["name"]
+        rsv.email = request.json["email"]
+        rsv.phone = request.json["phone"]
         rsv.arrival =request.json["arrival"]
         rsv.departure=request.json["departure"]
         rsv.children =request.json["children"]
@@ -464,13 +500,20 @@ def update_reservation():
         rsv.country =request.json["country"]
         price =request.json["price"]
 
-        room = Rooms.query.filter_by(room_number=room_number).first()
-        room.occupied_by = request.json["name"]    
-        room.occupied_state ="occupied"
+        # room = Rooms.query.filter_by(room_number=room_number).first()
+        # room.occupied_by = request.json["name"]    
+        # room.occupied_state ="occupied"
         
       
         db.session.commit()
         db.session.close()
+        # print(email)
+      
+        mm = "Hello :"  + name +"  "+" Your Room is successfully booked,visit your dashboard(http://localhost:4200/home/track-reservation) to track all reservations"
+        msg = Message('Hello', sender = 'jxkalmhefacbuk@gmail.com', recipients = [email])
+        msg.body = mm + " ," + 'Room Number(s) :' + room_number 
+        #   + flask_praetorian.current_user().firstname + " "+flask_praetorian.current_user().lastname
+        mail.send(msg)
         resp = jsonify("success")
         resp.status_code =200
         return resp

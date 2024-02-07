@@ -484,7 +484,8 @@ class Reservation(db.Model):
         arrival =db.Column(db.String(400))
         departure=db.Column(db.String(400))
         children =db.Column(db.String(400))
-
+        phone=db.Column(db.String(400))
+        email =db.Column(db.String(400))
         purpose=db.Column(db.String(400))
         room_nmber=db.Column(db.String(400))
        
