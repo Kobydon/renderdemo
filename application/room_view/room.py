@@ -17,12 +17,16 @@ room = Blueprint("room", __name__)
 
 
         
-        
+class PaySchema(ma.Schema):
+    class Meta:
+        fields=("id","name","amount","balance","method","children","adult","payment","checkin_date","checkout_date","room_type","discount","status","payment_date")
+
+
 class Room_schema(ma.Schema):
     class Meta:
         fields=("id","name","room_type","base_occupancy","extral_bed_price","kids_occupancy","base_price",
                 "amenities","description","image_one","image_two","image_three","occupied_state","status","occupied_by",
-                "reserved","session","duration","floor","room_number"
+                "reserved","session","duration","floor","room_number","assignee","task"
 )
 
 
@@ -48,6 +52,7 @@ room_schema = Room_schema(many=True)
 
 
 
+pay_schema = PaySchema(many=True)
 
 
 task_schema =TaskSchema(many=True)
@@ -449,3 +454,71 @@ def delete_booking(id):
     return resp
 
 
+
+@room.route("/update_house",methods=["PUT"])
+@flask_praetorian.auth_required
+def update_house():
+       req = request.get_json()
+       json_data = request.json
+       for  s in range(len(json_data)):
+            # if json_data[s]["brand"]:
+            #     name =json_data[s]["brand"]
+            # if json_data[s]["sr_no"]:
+            #     sr_no = json_data[s]["sr_no"]
+
+            if json_data[s][ "id" and " room_type" and "room_number"
+                and "occupancy_state" and "task_get"  and "assignee" and "status_r"]:
+                
+                room = Rooms.query.filter_by(id=json_data[s]["id"]).first()
+
+                room.room_type =json_data[s]["room_type"]
+                room.assignee =json_data[s]["assignee"]
+                room.status = json_data[s]["status_r"]
+                room.occupied_state = json_data[s]["occupancy_state"]
+                room.task =json_data[s]["task"]
+                print(room.task)
+      
+  
+                db.session.commit()
+                db.session.close()
+       resp = jsonify("success")
+       return(resp,201)
+   
+   
+   
+   
+@room.route("/search_house",methods=["POST"])
+@flask_praetorian.auth_required
+def search_house():
+    room_type = request.json["room_type"]
+    room_number = request.json["room_number"]
+    status = request.json["status"]
+    occupancy_state =request.json["occupancy_state"]
+    
+    room = Rooms.query.filter(Rooms.room_number.contains(room_number ) ,Rooms.status.contains(status ))
+
+    result = room_schema.dump(room)
+    return jsonify(result)
+
+
+   
+@room.route("/search_room_date",methods=["POST"])
+@flask_praetorian.auth_required
+def search_room_date():
+        date = request.json["date"]
+        room = Rooms.query.filter(Rooms.date_booked.contains(date ) )
+
+        result = room_schema.dump(room)
+        return jsonify(result)
+    
+   
+@room.route("/search_yesterday_date",methods=["POST"])
+@flask_praetorian.auth_required
+def search_yesterday_date():
+        date = request.json["date"]
+        pay = Payment.query.filter(Payment.payment_date.contains(date ) )
+
+        result = pay_schema.dump(pay)
+        return jsonify(result)
+    
+    

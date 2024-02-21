@@ -5,7 +5,7 @@ from  application.extensions.extensions import *
 from  application.settings.settings import *
 from  application.settings.setup import app
 # from application.forms import LoginForm
-from application.database.user.user_db import db,Guests,User,Booking,Rooms,Payment,Reservation
+from application.database.user.user_db import db,Guests,User,Booking,Rooms,Payment,Reservation,Refund
 from sqlalchemy import or_,desc,and_
 from datetime import datetime
 from datetime import date
@@ -24,6 +24,9 @@ class Guest_schema(ma.Schema):
                 "region","email","username","arrival_date","checkout_date")
 
 
+class Refund_Schema(ma.Schema):
+    class Meta:
+        fields=("id","reason","refund_amount","payment_id","name","refund_time","status","authorized_by")
 
 
         
@@ -37,7 +40,7 @@ class ReserveSchema(ma.Schema):
         fields=("id","name","price","status","room_number","room_type","payment_status","arrival","departure","payment_date",
                 "adult","children","purpose","departure","room_nmber","created_date","Payment_status","country","email","phone")
 
-
+refund_schema = Refund_Schema(many=True)
 guest_schema = Guest_schema(many=True)
 
 pay_schema = PaySchema(many=True)
@@ -234,6 +237,7 @@ def add_booking():
     guest.room_number = room_number
     room.occupied_by = name
     room.occupied_state =  "occupied"
+    room.date_booked =datetime.now().strftime('%Y-%m-%d %H:%M')
     db.session.add(booking)
     db.session.commit()
     db.session.close()
@@ -250,6 +254,7 @@ def add_payment():
           amount= request.json["amount"]
           pay = Payment( name = request.json["name"],
           amount = request.json["amount"],
+          refund_amount ="0",
           balance = request.json["balance"],
           method = request.json["method"],
           room_type  = request.json["room_type"],
@@ -297,6 +302,16 @@ def get_payment():
      return jsonify(result)
 
 
+
+@guest.route("/search_refund_dates",methods=["POST"])
+@flask_praetorian.auth_required
+def search_refund_dates():
+    date = request.json["date"]
+    print(date)
+    refund = Refund.query.filter(Refund.refund_time.contains(date) )
+    lst = refund.order_by(desc(Refund.refund_time))
+    result = refund_schema.dump(lst)
+    return jsonify(result)
 
 @guest.route("/searchdates",methods=["POST"])
 @flask_praetorian.auth_required
@@ -425,7 +440,7 @@ def add_reservation():
         db.session.commit()
         db.session.close()
         mm = "Hello Kevin, New Room Booking by:"  + name
-        msg = Message('Hello', sender = 'jxkalmhefacbuk@gmail.com', recipients = ['kevinfiadzeawu@gmail.com'])
+        msg = Message('Kevo Executive Hotel', sender = 'jxkalmhefacbuk@gmail.com', recipients = ['kevinfiadzeawu@gmail.com'])
         msg.body = mm + "  " + 'arrival :' + arrival +" ," + "Departure:" + departure +" , " + "Phone number:"+ phone +","+"email:" + email
         #   + flask_praetorian.current_user().firstname + " "+flask_praetorian.current_user().lastname
         mail.send(msg)
@@ -509,8 +524,8 @@ def update_reservation():
         db.session.close()
         # print(email)
       
-        mm = "Hello :"  + name +"  "+" Your Room is successfully booked,visit your dashboard(http://localhost:4200/home/track-reservation) to track all reservations"
-        msg = Message('Hello', sender = 'jxkalmhefacbuk@gmail.com', recipients = [email])
+        mm = "Hello "  + name +"  "+" Your Room is successfully booked,visit your dashboard(http://localhost:4200/home/track-reservation) to track all reservations"
+        msg = Message('Kevo Executive Hotel', sender = 'jxkalmhefacbuk@gmail.com', recipients = [email])
         msg.body = mm + " ," + 'Room Number(s) :' + room_number 
         #   + flask_praetorian.current_user().firstname + " "+flask_praetorian.current_user().lastname
         mail.send(msg)
@@ -530,3 +545,68 @@ def cancel_reservation(id):
       resp = jsonify("success")
       resp.status_code =200
       return resp
+  
+  
+@guest.route("/add_refund",methods=["POST"])
+@flask_praetorian.auth_required
+def add_refund():
+          authorized_by=request.json["authorized_by"]
+          id = request.json["id"]
+          refund_amount = request.json["refund_amount"]
+        #   amount= request.json["amount"]
+          refund = Refund( name = request.json["name"],
+          refund_amount = request.json["refund_amount"],
+        #   description = request.json["description"],
+          reason=request.json["reason"],
+          authorized_by=request.json["authorized_by"],
+          payment_id = request.json["id"],
+      
+
+          status = "pending",
+          refund_time =datetime.now().strftime('%Y-%m-%d %H:%M')
+          )
+          payData = Payment.query.filter_by(id =id).first()
+          payData.refund_amount = refund_amount
+          
+          db.session.add(refund)
+          db.session.commit()
+          db.session.close()
+          mm = "Hello , New Refund initiated by"  +" "+ authorized_by
+          msg = Message('Kevo Executive Hotel', sender = 'jxkalmhefacbuk@gmail.com', recipients = ['kevinfiadzeawu@gmail.com'])
+          msg.body = mm 
+        #   + flask_praetorian.current_user().firstname + " "+flask_praetorian.current_user().lastname
+          mail.send(msg)
+          resp = jsonify("success")
+          resp.status_code=200
+          return resp
+      
+@guest.route("/get_refund",methods=["GET"])
+@flask_praetorian.auth_required
+def get_refund():
+    refund_list = Refund.query.all()
+    result = refund_schema.dump(refund_list)
+    return jsonify(result)
+    
+    
+      
+@guest.route("/update_refund",methods=["PUT"])
+@flask_praetorian.auth_required
+def update_refund():
+    id = request.json["id"]
+    payment_id = request.json["payment_id"]
+    status = "success"
+    my_Data = Refund.query.filter_by(id= id).first()
+    my_Data.status = status
+    pay_Data= Payment.query.filter_by(id=payment_id).first()
+    pay_Data.amount = int( pay_Data.amount) - int( pay_Data.refund_amount)
+    db.session.commit()
+    db.session.close()
+    mm = "Hello ,  Refund  "  + str(id) + "  " + "successfuuly approved"
+    msg = Message('Kevo Executive Hotel', sender = 'jxkalmhefacbuk@gmail.com', recipients = ['kevinfiadzeawu@gmail.com'])
+    msg.body = mm 
+        #   + flask_praetorian.current_user().firstname + " "+flask_praetorian.current_user().lastname
+    mail.send(msg)
+    resp= jsonify("success")
+    resp.status_code= 200
+    return resp
+    

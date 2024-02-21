@@ -148,6 +148,7 @@ def register():
                
                     )
     
+    
     gsts = Guests(first_name =firstname,last_name=lastname,email=email,address=address,city=city,username=username)
     db.session.add(owner)
     db.session.add(gsts)

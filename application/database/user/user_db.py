@@ -331,9 +331,9 @@ class Rooms(db.Model):
         status = db.Column(db.String(5000))
         occupied_by =  db.Column(db.String(5000))
         occupied_state =  db.Column(db.String(5000))
-        # assignee = db.Column(db.String(400))
-        # maintance_state = db.Column(db.String(400))
-
+        assignee = db.Column(db.String(400))
+        task = db.Column(db.String(400))
+        date_booked = db.Column(db.String(400))
       
         created_by_id =db.Column(db.Integer,db.ForeignKey('user.id'))
 
@@ -415,10 +415,21 @@ class Booking(db.Model):
      created_by_id =db.Column(db.Integer,db.ForeignKey('user.id'))
 
 
+class Refund(db.Model):
+          id = db.Column(db.Integer,primary_key=True)
+          refund_amount =  db.Column(db.String(400))  
+          name = db.Column(db.String(400))
+          status  = db.Column(db.String(400))
+          refund_time = db.Column(db.String(400))
+          
+          payment_id =  db.Column(db.String(400))
+          reason  = db.Column(db.String(400))
+          authorized_by  = db.Column(db.String(400))
+          
 
 class Payment(db.Model):
           id = db.Column(db.Integer,primary_key=True)
-                
+          refund_amount =  db.Column(db.String(400))  
           name = db.Column(db.String(400))
           amount = db.Column(db.String(400))
           method = db.Column(db.String(400))
