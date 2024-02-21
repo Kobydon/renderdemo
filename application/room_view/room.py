@@ -305,7 +305,7 @@ def delete_room(id):
 @room.route("/get_all_bookings",methods=["GET"])
 @flask_praetorian.auth_required
 def get_all_bookings():
-    rooms = db.session.query(Booking).filter(Booking.create_date)
+    rooms = db.session.query(Booking).all()
     lst = rooms.order_by(desc(Booking.create_date))
     results = booking_schema.dump(lst)
 
