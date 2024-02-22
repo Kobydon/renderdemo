@@ -349,6 +349,7 @@ def filter_payment_day(day):
 @guest.route("/update_payment",methods=["PUT"])
 @flask_praetorian.auth_required
 def update_payment():
+          amount = request.json["amount"]
           id = request.json["id"]
           pay = Payment.query.filter_by(id=id).first()
           pay.amount = request.json["amount"]
@@ -360,7 +361,7 @@ def update_payment():
         
 
           pay.checkin_date  = request.json["checkin_date"]
-          pay.balance  = int(request.json["amount"]) - int(pay.balance)
+          pay.balance  = int(amount) - int(pay.balance)
           pay.checkout_date  = request.json["checkout_date"]
           pay.status  = request.json["status"]
         #   created_by_id = flask_praetorian.current_user().id
