@@ -307,7 +307,7 @@ def delete_room(id):
 def get_all_bookings():
     rooms = db.session.query(Booking).all()
     lst = rooms.order_by(desc(Booking.create_date))
-    results = booking_schema.dump(lst)
+    results = booking_schema.dump(rooms)
 
     return jsonify(results)
 
