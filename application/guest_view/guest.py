@@ -296,9 +296,9 @@ def add_payment():
 @guest.route("/get_payment",methods=["GET"])
 @flask_praetorian.auth_required
 def get_payment():
-     pay = Payment.query.filter(Payment.payment_date)
-     lst =  pay.order_by(desc(Payment.payment_date))
-     result = pay_schema.dump(lst)
+     pay = Payment.query.all()
+    #  lst =  pay.order_by(desc(Payment.payment_date))
+     result = pay_schema.dump(pay)
      return jsonify(result)
 
 
