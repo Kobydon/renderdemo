@@ -142,9 +142,9 @@ def delete_employee(id):
 @employee.route("/get_attendance_list",methods=["GET"])
 @flask_praetorian.auth_required
 def get_attendance_list():
-    attd = db.session.query(Attendance).filter(Attendance.created_date)
-    load = attd.order_by(desc(Attendance.created_date))
-    result = attendance_schema.dump(load)
+    attd = db.session.query(Attendance).all()
+#     load = attd.order_by(desc(Attendance.created_date))
+    result = attendance_schema.dump(attd)
     return jsonify(result)
 
 

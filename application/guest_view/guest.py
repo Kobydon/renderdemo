@@ -465,15 +465,15 @@ def add_reservation():
 @flask_praetorian.auth_required
 def get_reserve():
       rsv = db.session.query(Reservation).filter(Reservation.created_by_id ==flask_praetorian.current_user().id)
-      lst = rsv.order_by(desc(Reservation.created_date))
-      result = reserve_schema.dump(lst)
+    #   lst = rsv.order_by(desc(Reservation.created_date))
+      result = reserve_schema.dump(rsv)
       return jsonify(result)
 
 
 @guest.route("/get_all_reserve",methods=["GET"])
 @flask_praetorian.auth_required
 def get_all_reserve():
-      rsv = db.session.query(Reservation).filter(Reservation.created_date)
+      rsv = db.session.query(Reservation).all()
       lst = rsv.order_by(desc(Reservation.created_date))
       result = reserve_schema.dump(lst)
       return jsonify(result)
