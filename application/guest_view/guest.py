@@ -361,7 +361,7 @@ def update_payment():
         
 
           pay.checkin_date  = request.json["checkin_date"]
-          pay.balance  = int(amount) - int(pay.balance)
+          pay.balance  = int(amount) + int(pay.balance) - int(amount)
           pay.checkout_date  = request.json["checkout_date"]
           pay.status  = request.json["status"]
         #   created_by_id = flask_praetorian.current_user().id
