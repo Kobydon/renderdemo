@@ -118,15 +118,15 @@ def register():
     username = request.json["username"]
     password = request.json["password"]
     lastname =request.json["lastname"]
-    about = request.json["about"]
-    country = request.json["country"]
-    city = request.json["city"]
+   
+    # country = request.json["country"]
+    # city = request.json["city"]
 
     email = request.json["email"]
-    address = request.json["address"]
+    # address = request.json["address"]
 
     
-    city=request.json["city"]
+    # city=request.json["city"]
      
     # state=request.json["state"]
      
@@ -137,12 +137,11 @@ def register():
 
 
     role = request.json["role"]
-    phone = request.json["phone"]
+    # phone = request.json["phone"]
     # confirm_password= request.json["confirm_password"]
     hashed_password= guard.hash_password(password)
     # if password == confirm_password:
-    owner = User(firstname=firstname,lastname=lastname,about=about,country=country,
-                    city=city ,phone=phone,username=username,hashed_password=hashed_password,roles=role,address=address,
+    owner = User(firstname=firstname,lastname=lastname,username=username,hashed_password=hashed_password,roles=role,
                     email=email,created_date=datetime.now().strftime('%Y-%m-%d %H:%M')
                  \
                
