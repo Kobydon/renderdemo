@@ -349,7 +349,7 @@ def add_payment():
           usr = User.query.filter_by(id= flask_praetorian.current_user().id).first()
           payment_date  = datetime.now().strftime('%Y-%m-%d %H:%M')
         #   em = request.form['email']
-          mm = "Hello Kevin, New Booking Payment of:"  + str(amount) +"  "+" made with your Hostel Management  System"
+          mm = " New Room Booking Payment of:"  + str(amount) +"  "+" made with your Hostel Management  System"
           msg = Message('Hello', sender = 'jxkalmhefacbuk@gmail.com', recipients = ['arhinsamkwaku@gmail.com','kevinfiadzeawu@gmail.com'])
           msg.body = mm + " " + 'issued by :' + usr.firstname +" " + usr.lastname +" , "+ "Date|Time:" + payment_date
         #   + flask_praetorian.current_user().firstname + " "+flask_praetorian.current_user().lastname
