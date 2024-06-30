@@ -264,7 +264,8 @@ def get_rooms_details(id):
 @room.route("/get_by_type/<type>",methods=["GET"])
 @flask_praetorian.auth_required
 def get_by_type(type):
-    rooms = db.session.query(Rooms).filter_by(room_type =type,occupied_state="available").all()
+    # occupied_state="available"
+    rooms = db.session.query(Rooms).filter_by(room_type =type).all()
     results = room_schema.dump(rooms)
 
     return jsonify(results)
