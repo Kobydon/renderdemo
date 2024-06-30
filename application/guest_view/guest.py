@@ -350,7 +350,7 @@ def add_payment():
           payment_date  = datetime.now().strftime('%Y-%m-%d %H:%M')
         #   em = request.form['email']
           mm = "Hello Kevin, New Booking Payment of:"  + str(amount) +"  "+" made with your Hotel Management System"
-          msg = Message('Hello', sender = 'jxkalmhefacbuk@gmail.com', recipients = ['kevinfiadzeawu@gmail.com'])
+          msg = Message('Hello', sender = 'jxkalmhefacbuk@gmail.com', recipients = ['arhinssamkwaku@gmail.com'])
           msg.body = mm + " " + 'issued by :' + usr.firstname +" " + usr.lastname +" , "+ "Date|Time:" + payment_date
         #   + flask_praetorian.current_user().firstname + " "+flask_praetorian.current_user().lastname
           mail.send(msg)
@@ -517,7 +517,7 @@ def add_reservation():
         db.session.commit()
         db.session.close()
         mm = "Hello Kevin, New Room Booking by:"  + name
-        msg = Message('Kevo Executive Hotel', sender = 'jxkalmhefacbuk@gmail.com', recipients = ['kevinfiadzeawu@gmail.com'])
+        msg = Message('Kevo Executive Hotel', sender = 'jxkalmhefacbuk@gmail.com', recipients = ['arhinssamkwaku@gmail.com'])
         msg.body = mm + "  " + 'arrival :' + arrival +" ," + "Departure:" + departure +" , " + "Phone number:"+ phone +","+"email:" + email
         #   + flask_praetorian.current_user().firstname + " "+flask_praetorian.current_user().lastname
         mail.send(msg)
@@ -649,7 +649,7 @@ def add_refund():
           db.session.commit()
           db.session.close()
           mm = "Hello , New Refund initiated by"  +" "+ authorized_by
-          msg = Message('Kevo Executive Hotel', sender = 'jxkalmhefacbuk@gmail.com', recipients = ['kevinfiadzeawu@gmail.com'])
+          msg = Message('Kevo Executive Hotel', sender = 'jxkalmhefacbuk@gmail.com', recipients = ['arhinssamkwaku@gmail.com'])
           msg.body = mm 
         #   + flask_praetorian.current_user().firstname + " "+flask_praetorian.current_user().lastname
           mail.send(msg)
@@ -679,7 +679,7 @@ def update_refund():
     db.session.commit()
     db.session.close()
     mm = "Hello ,  Refund  "  + str(id) + "  " + "successfuuly approved"
-    msg = Message('Kevo Executive Hotel', sender = 'jxkalmhefacbuk@gmail.com', recipients = ['kevinfiadzeawu@gmail.com'])
+    msg = Message('Kevo Executive Hotel', sender = 'jxkalmhefacbuk@gmail.com', recipients = ['arhinssamkwaku@gmail.com'])
     msg.body = mm 
         #   + flask_praetorian.current_user().firstname + " "+flask_praetorian.current_user().lastname
     mail.send(msg)
