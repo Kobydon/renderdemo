@@ -183,7 +183,7 @@ def update_room():
     room.created_by_id =  flask_praetorian.current_user().id
       
         
-    room.image_one =request.json["image_one"]
+    # room.image_one =request.json["image_one"]
     # mydata.image_two =request.json["image_two"]
     # mydata.image_three = request.json["image_three"]
 
@@ -205,7 +205,7 @@ def update_room():
 
 def add_room():
         owner =Rooms( room_number=request.json["room_number"],  room_type=request.json["room_type"], 
-                     floor=request.json["room_type"],
+                     floor=request.json["floor"],
                       duration=request.json["duration"],
                       reserved=request.json["reserved"],
                       description=request.json["description"],
