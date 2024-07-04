@@ -205,7 +205,7 @@ def update_room():
 
 def add_room():
         owner =Rooms( room_number=request.json["room_number"],  room_type=request.json["room_type"], 
-                     floor=request.json["floor"],
+                     floor=request.json["room_type"],
                       duration=request.json["duration"],
                       reserved=request.json["reserved"],
                       description=request.json["description"],
@@ -264,8 +264,7 @@ def get_rooms_details(id):
 @room.route("/get_by_type/<type>",methods=["GET"])
 @flask_praetorian.auth_required
 def get_by_type(type):
-    # occupied_state="available"
-    rooms = db.session.query(Rooms).filter_by(room_type =type).all()
+    rooms = db.session.query(Rooms).filter_by(room_type =type,occupied_state="available").all()
     results = room_schema.dump(rooms)
 
     return jsonify(results)

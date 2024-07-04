@@ -21,7 +21,7 @@ guest = Blueprint("guest", __name__)
 class Guest_schema(ma.Schema):
     class Meta:
         fields=("id","first_name","last_name","address","has_checkout","checkout_date","arrival","city","country","id_type","id_number","id_upload","dob","gender","work","remark","phone",
-                "region","email","username","arrival_date","checkout_date","name","note","amount","date","created_date")
+                "region","email","username","arrival_date","checkout_date")
 
 
 class Refund_Schema(ma.Schema):
@@ -122,6 +122,81 @@ def get_all_guest():
     results = guest_schema.dump(guests)
 
     return jsonify(results)
+
+
+
+@guest.route("/add_expense",methods=['POST'])
+@flask_praetorian.auth_required
+def add_expense():
+    user = User.query.filter_by(id = flask_praetorian.current_user().id).first()
+    name= request.json["name"]
+    amount =request.json["amount"]
+    note= request.json["note"]
+    date =request.json["date"]
+    usr = user.firstname +" " + user.lastname
+    created_date=datetime.now().strftime('%Y-%m-%d %H:%M')
+    exp = Expenses(name=name,amount=amount,note=note,date=date,
+                   user=usr,created_by_id=flask_praetorian.current_user().id ,
+                   created_date=created_date)
+  
+    db.session.add(exp)
+    db.session.commit()
+    db.session.close()
+    resp = jsonify("success")
+    resp.status_code =200
+    return resp
+
+
+
+@guest.route("/get_expense_list",methods=['GET'])
+@flask_praetorian.auth_required
+def get_expense_list():
+    user = User.query.filter_by(id = flask_praetorian.current_user().id).first()
+    exp = Expenses.query.filter_by(created_by_id=user.id)
+    result = guest_schema.dump(exp)
+    return jsonify(result)
+
+
+
+@guest.route("/get_expense/<id>",methods=['GET'])
+@flask_praetorian.auth_required
+def get_expense(id):
+
+    exp = Expenses.query.filter_by(id=id)
+    result = guest_schema.dump(exp)
+    return jsonify(result)
+
+
+
+
+@guest.route("/update_expense",methods=['PUT'])
+@flask_praetorian.auth_required
+def update_expense():
+    id = request.json["id"]
+    sub_data = Expenses.query.filter_by(id=id).first()
+    sub_data.name = request.json["name"]
+    sub_data.amount =request.json["amount"]
+    sub_data.note = request.json["note"]
+    sub_data.date =request.json["date"]
+    db.session.commit()
+    db.session.close()
+    resp = jsonify("success")
+    resp.status_code =201
+    return resp
+
+@guest.route("/delete_expense/<id>",methods=['DELETE'])
+@flask_praetorian.auth_required
+def delete_expense(id):
+      sub_data = Expenses.query.filter_by(id=id).first()
+      
+      db.session.delete(sub_data)
+      db.session.commit()
+      db.session.close()
+      resp = jsonify("success")
+      resp.status_code =201
+      return resp
+
+
 
 
 
@@ -246,82 +321,7 @@ def add_booking():
     
     return resp
 
-
-
-@guest.route("/add_expense",methods=['POST'])
-@flask_praetorian.auth_required
-def add_expense():
-    user = User.query.filter_by(id = flask_praetorian.current_user().id).first()
-    name= request.json["name"]
-    amount =request.json["amount"]
-    note= request.json["note"]
-    date =request.json["date"]
-    usr = user.firstname +" " + user.lastname
-    created_date=datetime.now().strftime('%Y-%m-%d %H:%M')
-    exp = Expenses(name=name,amount=amount,note=note,date=date,
-                   user=usr,created_by_id=flask_praetorian.current_user().id ,
-                   created_date=created_date)
-  
-    db.session.add(exp)
-    db.session.commit()
-    db.session.close()
-    resp = jsonify("success")
-    resp.status_code =200
-    return resp
-
-
-
-@guest.route("/get_expense_list",methods=['GET'])
-@flask_praetorian.auth_required
-def get_expense_list():
-    user = User.query.filter_by(id = flask_praetorian.current_user().id).first()
-    exp = Expenses.query.filter_by(created_by_id=user.id)
-    result = guest_schema.dump(exp)
-    return jsonify(result)
-
-
-
-@guest.route("/get_expense/<id>",methods=['GET'])
-@flask_praetorian.auth_required
-def get_expense(id):
-
-    exp = Expenses.query.filter_by(id=id)
-    result = guest_schema.dump(exp)
-    return jsonify(result)
-
-
-
-
-@guest.route("/update_expense",methods=['PUT'])
-@flask_praetorian.auth_required
-def update_expense():
-    id = request.json["id"]
-    sub_data = Expenses.query.filter_by(id=id).first()
-    sub_data.name = request.json["name"]
-    sub_data.amount =request.json["amount"]
-    sub_data.note = request.json["note"]
-    sub_data.date =request.json["date"]
-    db.session.commit()
-    db.session.close()
-    resp = jsonify("success")
-    resp.status_code =201
-    return resp
-
-@guest.route("/delete_expense/<id>",methods=['DELETE'])
-@flask_praetorian.auth_required
-def delete_expense(id):
-      sub_data = Expenses.query.filter_by(id=id).first()
-      
-      db.session.delete(sub_data)
-      db.session.commit()
-      db.session.close()
-      resp = jsonify("success")
-      resp.status_code =201
-      return resp
-
-
-
-
+z
 
 @guest.route("/add_payment",methods=["POST"])
 @flask_praetorian.auth_required
@@ -349,8 +349,8 @@ def add_payment():
           usr = User.query.filter_by(id= flask_praetorian.current_user().id).first()
           payment_date  = datetime.now().strftime('%Y-%m-%d %H:%M')
         #   em = request.form['email']
-          mm = " New Room Booking Payment of:"  + str(amount) +"  "+" made with your Hostel Management  System"
-          msg = Message('Hello', sender = 'jxkalmhefacbuk@gmail.com', recipients = ['arhinsamkwaku@gmail.com','kevinfiadzeawu@gmail.com'])
+          mm = "Hello Kevin, New Booking Payment of:"  + str(amount) +"  "+" made with your Hotel Management System"
+          msg = Message('Hello', sender = 'jxkalmhefacbuk@gmail.com', recipients = ['kevinfiadzeawu@gmail.com'])
           msg.body = mm + " " + 'issued by :' + usr.firstname +" " + usr.lastname +" , "+ "Date|Time:" + payment_date
         #   + flask_praetorian.current_user().firstname + " "+flask_praetorian.current_user().lastname
           mail.send(msg)
@@ -517,7 +517,7 @@ def add_reservation():
         db.session.commit()
         db.session.close()
         mm = "Hello Kevin, New Room Booking by:"  + name
-        msg = Message('Washignton International Hostel', sender = 'jxkalmhefacbuk@gmail.com', recipients = ['arhinsamkwaku@gmail.com','kevinfiadzeawu@gmail.com'])
+        msg = Message('Kevo Executive Hotel', sender = 'jxkalmhefacbuk@gmail.com', recipients = ['kevinfiadzeawu@gmail.com'])
         msg.body = mm + "  " + 'arrival :' + arrival +" ," + "Departure:" + departure +" , " + "Phone number:"+ phone +","+"email:" + email
         #   + flask_praetorian.current_user().firstname + " "+flask_praetorian.current_user().lastname
         mail.send(msg)
@@ -602,7 +602,7 @@ def update_reservation():
         # print(email)
       
         mm = "Hello "  + name +"  "+" Your Room is successfully booked,visit your dashboard(http://localhost:4200/home/track-reservation) to track all reservations"
-        msg = Message('Washignton International Hostel', sender = 'jxkalmhefacbuk@gmail.com', recipients = [email])
+        msg = Message('Kevo Executive Hotel', sender = 'jxkalmhefacbuk@gmail.com', recipients = [email])
         msg.body = mm + " ," + 'Room Number(s) :' + room_number 
         #   + flask_praetorian.current_user().firstname + " "+flask_praetorian.current_user().lastname
         mail.send(msg)
@@ -649,7 +649,7 @@ def add_refund():
           db.session.commit()
           db.session.close()
           mm = "Hello , New Refund initiated by"  +" "+ authorized_by
-          msg = Message('Washignton International Hostel', sender = 'jxkalmhefacbuk@gmail.com', recipients = ['arhinsamkwaku@gmail.com','kevinfiadzeawu@gmail.com'])
+          msg = Message('Kevo Executive Hotel', sender = 'jxkalmhefacbuk@gmail.com', recipients = ['kevinfiadzeawu@gmail.com'])
           msg.body = mm 
         #   + flask_praetorian.current_user().firstname + " "+flask_praetorian.current_user().lastname
           mail.send(msg)
@@ -679,7 +679,7 @@ def update_refund():
     db.session.commit()
     db.session.close()
     mm = "Hello ,  Refund  "  + str(id) + "  " + "successfuuly approved"
-    msg = Message('Washignton International Hostel', sender = 'jxkalmhefacbuk@gmail.com', recipients = ['arhinsamkwaku@gmail.com','kevinfiadzeawu@gmail.com'])
+    msg = Message('Kevo Executive Hotel', sender = 'jxkalmhefacbuk@gmail.com', recipients = ['kevinfiadzeawu@gmail.com'])
     msg.body = mm 
         #   + flask_praetorian.current_user().firstname + " "+flask_praetorian.current_user().lastname
     mail.send(msg)
