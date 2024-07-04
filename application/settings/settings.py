@@ -35,7 +35,7 @@ guard = flask_praetorian.Praetorian()
 
 app.secret_key = 'secrete key'
 
-app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://washington_user:RMDjrUuo8JqUeOhBIozaE3Z0E2Fskmt8@dpg-cq0htgqju9rs73atclcg-a.oregon-postgres.render.com/washington'
+app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://hotel4me_user:ebKz5hL7VnT9jcFoauwGqLJvzTZRivB1@dpg-cq376ibqf0us73dbnag0-a.oregon-postgres.render.com/hotel4me'
 # app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///hotel.db'
 #local_database = tempfile.NamedTemporaryFile(prefix="local", suffix=".db")
 app.config['SECRET_KEY'] = '0527'

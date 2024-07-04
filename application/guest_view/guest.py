@@ -321,7 +321,7 @@ def add_booking():
     
     return resp
 
-z
+
 
 @guest.route("/add_payment",methods=["POST"])
 @flask_praetorian.auth_required
