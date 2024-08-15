@@ -549,8 +549,8 @@ def get_reserve():
 @flask_praetorian.auth_required
 def get_all_reserve():
       rsv = db.session.query(Reservation).all()
-      lst = rsv.order_by(desc(Reservation.created_date))
-      result = reserve_schema.dump(lst)
+
+      result = reserve_schema.dump(rsv)
       return jsonify(result)
 
 
