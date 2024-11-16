@@ -67,6 +67,8 @@ def get_employees():
 @employee.route("/add_employee",methods=["POST"])
 @flask_praetorian.auth_required
 def add_employee():
+    #   id_upload=request.json["id_upload"],
+        #  photo=request.json["photo"],
        emp = Employee(
         first_name=request.json["first_name"],
         last_name=request.json["last_name"],
@@ -78,8 +80,8 @@ def add_employee():
         phone =request.json["phone"],
         gender =request.json["gender"],
         id_type =request.json["id_type"],
-        id_upload=request.json["id_upload"],
-        photo=request.json["photo"],
+      
+   
         address=request.json["address"],
         id_number=request.json["id_number"],
         remark=request.json["remark"],
