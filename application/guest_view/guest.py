@@ -309,7 +309,7 @@ def add_booking():
      created_by_id = flask_praetorian.current_user().id,guest_id=guest_id,
     )
     room = Rooms.query.filter_by(room_number=room_number).first()
-    guest = Guests.query.filter(id=guest_id).first()
+    guest = Guests.query.filter_by(id=guest_id).first()
     guest.room_number = room_number
    
     db.session.add(booking)
