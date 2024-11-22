@@ -21,7 +21,7 @@ guest = Blueprint("guest", __name__)
 class Guest_schema(ma.Schema):
     class Meta:
         fields=("id","first_name","last_name","address","has_checkout","checkout_date","arrival","city","country","id_type","id_number","id_upload","dob","gender","work","remark","phone",
-                "region","email","username","arrival_date","checkout_date")
+                "region","email","username","arrival_date","checkout_date","guest_id")
 
 
 class Refund_Schema(ma.Schema):
@@ -33,7 +33,7 @@ class Refund_Schema(ma.Schema):
         
 class PaySchema(ma.Schema):
     class Meta:
-        fields=("id","name","amount","balance","method","children","adult","payment","checkin_date","checkout_date","room_type","discount","status","payment_date")
+        fields=("id","name","amount","balance","method","children","adult","payment","checkin_date","checkout_date","room_type","discount","status","payment_date","guest_id")
 
 class ReserveSchema(ma.Schema):
     class Meta:
@@ -125,76 +125,76 @@ def get_all_guest():
 
 
 
-@guest.route("/add_expense",methods=['POST'])
-@flask_praetorian.auth_required
-def add_expense():
-    user = User.query.filter_by(id = flask_praetorian.current_user().id).first()
-    name= request.json["name"]
-    amount =request.json["amount"]
-    note= request.json["note"]
-    date =request.json["date"]
-    usr = user.firstname +" " + user.lastname
-    created_date=datetime.now().strftime('%Y-%m-%d %H:%M')
-    exp = Expenses(name=name,amount=amount,note=note,date=date,
-                   user=usr,created_by_id=flask_praetorian.current_user().id ,
-                   created_date=created_date)
+# @guest.route("/add_expense",methods=['POST'])
+# @flask_praetorian.auth_required
+# def add_expense():
+#     user = User.query.filter_by(id = flask_praetorian.current_user().id).first()
+#     name= request.json["name"]
+#     amount =request.json["amount"]
+#     note= request.json["note"]
+#     date =request.json["date"]
+#     usr = user.firstname +" " + user.lastname
+#     created_date=datetime.now().strftime('%Y-%m-%d %H:%M')
+#     exp = Expenses(name=name,amount=amount,note=note,date=date,
+#                    user=usr,created_by_id=flask_praetorian.current_user().id ,
+#                    created_date=created_date)
   
-    db.session.add(exp)
-    db.session.commit()
-    db.session.close()
-    resp = jsonify("success")
-    resp.status_code =200
-    return resp
+#     db.session.add(exp)
+#     db.session.commit()
+#     db.session.close()
+#     resp = jsonify("success")
+#     resp.status_code =200
+#     return resp
 
 
 
-@guest.route("/get_expense_list",methods=['GET'])
-@flask_praetorian.auth_required
-def get_expense_list():
-    user = User.query.filter_by(id = flask_praetorian.current_user().id).first()
-    exp = Expenses.query.filter_by(created_by_id=user.id)
-    result = guest_schema.dump(exp)
-    return jsonify(result)
+# @guest.route("/get_expense_list",methods=['GET'])
+# @flask_praetorian.auth_required
+# def get_expense_list():
+#     user = User.query.filter_by(id = flask_praetorian.current_user().id).first()
+#     exp = Expenses.query.filter_by(created_by_id=user.id)
+#     result = guest_schema.dump(exp)
+#     return jsonify(result)
 
 
 
-@guest.route("/get_expense/<id>",methods=['GET'])
-@flask_praetorian.auth_required
-def get_expense(id):
+# @guest.route("/get_expense/<id>",methods=['GET'])
+# @flask_praetorian.auth_required
+# def get_expense(id):
 
-    exp = Expenses.query.filter_by(id=id)
-    result = guest_schema.dump(exp)
-    return jsonify(result)
-
-
+#     exp = Expenses.query.filter_by(id=id)
+#     result = guest_schema.dump(exp)
+#     return jsonify(result)
 
 
-@guest.route("/update_expense",methods=['PUT'])
-@flask_praetorian.auth_required
-def update_expense():
-    id = request.json["id"]
-    sub_data = Expenses.query.filter_by(id=id).first()
-    sub_data.name = request.json["name"]
-    sub_data.amount =request.json["amount"]
-    sub_data.note = request.json["note"]
-    sub_data.date =request.json["date"]
-    db.session.commit()
-    db.session.close()
-    resp = jsonify("success")
-    resp.status_code =201
-    return resp
 
-@guest.route("/delete_expense/<id>",methods=['DELETE'])
-@flask_praetorian.auth_required
-def delete_expense(id):
-      sub_data = Expenses.query.filter_by(id=id).first()
+
+# @guest.route("/update_expense",methods=['PUT'])
+# @flask_praetorian.auth_required
+# def update_expense():
+#     id = request.json["id"]
+#     sub_data = Expenses.query.filter_by(id=id).first()
+#     sub_data.name = request.json["name"]
+#     sub_data.amount =request.json["amount"]
+#     sub_data.note = request.json["note"]
+#     sub_data.date =request.json["date"]
+#     db.session.commit()
+#     db.session.close()
+#     resp = jsonify("success")
+#     resp.status_code =201
+#     return resp
+
+# @guest.route("/delete_expense/<id>",methods=['DELETE'])
+# @flask_praetorian.auth_required
+# def delete_expense(id):
+#       sub_data = Expenses.query.filter_by(id=id).first()
       
-      db.session.delete(sub_data)
-      db.session.commit()
-      db.session.close()
-      resp = jsonify("success")
-      resp.status_code =201
-      return resp
+#       db.session.delete(sub_data)
+#       db.session.commit()
+#       db.session.close()
+#       resp = jsonify("success")
+#       resp.status_code =201
+#       return resp
 
 
 
@@ -288,6 +288,7 @@ def fetch_guest(id):
 def add_booking():
     room_number=request.json["room_number"]
     name=request.json["name"]
+    guest_id = request.json["guest_id"]
     booking = Booking(name=request.json["name"],  room_type=request.json["room_type"],country=request.json["country"],
     
      purpose=request.json["purpose"],
@@ -305,14 +306,12 @@ def add_booking():
      
      status=request.json["status"],
      create_date=datetime.now().strftime('%Y-%m-%d %H:%M'),
-     created_by_id = flask_praetorian.current_user().id
+     created_by_id = flask_praetorian.current_user().id,guest_id=guest_id,
     )
     room = Rooms.query.filter_by(room_number=room_number).first()
-    guest = Guests.query.filter(Guests.first_name + ' ' +Guests.last_name == name).first()
+    guest = Guests.query.filter(id=guest_id).first()
     guest.room_number = room_number
-    room.occupied_by = name
-    room.occupied_state =  "occupied"
-    room.date_booked =datetime.now().strftime('%Y-%m-%d %H:%M')
+   
     db.session.add(booking)
     db.session.commit()
     db.session.close()
@@ -336,6 +335,8 @@ def add_payment():
           discount  = request.json["discount"],
           children  = request.json["children"],
           adult  = request.json["adult"],
+          room_number = request.json["room_number"],
+          guest_id = request.json["guest_id"],
           payment_date  = datetime.now().strftime('%Y-%m-%d %H:%M'),
 
           checkin_date  = request.json["checkin_date"],
@@ -344,6 +345,10 @@ def add_payment():
           created_by_id = flask_praetorian.current_user().id
           )
           db.session.add(pay)
+          room = Rooms.query.filter_by(room_number=request.json["room_number"]).first()
+          room.occupied_by = request.json["name"]
+          room.occupied_state =  "occupied"
+          room.date_booked =datetime.now().strftime('%Y-%m-%d %H:%M')
           db.session.commit()
           db.session.close()
           usr = User.query.filter_by(id= flask_praetorian.current_user().id).first()
@@ -459,28 +464,40 @@ def delete_payment(id):
         resp= jsonify("success")
         resp.status_code=200
         return resp
-      
 
-@guest.route("/checkout/<id>",methods=["PUT"])
+@guest.route("/checkout/<id>", methods=["PUT"])
 @flask_praetorian.auth_required
 def checkout(id):
-  
-    guest =  Guests.query.filter_by(id=id).first()
-    payie = Payment.query.filter_by(name = guest.first_name +" "+ guest.last_name).first()
-    
-    if (int(payie.balance) <= 0):
-        room = Rooms.query.filter_by(room_number =guest.room_number).first()
-        room.occupied_by = "none"
-        room.occupied_state =  "available"
-        guest.has_checkout =datetime.now().strftime('%Y-%m-%d %H:%M')
-        db.session.commit()
-        db.session.close()
-        resp= jsonify("success")
-        resp.status_code=200
+    # Retrieve the guest
+    guest = Guests.query.filter_by(id=id).first()
+    if not guest:
+        return jsonify({"error": "Guest not found"}), 404
+
+    # Mark all bookings for this guest as checked out
+    bookings = Booking.query.filter_by(guest_id=id).all()
+    for booking in bookings:
+        booking.has_checkout = True
+
+    # Calculate the total payment balance for the guest
+    payments = Payment.query.filter_by(guest_id=id).all()
+    total_balance = sum(payment.balance for payment in payments)
+
+    # Check if the balance is non-positive to allow checkout
+    if total_balance <= 0:
+        room = Rooms.query.filter_by(room_number=guest.room_number).first()
+        if room:
+            room.occupied_by = "none"
+            room.occupied_state = "available"
+        
+        guest.has_checkout = datetime.now().strftime('%Y-%m-%d %H:%M')
+        
+        db.session.commit()  # Commit all changes
+
+        return jsonify({"message": "Checkout successful", "balance": total_balance}), 200
     else:
-        resp = jsonify("error")
-        resp.status_code = 401
-    return resp
+        return jsonify({"error": "Outstanding balance", "balance": total_balance}), 401
+
+
 
 
 @guest.route("/add_reservation",methods=["POST"])

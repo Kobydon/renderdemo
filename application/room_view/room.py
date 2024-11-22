@@ -19,14 +19,14 @@ room = Blueprint("room", __name__)
         
 class PaySchema(ma.Schema):
     class Meta:
-        fields=("id","name","amount","balance","method","children","adult","payment","checkin_date","checkout_date","room_type","discount","status","payment_date")
+        fields=("id","name","amount","balance","method","children","adult","payment","checkin_date","checkout_date","room_type","discount","status","payment_date","guest_id")
 
 
 class Room_schema(ma.Schema):
     class Meta:
         fields=("id","name","room_type","base_occupancy","extral_bed_price","kids_occupancy","base_price",
                 "amenities","description","image_one","image_two","image_three","occupied_state","status","occupied_by",
-                "reserved","session","duration","floor","room_number","assignee","task"
+                "reserved","session","duration","floor","room_number","assignee","task","guest_id"
 )
 
 
@@ -35,12 +35,12 @@ class BookingSchema(ma.Schema):
     class Meta:
         fields=("id","name","room_type", "arrival_date","departure_date","country","purpose",
                 "children","adult","status","room_type","checkout_date"
-                "created_date","room_number"
+                "created_date","room_number","guest_id"
 )
 
 class ReportSchema(ma.Schema):
     class Meta:
-        fields=("id","employee","description", "created_date","status","room_number","room_type")
+        fields=("id","employee","description", "created_date","status","room_number","room_type","guest_id")
 
 
 class TaskSchema(ma.Schema):
@@ -302,13 +302,16 @@ def delete_room(id):
 
 
 
-@room.route("/get_all_bookings",methods=["GET"])
+@room.route("/get_all_bookings", methods=["GET"])
 @flask_praetorian.auth_required
 def get_all_bookings():
-    rooms = Booking.query.all()
-    # lst = rooms.order_by(desc(Booking.create_date))
-    results = booking_schema.dump(rooms)
+    # Fetch all bookings ordered by creation date in descending order
+    bookings = Booking.query.order_by(Booking.create_date.desc()).all()
+    
+    # Serialize the results
+    results = booking_schema.dump(bookings)
 
+    # Return the serialized results as JSON
     return jsonify(results)
 
 

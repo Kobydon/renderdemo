@@ -391,6 +391,8 @@ class Guests(db.Model):
         last_name= db.Column(db.String(400))
         region= db.Column(db.String(400))
         has_checkout =db.Column(db.String(400))
+        bookingsa = db.relationship('Booking', backref='guest', lazy=True)
+        payssan = db.relationship('Payment',backref='payta',lazy=True)
         created_by_id =db.Column(db.Integer,db.ForeignKey('user.id'))
 
 
@@ -415,7 +417,8 @@ class Booking(db.Model):
      children=db.Column(db.String(400))
 
 
-
+     guest_id = db.Column(db.Integer, db.ForeignKey('guests.id'))
+     has_checkout = db.Column(db.Boolean, default=False)
      room_number=db.Column(db.String(400))
      
      status=db.Column(db.String(400))
@@ -451,6 +454,7 @@ class Payment(db.Model):
           adult  = db.Column(db.String(400))
           checkout_date  = db.Column(db.String(400))
           status  = db.Column(db.String(400))
+          guest_id =db.Column(db.Integer,db.ForeignKey('guests.id'))
           created_by_id =db.Column(db.Integer,db.ForeignKey('user.id'))
 
 class Item(db.Model):
@@ -513,6 +517,8 @@ class Attendance(db.Model):
         created_date=db.Column(db.String(400))
         created_by_id =db.Column(db.Integer,db.ForeignKey('user.id'))
   
+
+
 
 
 
