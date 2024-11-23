@@ -508,11 +508,12 @@ def delete_payment(id):
         resp= jsonify("success")
         resp.status_code=200
         return resp
-@guest.route("/checkout/<int:id>", methods=["PUT"])
+
+@guest.route("/checkout/<id>", methods=["PUT"])
 @flask_praetorian.auth_required
 def checkout(id):
     # Retrieve the guest
-    guest = Guests.query.get(id)
+    guest = Guests.query.filter_by(id=id).first()
     if not guest:
         return jsonify({"error": "Guest not found"}), 404
 
@@ -522,15 +523,14 @@ def checkout(id):
         booking.has_checkout = True
 
     # Calculate the total payment balance for the guest
-    payments = Payment.query.filter_by(guest_id=id, status="success").all()
+    payments = Payment.query.filter_by(guest_id=id,status="success").all()
     total_balance = sum(payment.balance for payment in payments)
 
-    # Check if the balance is null or non-positive to allow checkout
-    if total_balance is None or total_balance == 0:
-        # Free up the room if it was occupied
+    # Check if the balance is non-positive to allow checkout
+    if total_balance == "0":
         room = Rooms.query.filter_by(room_number=guest.room_number).first()
         if room:
-            room.occupied_by = None
+            room.occupied_by = "none"
             room.occupied_state = "available"
         
         guest.has_checkout = datetime.now().strftime('%Y-%m-%d %H:%M')
@@ -540,7 +540,6 @@ def checkout(id):
         return jsonify({"message": "Checkout successful", "balance": total_balance}), 200
     else:
         return jsonify({"error": "Outstanding balance", "balance": total_balance}), 401
-
 
 
 @guest.route("/add_reservation", methods=["POST"])
