@@ -525,11 +525,13 @@ def checkout(id):
 
     # Calculate the total payment balance for the guest
     payments = Payment.query.filter_by(guest_id=id,status="success").all()
-    total_balance = sum(payment.balance for payment in payments)
+ # Convert payment.balance to an integer for summation
+    total_balance = sum(int(payment.balance) for payment in payments if payment.balance and payment.balance.isdigit())
+  
     print(total_balance)
 
     # Check if the balance is non-positive to allow checkout
-    if int(total_balance) <= 0:
+    if total_balance <= 0:
         room = Rooms.query.filter_by(room_number=guest.room_number).first()
         if room:
             room.occupied_by = "none"
