@@ -781,7 +781,7 @@ def get_refund():
     return jsonify(result)
 
     
-    @guest.route("/update_refund", methods=["PUT"])
+@guest.route("/update_refund", methods=["PUT"])
 @flask_praetorian.auth_required
 def update_refund():
     # Get the refund ID from the request
