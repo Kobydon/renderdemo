@@ -322,50 +322,94 @@ def add_booking():
 
 
 
-@guest.route("/add_payment",methods=["POST"])
+@guest.route("/add_payment", methods=["POST"])
 @flask_praetorian.auth_required
 def add_payment():
-          amount= request.json["amount"]
-          pay = Payment( name = request.json["name"],
-          amount = request.json["amount"],
-          refund_amount ="0",
-          balance = request.json["balance"],
-          method = request.json["method"],
-          room_type  = request.json["room_type"],
-          discount  = request.json["discount"],
-          children  = request.json["children"],
-          adult  = request.json["adult"],
-          
-          guest_id = request.json["guest_id"],
-          payment_date  = datetime.now().strftime('%Y-%m-%d %H:%M'),
+    # Extract data from the request
+    amount = request.json.get("amount")
+    room_number = request.json.get("room_number")
+    name = request.json.get("name")
 
-          checkin_date  = request.json["checkin_date"],
-          checkout_date  = request.json["checkout_date"],
-          status  = "success",
-          created_by_id = flask_praetorian.current_user().id
-          )
-          db.session.add(pay)
-          room = Rooms.query.filter_by(room_number=request.json["room_number"]).first()
-          room.occupied_by = request.json["name"]
-          room.occupied_state =  "occupied"
-          room.date_booked =datetime.now().strftime('%Y-%m-%d %H:%M')
-          db.session.commit()
-          db.session.close()
-          usr = User.query.filter_by(id= flask_praetorian.current_user().id).first()
-          payment_date  = datetime.now().strftime('%Y-%m-%d %H:%M')
-        #   em = request.form['email']
-          mm = "Hello Kevin, New Booking Payment of:"  + str(amount) +"  "+" made with your Hotel Management System"
-          msg = Message('Hello', sender = 'jxkalmhefacbuk@gmail.com', recipients = ['kevinfiadzeawu@gmail.com'])
-          msg.body = mm + " " + 'issued by :' + usr.firstname +" " + usr.lastname +" , "+ "Date|Time:" + payment_date
-        #   + flask_praetorian.current_user().firstname + " "+flask_praetorian.current_user().lastname
-          mail.send(msg)
+    # Create a new payment entry
+    pay = Payment(
+        name=name,
+        amount=amount,
+        refund_amount="0",
+        balance=request.json.get("balance"),
+        method=request.json.get("method"),
+        room_type=request.json.get("room_type"),
+        discount=request.json.get("discount"),
+        children=request.json.get("children"),
+        adult=request.json.get("adult"),
+        guest_id=request.json.get("guest_id"),
+        payment_date=datetime.now().strftime('%Y-%m-%d %H:%M'),
+        checkin_date=request.json.get("checkin_date"),
+        checkout_date=request.json.get("checkout_date"),
+        status="success",
+        created_by_id=flask_praetorian.current_user().id
+    )
 
-  
-          
-          resp = jsonify("success")
-          resp.status_code =200
-          return resp
-         
+    # Update room status
+    room = Rooms.query.filter_by(room_number=room_number).first()
+    if room:
+        room.occupied_by = name
+        room.occupied_state = "occupied"
+        room.date_booked = datetime.now().strftime('%Y-%m-%d %H:%M')
+
+    # Commit the changes to the database
+    try:
+        db.session.add(pay)
+        db.session.commit()
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": str(e)}), 500
+    finally:
+        db.session.close()
+
+    # Get user details for the email
+    usr = User.query.filter_by(id=flask_praetorian.current_user().id).first()
+    payment_date = datetime.now().strftime('%Y-%m-%d %H:%M')
+
+    # Beautify the email message
+    email_message = f"""
+    Hello Kevin,
+
+    A new booking payment has been recorded in your Hotel Management System.
+
+    **Payment Details:**
+    - Guest Name: {name}
+    - Payment Amount: ${amount}
+    - Room Number: {room_number}
+    - Room Type: {request.json.get("room_type")}
+    - Discount Applied: ${request.json.get("discount")}
+    - Balance: ${request.json.get("balance")}
+    - Payment Method: {request.json.get("method")}
+    - Check-in Date: {request.json.get("checkin_date")}
+    - Check-out Date: {request.json.get("checkout_date")}
+    - Payment Status: Success
+    - Date|Time: {payment_date}
+
+    **Issued By:**
+    - {usr.firstname} {usr.lastname}
+
+    Please log in to review this transaction.
+
+    Best regards,  
+    **Kevo Executive Hotel Team**
+    """
+
+    # Send the email
+    msg = Message(
+        subject="New Booking Payment - Kevo Executive Hotel",
+        sender="jxkalmhefacbuk@gmail.com",
+        recipients=["kevinfiadzeawu@gmail.com"]
+    )
+    msg.body = email_message
+    mail.send(msg)
+
+    # Return a success response
+    return jsonify("success"), 200
+
 
      
      
@@ -737,9 +781,7 @@ def get_refund():
     return jsonify(result)
 
     
-    
-      
-@guest.route("/update_refund", methods=["PUT"])
+    @guest.route("/update_refund", methods=["PUT"])
 @flask_praetorian.auth_required
 def update_refund():
     # Get the refund ID from the request
@@ -760,7 +802,15 @@ def update_refund():
     if not payment:
         return jsonify({"error": "Payment record not found"}), 404
 
+    # Ensure refund doesn't exceed payment amount
+    if int(refund.refund_amount) > int(payment.amount):
+        return jsonify({"error": "Refund amount cannot exceed payment amount"}), 400
+
+    # Update the payment amount and balance
     payment.amount = int(payment.amount) - int(refund.refund_amount)
+
+    # Calculate the remaining balance
+    payment.balance = int(payment.balance) - int(refund.refund_amount)
 
     # Commit changes to the database
     try:
@@ -780,7 +830,7 @@ def update_refund():
     **Refund Details:**
     - Refund ID: {refund_id}
     - Refund Amount: {refund.refund_amount}
-    - Remaining Balance: {payment.amount}
+    - Remaining Balance: {payment.balance}
 
     Thank you for choosing Kevo Executive Hotel. If you have any further inquiries, feel free to reach out to us.
 
@@ -799,5 +849,3 @@ def update_refund():
 
     # Return success response
     return jsonify({"message": "Refund successfully approved"}), 200
-
-    
