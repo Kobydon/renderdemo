@@ -780,16 +780,18 @@ def get_refund():
     # Return the JSON response
     return jsonify(result)
 
-@guest.route("/update_refund")
+@guest.route("/update_refund", methods=["PUT"])
 @flask_praetorian.auth_required
 def update_refund():
     # Get the refund ID from the request
     refund_id = request.json.get("id")
+
     if not refund_id:
         return jsonify({"error": "Refund ID is required"}), 400
 
     # Update refund status
     refund = Refund.query.filter_by(id=refund_id).first()
+
     if not refund:
         return jsonify({"error": "Refund not found"}), 404
 
@@ -801,28 +803,25 @@ def update_refund():
         return jsonify({"error": "Payment record not found"}), 404
 
     # Ensure refund doesn't exceed payment amount
-    try:
-        refund_amount = int(refund.refund_amount)
-        payment_amount = int(payment.amount)
-        if refund_amount > payment_amount:
-            return jsonify({"error": "Refund amount cannot exceed payment amount"}), 400
-    except ValueError:
-        return jsonify({"error": "Invalid refund amount or payment amount"}), 400
+    if int(refund.refund_amount) > int(payment.amount):
+        return jsonify({"error": "Refund amount cannot exceed payment amount"}), 400
 
     # Update the payment amount and balance
-    payment.amount = payment_amount - refund_amount
-    payment.balance = max(0, payment.balance - refund_amount)  # Ensure balance doesn't go negative
+    payment.amount = int(payment.amount) - int(refund.refund_amount)
+    payment.balance = int(payment.balance) - int(refund.refund_amount)
 
     # Commit changes to the database
     try:
         db.session.commit()
+        db.session.refresh(refund)  # Refresh the refund instance to ensure it's still valid in session
+        db.session.refresh(payment)  # Refresh the payment instance as well
     except Exception as e:
         db.session.rollback()
         return jsonify({"error": str(e)}), 500
     finally:
         db.session.close()
 
-    # Create email message
+    # Create a beautiful email message
     email_message = f"""
     Hello,
 
