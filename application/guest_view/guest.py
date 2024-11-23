@@ -604,55 +604,79 @@ def get_reserve_for(id):
       result = reserve_schema.dump(rsv)
       return jsonify(result)
 
-
-
-@guest.route("/update_reservation",methods=["PUT"])
+@guest.route("/update_reservation", methods=["PUT"])
 @flask_praetorian.auth_required
 def update_reservation():
+    # Extract data from the request
+    reservation_id = request.json.get("id")
+    room_number = request.json.get("room_number")
+    name = request.json.get("name")
+    email = request.json.get("email")
 
-        id = request.json["id"]
-        room_number = request.json["room_number"]
-        name = request.json["name"]
-        email= request.json["email"]
-      
-        rsv = Reservation.query.filter_by(id=id).first()
-        rsv.adult=request.json["adult"]
-        
-        rsv.name = request.json["name"]
-        rsv.email = request.json["email"]
-        rsv.phone = request.json["phone"]
-        rsv.arrival =request.json["arrival"]
-        rsv.departure=request.json["departure"]
-        rsv.children =request.json["children"]
+    # Fetch and update the reservation record
+    rsv = Reservation.query.filter_by(id=reservation_id).first()
+    if not rsv:
+        return jsonify({"error": "Reservation not found"}), 404
 
-        rsv.purpose=request.json["purpose"]
-        rsv.room_type=request.json["room_type"]
-        rsv.room_nmber =request.json["room_number"]
-        rsv.Payment_status =request.json["payment_status"]
-        rsv.status =request.json["status"]
-       
-     
-        rsv.country =request.json["country"]
-        price =request.json["price"]
+    rsv.adult = request.json.get("adult")
+    rsv.name = name
+    rsv.email = email
+    rsv.phone = request.json.get("phone")
+    rsv.arrival = request.json.get("arrival")
+    rsv.departure = request.json.get("departure")
+    rsv.children = request.json.get("children")
+    rsv.purpose = request.json.get("purpose")
+    rsv.room_type = request.json.get("room_type")
+    rsv.room_nmber = room_number
+    rsv.Payment_status = request.json.get("payment_status")
+    rsv.status = request.json.get("status")
+    rsv.country = request.json.get("country")
 
-        # room = Rooms.query.filter_by(room_number=room_number).first()
-        # room.occupied_by = request.json["name"]    
-        # room.occupied_state ="occupied"
-        
-      
+    # Commit the updates
+    try:
         db.session.commit()
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": str(e)}), 500
+    finally:
         db.session.close()
-        # print(email)
-      
-        mm = "Hello "  + name +"  "+" Your Room is successfully booked,visit your dashboard(http://localhost:4200/home/track-reservation) to track all reservations"
-        msg = Message('Kevo Executive Hotel', sender = 'jxkalmhefacbuk@gmail.com', recipients = [email])
-        msg.body = mm + " ," + 'Room Number(s) :' + room_number 
-        #   + flask_praetorian.current_user().firstname + " "+flask_praetorian.current_user().lastname
-        mail.send(msg)
-        resp = jsonify("success")
-        resp.status_code =200
-        return resp
 
+    # Beautify the email message
+    email_message = f"""
+    Hello {name},
+
+    Your reservation has been successfully updated! You can visit your dashboard to track all reservations:  
+    [Track Your Reservations](http://localhost:4200/home/track-reservation)
+
+    **Updated Reservation Details:**
+    - Room Number(s): {room_number}
+    - Arrival Date: {rsv.arrival}
+    - Departure Date: {rsv.departure}
+    - Number of Adults: {rsv.adult}
+    - Number of Children: {rsv.children}
+    - Purpose of Stay: {rsv.purpose}
+    - Room Type: {rsv.room_type}
+    - Payment Status: {rsv.Payment_status}
+    - Reservation Status: {rsv.status}
+
+    Thank you for choosing Kevo Executive Hotel.  
+    We look forward to hosting you!
+
+    Best regards,  
+    **Kevo Executive Hotel Team**
+    """
+
+    # Send the email
+    msg = Message(
+        subject="Reservation Updated - Kevo Executive Hotel",
+        sender="jxkalmhefacbuk@gmail.com",
+        recipients=[email]
+    )
+    msg.body = email_message
+    mail.send(msg)
+
+    # Return a success response
+    return jsonify("success"), 200
 
 
 @guest.route("/cancel_reservation/<id>",methods=["PUT"])
