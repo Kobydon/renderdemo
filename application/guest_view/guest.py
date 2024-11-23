@@ -329,7 +329,7 @@ def add_payment():
     amount = request.json.get("amount")
     room_number = request.json.get("room_number")
     name = request.json.get("name")
-
+    status = request.json.get("status")
     # Create a new payment entry
     pay = Payment(
         name=name,
@@ -345,7 +345,7 @@ def add_payment():
         payment_date=datetime.now().strftime('%Y-%m-%d %H:%M'),
         checkin_date=request.json.get("checkin_date"),
         checkout_date=request.json.get("checkout_date"),
-        status="success",
+        status=status,
         created_by_id=flask_praetorian.current_user().id
     )
 
@@ -523,7 +523,7 @@ def checkout(id):
         booking.has_checkout = True
 
     # Calculate the total payment balance for the guest
-    payments = Payment.query.filter_by(guest_id=id).all()
+    payments = Payment.query.filter_by(guest_id=id,status="success").all()
     total_balance = sum(payment.balance for payment in payments)
 
     # Check if the balance is non-positive to allow checkout
