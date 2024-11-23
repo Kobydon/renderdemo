@@ -527,7 +527,7 @@ def checkout(id):
     total_balance = sum(payment.balance for payment in payments)
 
     # Check if the balance is non-positive to allow checkout
-    if total_balance == "0":
+    if total_balance <= 0:
         room = Rooms.query.filter_by(room_number=guest.room_number).first()
         if room:
             room.occupied_by = "none"
