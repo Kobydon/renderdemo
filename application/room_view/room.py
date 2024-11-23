@@ -26,7 +26,7 @@ class Room_schema(ma.Schema):
     class Meta:
         fields=("id","name","room_type","base_occupancy","extral_bed_price","kids_occupancy","base_price",
                 "amenities","description","image_one","image_two","image_three","occupied_state","status","occupied_by",
-                "reserved","session","duration","floor","room_number","assignee","task","guest_id"
+                "reserved","session","duration","floor","room_number","assignee","task","guest_id","has_checkout"
 )
 
 
