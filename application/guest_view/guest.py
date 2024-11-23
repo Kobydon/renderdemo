@@ -335,7 +335,7 @@ def add_payment():
           discount  = request.json["discount"],
           children  = request.json["children"],
           adult  = request.json["adult"],
-          room_number = request.json["room_number"],
+          
           guest_id = request.json["guest_id"],
           payment_date  = datetime.now().strftime('%Y-%m-%d %H:%M'),
 
