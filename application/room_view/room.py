@@ -315,6 +315,18 @@ def get_all_bookings():
     return jsonify(results)
 
 
+@room.route("/get_new_bookings", methods=["GET"])
+@flask_praetorian.auth_required
+def get_new_bookings():
+    # Fetch all bookings where has_checkout is False, ordered by creation date in descending order
+    bookings = Booking.query.filter_by(has_checkout=False).order_by(Booking.create_date.desc()).all()
+    
+    # Serialize the results using the booking schema
+    results = booking_schema.dump(bookings)
+
+    # Return the serialized results as JSON
+    return jsonify(results)
+
 
 
 @room.route("/get_booking_details/<id>",methods=["GET"])
