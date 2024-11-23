@@ -303,6 +303,7 @@ def add_booking():
 
 
      room_number=request.json["room_number"],
+     has_checkout=False,
      
      status=request.json["status"],
      create_date=datetime.now().strftime('%Y-%m-%d %H:%M'),
