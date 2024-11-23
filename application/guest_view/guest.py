@@ -476,7 +476,7 @@ def update_payment():
           amount = request.json["amount"]
           id = request.json["id"]
           pay = Payment.query.filter_by(id=id).first()
-          pay.amount = int(request.json["amount"]) + int(amount)
+          pay.amount = int(request.json["amount"]) + int(pay.amount)
           pay.method = request.json["method"]
           pay.room_type  = request.json["room_type"]
           pay.discount  = request.json["discount"]
