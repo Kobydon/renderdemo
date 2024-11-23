@@ -35,7 +35,7 @@ class BookingSchema(ma.Schema):
     class Meta:
         fields=("id","name","room_type", "arrival_date","departure_date","country","purpose",
                 "children","adult","status","room_type","checkout_date"
-                "created_date","room_number","guest_id"
+                "created_date","room_number","guest_id","has_checkout"
 )
 
 class ReportSchema(ma.Schema):
