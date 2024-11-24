@@ -514,12 +514,13 @@ def delete_payment(id):
 @flask_praetorian.auth_required
 def checkout(id):
     # Retrieve the guest
-    guest = Guests.query.filter_by(id=id).first()
+    booka = Booking.query.filter_by(id=id).first()
+    guest = Guests.query.filter_by(id=booka.guest_id).first()
     if not guest:
         return jsonify({"error": "Guest not found"}), 404
 
     # Mark all bookings for this guest as checked out
-    bookings = Booking.query.filter_by(guest_id=id).all()
+    bookings = Booking.query.filter_by(id=id).all()
     for booking in bookings:
         booking.has_checkout = True
 
@@ -532,7 +533,7 @@ def checkout(id):
 
     # Check if the balance is non-positive to allow checkout
     if total_balance <= 0:
-        room = Rooms.query.filter_by(room_number=guest.room_number).first()
+        room = Rooms.query.filter_by(room_number=booka.room_number).first()
         if room:
             room.occupied_by = "none"
             room.occupied_state = "available"
