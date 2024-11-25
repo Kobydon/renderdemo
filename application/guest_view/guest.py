@@ -125,76 +125,76 @@ def get_all_guest():
 
 
 
-# @guest.route("/add_expense",methods=['POST'])
-# @flask_praetorian.auth_required
-# def add_expense():
-#     user = User.query.filter_by(id = flask_praetorian.current_user().id).first()
-#     name= request.json["name"]
-#     amount =request.json["amount"]
-#     note= request.json["note"]
-#     date =request.json["date"]
-#     usr = user.firstname +" " + user.lastname
-#     created_date=datetime.now().strftime('%Y-%m-%d %H:%M')
-#     exp = Expenses(name=name,amount=amount,note=note,date=date,
-#                    user=usr,created_by_id=flask_praetorian.current_user().id ,
-#                    created_date=created_date)
+@guest.route("/add_expense",methods=['POST'])
+@flask_praetorian.auth_required
+def add_expense():
+    user = User.query.filter_by(id = flask_praetorian.current_user().id).first()
+    name= request.json["name"]
+    amount =request.json["amount"]
+    note= request.json["note"]
+    date =request.json["date"]
+    usr = user.firstname +" " + user.lastname
+    created_date=datetime.now().strftime('%Y-%m-%d %H:%M')
+    exp = Expenses(name=name,amount=amount,note=note,date=date,
+                   user=usr,created_by_id=flask_praetorian.current_user().id ,
+                   created_date=created_date)
   
-#     db.session.add(exp)
-#     db.session.commit()
-#     db.session.close()
-#     resp = jsonify("success")
-#     resp.status_code =200
-#     return resp
+    db.session.add(exp)
+    db.session.commit()
+    db.session.close()
+    resp = jsonify("success")
+    resp.status_code =200
+    return resp
 
 
 
-# @guest.route("/get_expense_list",methods=['GET'])
-# @flask_praetorian.auth_required
-# def get_expense_list():
-#     user = User.query.filter_by(id = flask_praetorian.current_user().id).first()
-#     exp = Expenses.query.filter_by(created_by_id=user.id)
-#     result = guest_schema.dump(exp)
-#     return jsonify(result)
+@guest.route("/get_expense_list",methods=['GET'])
+@flask_praetorian.auth_required
+def get_expense_list():
+    user = User.query.filter_by(id = flask_praetorian.current_user().id).first()
+    exp = Expenses.query.filter_by(created_by_id=user.id)
+    result = guest_schema.dump(exp)
+    return jsonify(result)
 
 
 
-# @guest.route("/get_expense/<id>",methods=['GET'])
-# @flask_praetorian.auth_required
-# def get_expense(id):
+@guest.route("/get_expense/<id>",methods=['GET'])
+@flask_praetorian.auth_required
+def get_expense(id):
 
-#     exp = Expenses.query.filter_by(id=id)
-#     result = guest_schema.dump(exp)
-#     return jsonify(result)
-
-
+    exp = Expenses.query.filter_by(id=id)
+    result = guest_schema.dump(exp)
+    return jsonify(result)
 
 
-# @guest.route("/update_expense",methods=['PUT'])
-# @flask_praetorian.auth_required
-# def update_expense():
-#     id = request.json["id"]
-#     sub_data = Expenses.query.filter_by(id=id).first()
-#     sub_data.name = request.json["name"]
-#     sub_data.amount =request.json["amount"]
-#     sub_data.note = request.json["note"]
-#     sub_data.date =request.json["date"]
-#     db.session.commit()
-#     db.session.close()
-#     resp = jsonify("success")
-#     resp.status_code =201
-#     return resp
 
-# @guest.route("/delete_expense/<id>",methods=['DELETE'])
-# @flask_praetorian.auth_required
-# def delete_expense(id):
-#       sub_data = Expenses.query.filter_by(id=id).first()
+
+@guest.route("/update_expense",methods=['PUT'])
+@flask_praetorian.auth_required
+def update_expense():
+    id = request.json["id"]
+    sub_data = Expenses.query.filter_by(id=id).first()
+    sub_data.name = request.json["name"]
+    sub_data.amount =request.json["amount"]
+    sub_data.note = request.json["note"]
+    sub_data.date =request.json["date"]
+    db.session.commit()
+    db.session.close()
+    resp = jsonify("success")
+    resp.status_code =201
+    return resp
+
+@guest.route("/delete_expense/<id>",methods=['DELETE'])
+@flask_praetorian.auth_required
+def delete_expense(id):
+      sub_data = Expenses.query.filter_by(id=id).first()
       
-#       db.session.delete(sub_data)
-#       db.session.commit()
-#       db.session.close()
-#       resp = jsonify("success")
-#       resp.status_code =201
-#       return resp
+      db.session.delete(sub_data)
+      db.session.commit()
+      db.session.close()
+      resp = jsonify("success")
+      resp.status_code =201
+      return resp
 
 
 
