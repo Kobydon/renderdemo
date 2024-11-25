@@ -866,37 +866,8 @@ def update_refund():
 
 
 
-@guest.route("/add_budget",methods=['POST'])
-@flask_praetorian.auth_required
-def add_budget():
-    user = User.query.filter_by(id = flask_praetorian.current_user().id).first()
-    # acd = Academic.query.filter_by(guest_name=user.guest_name,status="current").first()
-    name= request.json["name"]
-    amount =request.json["amount"]
-    note= request.json["note"]
-    type =request.json["type"]
-    # usr = user.firstname +" " + user.lastname
-    created_date=datetime.now().strftime('%Y-%m-%d %H:%M')
-    inc = Budget(name=name,amount=amount,note=note,type=type,
-                   created_by_id=flask_praetorian.current_user().id ,
-                   created_date=created_date)
-  
-    db.session.add(inc)
-    db.session.commit()
-    db.session.close()
-    resp = jsonify("success")
-    resp.status_code =200
-    return resp
 
 
-
-@guest.route("/get_budget_list",methods=['GET'])
-@flask_praetorian.auth_required
-def get_budget_list():
-    # user = User.query.filter_by(id = flask_praetorian.current_user().id).first()
-    inc = Budget.query.all()
-    result = guest_schema.dump(inc)
-    return jsonify(result)
 
 
 
@@ -1034,9 +1005,9 @@ def delete_income(id):
 
 
 
-@guest.route("/add_bud",methods=['POST'])
+@guest.route("/add_budget",methods=['POST'])
 @flask_praetorian.auth_required
-def add_bud():
+def add_budget():
     user = User.query.filter_by(id = flask_praetorian.current_user().id).first()
     # acd = Academic.query.filter_by(guest_name=user.guest_name,status="current").first()
     name= request.json["name"]
