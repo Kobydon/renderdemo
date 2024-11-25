@@ -1039,43 +1039,10 @@ def get_budget_list():
 
 
 
-@guest.route("/get_budget/<id>",methods=['GET'])
-@flask_praetorian.auth_required
-def get_budget(id):
-
-    inc = Budget.query.filter_by(id=id)
-    result = guest_schema.dump(inc)
-    return jsonify(result)
 
 
 
 
-@guest.route("/update_Budget",methods=['PUT'])
-@flask_praetorian.auth_required
-def update_Budget():
-    id = request.json["id"]
-    sub_data = Budget.query.filter_by(id=id).first()
-    sub_data.name = request.json["name"]
-    sub_data.amount =request.json["amount"]
-    sub_data.note = request.json["note"]
-    sub_data.type =request.json["type"]
-    db.session.commit()
-    db.session.close()
-    resp = jsonify("success")
-    resp.status_code =201
-    return resp
-
-@guest.route("/delete_budget<id>",methods=['DELETE'])
-@flask_praetorian.auth_required
-def delete_budget(id):
-      sub_data = Budget.query.filter_by(id=id).first()
-      
-      db.session.delete(sub_data)
-      db.session.commit()
-      db.session.close()
-      resp = jsonify("success")
-      resp.status_code =201
-      return resp
 
 
 
