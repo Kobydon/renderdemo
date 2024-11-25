@@ -131,8 +131,21 @@ class User(db.Model):
     
     )
 
-
+    ssbugeter  = db.relationship('Budget', 
+    foreign_keys ='Budget.created_by_id',
+    backref = 'budhetIBud',
+    lazy=True)
     
+    income  = db.relationship('Income', 
+    foreign_keys ='Income.created_by_id',
+    backref = 'incm',
+    lazy=True)
+
+    expnses  = db.relationship('Expenses', 
+    foreign_keys ='Expenses.created_by_id',
+    backref = 'expnsss',
+    lazy=True)
+                 
     transaction_for  = db.relationship('Transaction', 
     foreign_keys ='Transaction.created_by_id',
     backref = 'transiee',
@@ -557,3 +570,47 @@ class Todo(db.Model):
         position=db.Column(db.String(400))
         created_date=db.Column(db.String(400))
         created_by= db.Column(db.String(400))
+
+
+
+
+
+
+
+class Expenses(db.Model):
+    id =db.Column(db.Integer,primary_key=True)
+    name = db.Column(db.String(5000))
+    amount = db.Column(db.String(5000))
+    date = db.Column(db.String(5000))
+    note = db.Column(db.String(400)) 
+    # school_name = db.Column(db.String(400))
+    user = db.Column(db.String(400))
+    created_date = db.Column(db.String(400))
+    created_by_id =db.Column(db.Integer,db.ForeignKey('user.id'))
+  
+      
+class Income(db.Model):
+    id =db.Column(db.Integer,primary_key=True)
+    name = db.Column(db.String(5000))
+    amount = db.Column(db.String(5000))
+    date = db.Column(db.String(5000))
+    note = db.Column(db.String(400))
+    created_date = db.Column(db.String(400))
+    # school_name = db.Column(db.String(400))
+ 
+    created_by_id =db.Column(db.Integer,db.ForeignKey('user.id'))
+
+
+
+class Budget(db.Model):
+    id =db.Column(db.Integer,primary_key=True)
+    name = db.Column(db.String(5000))
+    amount = db.Column(db.String(5000))
+    type = db.Column(db.String(5000))
+    note = db.Column(db.String(400))
+
+    created_date = db.Column(db.String(400))
+    # school_name = db.Column(db.String(400))
+ 
+    created_by_id =db.Column(db.Integer,db.ForeignKey('user.id'))
+  

@@ -5,7 +5,7 @@ from  application.extensions.extensions import *
 from  application.settings.settings import *
 from  application.settings.setup import app
 # from application.forms import LoginForm
-from application.database.user.user_db import db,Guests,User,Booking,Rooms,Payment,Reservation,Refund
+from application.database.user.user_db import db,Guests,User,Booking,Rooms,Payment,Reservation,Refund,Budget,Income,Expenses,Attendance
 from sqlalchemy import or_,desc,and_
 from datetime import datetime
 from datetime import date
@@ -21,7 +21,7 @@ guest = Blueprint("guest", __name__)
 class Guest_schema(ma.Schema):
     class Meta:
         fields=("id","first_name","last_name","address","has_checkout","checkout_date","arrival","city","country","id_type","id_number","id_upload","dob","gender","work","remark","phone",
-                "region","email","username","arrival_date","checkout_date","guest_id")
+                "region","email","username","arrival_date","checkout_date","guest_id","note","amount","created_date","date","type","attendace","name")
 
 
 class Refund_Schema(ma.Schema):
@@ -858,3 +858,395 @@ def update_refund():
 
     # Return success response
     return jsonify({"message": "Refund successfully approved"}), 200
+
+
+
+
+
+
+
+
+@guest.route("/add_budget",methods=['POST'])
+@flask_praetorian.auth_required
+def add_budget():
+    user = User.query.filter_by(id = flask_praetorian.current_user().id).first()
+    # acd = Academic.query.filter_by(guest_name=user.guest_name,status="current").first()
+    name= request.json["name"]
+    amount =request.json["amount"]
+    note= request.json["note"]
+    type =request.json["type"]
+    # usr = user.firstname +" " + user.lastname
+    created_date=datetime.now().strftime('%Y-%m-%d %H:%M')
+    inc = Budget(name=name,amount=amount,note=note,type=type,
+                   created_by_id=flask_praetorian.current_user().id ,
+                   created_date=created_date)
+  
+    db.session.add(inc)
+    db.session.commit()
+    db.session.close()
+    resp = jsonify("success")
+    resp.status_code =200
+    return resp
+
+
+
+@guest.route("/get_budget_list",methods=['GET'])
+@flask_praetorian.auth_required
+def get_budget_list():
+    # user = User.query.filter_by(id = flask_praetorian.current_user().id).first()
+    inc = Budget.query.all()
+    result = guest_schema.dump(inc)
+    return jsonify(result)
+
+
+
+@guest.route("/get_budget/<id>",methods=['GET'])
+@flask_praetorian.auth_required
+def get_budget(id):
+
+    inc = Budget.query.filter_by(id=id)
+    result = guest_schema.dump(inc)
+    return jsonify(result)
+
+
+
+
+@guest.route("/update_Budget",methods=['PUT'])
+@flask_praetorian.auth_required
+def update_Budget():
+    id = request.json["id"]
+    sub_data = Budget.query.filter_by(id=id).first()
+    sub_data.name = request.json["name"]
+    sub_data.amount =request.json["amount"]
+    sub_data.note = request.json["note"]
+    sub_data.type =request.json["type"]
+    db.session.commit()
+    db.session.close()
+    resp = jsonify("success")
+    resp.status_code =201
+    return resp
+
+@guest.route("/delete_budget<id>",methods=['DELETE'])
+@flask_praetorian.auth_required
+def delete_budget(id):
+      sub_data = Budget.query.filter_by(id=id).first()
+      
+      db.session.delete(sub_data)
+      db.session.commit()
+      db.session.close()
+      resp = jsonify("success")
+      resp.status_code =201
+      return resp
+
+
+
+
+
+
+
+
+
+
+
+@guest.route("/add_income",methods=['POST'])
+@flask_praetorian.auth_required
+def add_income():
+    user = User.query.filter_by(id = flask_praetorian.current_user().id).first()
+    name= request.json["name"]
+    amount =request.json["amount"]
+    note= request.json["note"]
+    date =request.json["date"]
+    # usr = user.firstname +" " + user.lastname
+    created_date=datetime.now().strftime('%Y-%m-%d %H:%M')
+    inc = Income(name=name,amount=amount,note=note,date=date,
+                   created_by_id=flask_praetorian.current_user().id ,
+                   created_date=created_date)
+  
+    db.session.add(inc)
+    db.session.commit()
+    db.session.close()
+    resp = jsonify("success")
+    resp.status_code =200
+    return resp
+
+
+
+@guest.route("/get_income_list",methods=['GET'])
+@flask_praetorian.auth_required
+def get_income_list():
+    # user = User.query.filter_by(id = flask_praetorian.current_user().id).first()
+    inc = Income.query.all()
+    result = guest_schema.dump(inc)
+    return jsonify(result)
+
+
+
+@guest.route("/get_income/<id>",methods=['GET'])
+@flask_praetorian.auth_required
+def get_income(id):
+
+    inc = Income.query.filter_by(id=id)
+    result = guest_schema.dump(inc)
+    return jsonify(result)
+
+
+
+
+@guest.route("/update_income",methods=['PUT'])
+@flask_praetorian.auth_required
+def update_income():
+    id = request.json["id"]
+    sub_data = Income.query.filter_by(id=id).first()
+    sub_data.name = request.json["name"]
+    sub_data.amount =request.json["amount"]
+    sub_data.note = request.json["note"]
+    sub_data.date =request.json["date"]
+    db.session.commit()
+    db.session.close()
+    resp = jsonify("success")
+    resp.status_code =201
+    return resp
+
+@guest.route("/delete_income/<id>",methods=['DELETE'])
+@flask_praetorian.auth_required
+def delete_income(id):
+      sub_data = Income.query.filter_by(id=id).first()
+      
+      db.session.delete(sub_data)
+      db.session.commit()
+      db.session.close()
+      resp = jsonify("success")
+      resp.status_code =201
+      return resp
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+@guest.route("/add_budget",methods=['POST'])
+@flask_praetorian.auth_required
+def add_budget():
+    user = User.query.filter_by(id = flask_praetorian.current_user().id).first()
+    # acd = Academic.query.filter_by(guest_name=user.guest_name,status="current").first()
+    name= request.json["name"]
+    amount =request.json["amount"]
+    note= request.json["note"]
+    type =request.json["type"]
+    # usr = user.firstname +" " + user.lastname
+    created_date=datetime.now().strftime('%Y-%m-%d %H:%M')
+    inc = Budget(name=name,amount=amount,note=note,type=type,
+                   created_by_id=flask_praetorian.current_user().id ,
+                   created_date=created_date)
+  
+    db.session.add(inc)
+    db.session.commit()
+    db.session.close()
+    resp = jsonify("success")
+    resp.status_code =200
+    return resp
+
+
+
+@guest.route("/get_budget_list",methods=['GET'])
+@flask_praetorian.auth_required
+def get_budget_list():
+    # user = User.query.filter_by(id = flask_praetorian.current_user().id).first()
+    inc = Budget.query.all()
+    result = guest_schema.dump(inc)
+    return jsonify(result)
+
+
+
+@guest.route("/get_budget/<id>",methods=['GET'])
+@flask_praetorian.auth_required
+def get_budget(id):
+
+    inc = Budget.query.filter_by(id=id)
+    result = guest_schema.dump(inc)
+    return jsonify(result)
+
+
+
+
+@guest.route("/update_Budget",methods=['PUT'])
+@flask_praetorian.auth_required
+def update_Budget():
+    id = request.json["id"]
+    sub_data = Budget.query.filter_by(id=id).first()
+    sub_data.name = request.json["name"]
+    sub_data.amount =request.json["amount"]
+    sub_data.note = request.json["note"]
+    sub_data.type =request.json["type"]
+    db.session.commit()
+    db.session.close()
+    resp = jsonify("success")
+    resp.status_code =201
+    return resp
+
+@guest.route("/delete_budget<id>",methods=['DELETE'])
+@flask_praetorian.auth_required
+def delete_budget(id):
+      sub_data = Budget.query.filter_by(id=id).first()
+      
+      db.session.delete(sub_data)
+      db.session.commit()
+      db.session.close()
+      resp = jsonify("success")
+      resp.status_code =201
+      return resp
+
+
+
+
+
+
+
+
+
+
+
+@guest.route("/search_attendance_date",methods=["POST"])
+@flask_praetorian.auth_required
+def search_attendance_date():
+    date = request.json["date"]
+    # print(date)
+    pay = Attendance.query.filter(Attendance.created_date.contains(date) )
+    lst = pay.order_by(desc(Attendance.created_date))
+    result = guest_schema.dump(lst)
+    return jsonify(result)
+
+
+@guest.route("/search_income_dates",methods=["POST"])
+@flask_praetorian.auth_required
+def search_income_dates():
+    date = request.json["date"]
+    # print(date)
+    pay = Income.query.filter(Income.date.contains(date) )
+    lst = pay.order_by(desc(Income.date))
+    result = guest_schema.dump(lst)
+    return jsonify(result)
+
+
+
+
+@guest.route("/search_budget_dates",methods=["POST"])
+@flask_praetorian.auth_required
+def search_budget_dates():
+    date = request.json["date"]
+    # print(date)
+    pay = Budget.query.filter(Budget.created_date.contains(date) )
+    lst = pay.order_by(desc(Budget.created_date))
+    result = guest_schema.dump(lst)
+    return jsonify(result)
+
+
+@guest.route("/search_income_dates_two", methods=["POST"])
+@flask_praetorian.auth_required
+def search_income_dates_two():
+    date = request.json.get("date")
+    date_two = request.json.get("datetwo")
+
+    if not date or not date_two:
+        return jsonify({"error": "Both 'date' and 'datetwo' must be provided"}), 400
+
+    try:
+        pay = Income.query.filter(
+            or_(
+                Income.date.contains(date),
+                Income.date.contains(date_two)
+            )
+        ).order_by(desc(Income.date)).all()
+
+        result = guest_schema.dump(pay)
+        return jsonify(result), 200
+    except Exception as e:
+        print(f"Error occurred: {e}")
+        return jsonify({"error": "An error occurred while fetching data"}), 500
+
+
+# @guest.route("/search_salary_dates",methods=["POST"])
+# @flask_praetorian.auth_required
+# def search_salary_dates():
+#     date = request.json["date"]
+#     print(date)
+#     pay = SalaryPayment.query.filter(SalaryPayment.payment_date.contains(date) )
+#     lst = pay.order_by(desc(SalaryPayment.payment_date))
+#     result = guest_schema.dump(lst)
+#     return jsonify(result)
+
+
+@guest.route("/search_expense_dates",methods=["POST"])
+@flask_praetorian.auth_required
+def search_expense_dates():
+    date = request.json["date"]
+    print(date)
+    pay = Expenses.query.filter(Expenses.date.contains(date) )
+    lst = pay.order_by(desc(Expenses.date))
+    result = guest_schema.dump(lst)
+    return jsonify(result)
+
+
+@guest.route("/search_expense_budget_dates",methods=["POST"])
+@flask_praetorian.auth_required
+def search_expense_budget_dates():
+    term = request.json["term"]
+    year =request.json["year"]
+    type ="expense"
+    # print(date)
+    pay = Budget.query.filter(Budget.term.contains(term), Budget.year.contains(year),Budget.type.contains(type))
+    lst = pay.order_by(desc(Budget.created_date))
+    result = guest_schema.dump(lst)
+    return jsonify(result)
+
+
+
+@guest.route("/search_income_budget_dates",methods=["POST"])
+@flask_praetorian.auth_required
+def search_income_budget_dates():
+    term = request.json["term"]
+    year =request.json["year"]
+    type ="income"
+    # print(date)
+    pay = Budget.query.filter(Budget.term.contains(term), Budget.year.contains(year),Budget.type.contains(type))
+    lst = pay.order_by(desc(Budget.created_date))
+    result = guest_schema.dump(lst)
+    return jsonify(result)
+
+
+
+
+
+@guest.route("/search_expense_dates_two", methods=["POST"])
+@flask_praetorian.auth_required
+def search_expense_dates_two():
+    date = request.json.get("date")
+    date_two = request.json.get("datetwo")
+
+    if not date or not date_two:
+        return jsonify({"error": "Both 'date' and 'datetwo' must be provided"}), 400
+
+    try:
+        pay = Expenses.query.filter(
+            or_(
+                Expenses.date.contains(date),
+                Expenses.date.contains(date_two)
+            )
+        ).order_by(desc(Expenses.date)).all()
+
+        result = guest_schema.dump(pay)
+        return jsonify(result), 200
+    except Exception as e:
+        print(f"Error occurred: {e}")
+
+
