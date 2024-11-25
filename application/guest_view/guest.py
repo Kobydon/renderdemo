@@ -1047,13 +1047,6 @@ def get_budget_list():
 
 
 
-
-
-
-
-
-
-
 @guest.route("/search_attendance_date",methods=["POST"])
 @flask_praetorian.auth_required
 def search_attendance_date():
@@ -1064,16 +1057,34 @@ def search_attendance_date():
     result = guest_schema.dump(lst)
     return jsonify(result)
 
-
-@guest.route("/search_income_dates",methods=["POST"])
+@guest.route("/search_income_dates", methods=["POST"])
 @flask_praetorian.auth_required
 def search_income_dates():
-    date = request.json["date"]
-    # print(date)
-    pay = Income.query.filter(Income.date.contains(date) )
-    lst = pay.order_by(desc(Income.date))
-    result = guest_schema.dump(lst)
-    return jsonify(result)
+    """
+    Searches for income records by a specific date.
+    """
+    try:
+        # Extract the date from the JSON request body
+        date = request.json.get("date")
+        
+        if not date:
+            return jsonify({"error": "Date is required"}), 400
+
+        # Query the Income table for records containing the specified date
+        income_records = Income.query.filter(Income.date.contains(date))
+
+        # Order the results by date in descending order
+        ordered_records = income_records.order_by(desc(Income.date))
+
+        # Serialize the query result
+        result = guest_schema.dump(ordered_records)
+
+        # Return the serialized data as a JSON response
+        return jsonify(result), 200
+
+    except Exception as e:
+        # Handle unexpected errors
+        return jsonify({"error": str(e)}), 500
 
 
 
@@ -1124,25 +1135,45 @@ def search_income_dates_two():
 #     return jsonify(result)
 
 
-@guest.route("/search_expense_dates",methods=["POST"])
+@guest.route("/search_expense_dates", methods=["POST"])
 @flask_praetorian.auth_required
 def search_expense_dates():
-    date = request.json["date"]
-    print(date)
-    pay = Expenses.query.filter(Expenses.date.contains(date) )
-    lst = pay.order_by(desc(Expenses.date))
-    result = guest_schema.dump(lst)
-    return jsonify(result)
+    """
+    Searches for expense records by a specific date.
+    """
+    try:
+        # Extract the date from the JSON request body
+        date = request.json.get("date")
+        
+        if not date:
+            return jsonify({"error": "Date is required"}), 400
+
+        # Query the Expenses table for records containing the specified date
+        expense_records = Expenses.query.filter(Expenses.date.contains(date))
+
+        # Order the results by date in descending order
+        ordered_records = expense_records.order_by(desc(Expenses.date))
+
+        # Serialize the query result
+        result = guest_schema.dump(ordered_records)
+
+        # Return the serialized data as a JSON response
+        return jsonify(result), 200
+
+    except Exception as e:
+        # Handle unexpected errors
+        return jsonify({"error": str(e)}), 500
+
 
 
 @guest.route("/search_expense_budget_dates",methods=["POST"])
 @flask_praetorian.auth_required
 def search_expense_budget_dates():
-    term = request.json["term"]
-    year =request.json["year"]
+    date = request.json["date"]
+    # year =request.json["year"]
     type ="expense"
     # print(date)
-    pay = Budget.query.filter(Budget.term.contains(term), Budget.year.contains(year),Budget.type.contains(type))
+    pay = Budget.query.filter(Budget.term.date(date))
     lst = pay.order_by(desc(Budget.created_date))
     result = guest_schema.dump(lst)
     return jsonify(result)
@@ -1152,11 +1183,11 @@ def search_expense_budget_dates():
 @guest.route("/search_income_budget_dates",methods=["POST"])
 @flask_praetorian.auth_required
 def search_income_budget_dates():
-    term = request.json["term"]
-    year =request.json["year"]
-    type ="income"
+    date = request.json["date"]
+    # year =request.json["year"]
+    # type ="income"
     # print(date)
-    pay = Budget.query.filter(Budget.term.contains(term), Budget.year.contains(year),Budget.type.contains(type))
+    pay = Budget.query.filter(Budget.date.contains(date))
     lst = pay.order_by(desc(Budget.created_date))
     result = guest_schema.dump(lst)
     return jsonify(result)
