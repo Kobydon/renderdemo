@@ -1034,9 +1034,9 @@ def delete_income(id):
 
 
 
-@guest.route("/add_budget",methods=['POST'])
+@guest.route("/add_bud",methods=['POST'])
 @flask_praetorian.auth_required
-def add_budget():
+def add_bud():
     user = User.query.filter_by(id = flask_praetorian.current_user().id).first()
     # acd = Academic.query.filter_by(guest_name=user.guest_name,status="current").first()
     name= request.json["name"]
