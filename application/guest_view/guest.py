@@ -5,7 +5,7 @@ from  application.extensions.extensions import *
 from  application.settings.settings import *
 from  application.settings.setup import app
 # from application.forms import LoginForm
-from application.database.user.user_db import db,Guests,User,Booking,Rooms,Payment,Reservation,Refund,Budget,Income,Expenses,Attendance,Itemi,Family,Category
+from application.database.user.user_db import db,Guests,User,Booking,Rooms,Payment,Reservation,Refund,Budget,Income,Expenses,Attendance,Itemi,Family,Category,Unit
 from sqlalchemy import or_,desc,and_
 from datetime import datetime
 from datetime import date
@@ -1153,9 +1153,9 @@ def delete_category(id):
 
 
 
-@guest.route("/add_group",methods=['POST'])
+@guest.route("/add_family",methods=['POST'])
 @flask_praetorian.auth_required
-def add_group():
+def add_family():
     # user = User.query.filter_by(id = flask_praetorian.current_user().id).first()
     name= request.json["name"]
     description =request.json["description"]
@@ -1176,9 +1176,9 @@ def add_group():
 
 
 
-@guest.route("/get_group_list",methods=['GET'])
+@guest.route("/get_family_list",methods=['GET'])
 @flask_praetorian.auth_required
-def get_group_list():
+def get_family_list():
     # user = User.query.filter_by(id = flask_praetorian.current_user().id).first()
     inc = Family.query.all()
     result = guest_schema.dump(inc)
@@ -1186,9 +1186,9 @@ def get_group_list():
 
 
 
-@guest.route("/get_group/<id>",methods=['GET'])
+@guest.route("/get_family/<id>",methods=['GET'])
 @flask_praetorian.auth_required
-def get_group(id):
+def get_family(id):
 
     inc = Family.query.filter_by(id=id)
     result = guest_schema.dump(inc)
@@ -1197,9 +1197,9 @@ def get_group(id):
 
 
 
-@guest.route("/update_group",methods=['PUT'])
+@guest.route("/update_family",methods=['PUT'])
 @flask_praetorian.auth_required
-def update_group():
+def update_family():
     id = request.json["id"]
     sub_data = Family.query.filter_by(id=id).first()
     sub_data.name = request.json["name"]
@@ -1212,9 +1212,9 @@ def update_group():
     resp.status_code =201
     return resp
 
-@guest.route("/delete_group/<id>",methods=['DELETE'])
+@guest.route("/delete_family/<id>",methods=['DELETE'])
 @flask_praetorian.auth_required
-def delete_group(id):
+def delete_family(id):
       sub_data = Family.query.filter_by(id=id).first()
       
       db.session.delete(sub_data)
@@ -1224,6 +1224,84 @@ def delete_group(id):
       resp.status_code =201
       return resp
 
+
+
+
+
+
+
+
+
+@guest.route("/add_unit",methods=['POST'])
+@flask_praetorian.auth_required
+def add_unit():
+    # user = User.query.filter_by(id = flask_praetorian.current_user().id).first()
+    name= request.json["name"]
+    description =request.json["description"]
+    # price= request.json["price"]
+    
+    # usr = user.firstname +" " + user.lastname
+    created_date=datetime.now().strftime('%Y-%m-%d %H:%M')
+    inc = Unit(name=name,description=description,
+                   created_by_id=flask_praetorian.current_user().id ,
+                   created_date=created_date)
+  
+    db.session.add(inc)
+    db.session.commit()
+    db.session.close()
+    resp = jsonify("success")
+    resp.status_code =200
+    return resp
+
+
+
+@guest.route("/get_unit_list",methods=['GET'])
+@flask_praetorian.auth_required
+def get_unit_list():
+    # user = User.query.filter_by(id = flask_praetorian.current_user().id).first()
+    inc = Unit.query.all()
+    result = guest_schema.dump(inc)
+    return jsonify(result)
+
+
+
+@guest.route("/get_unit/<id>",methods=['GET'])
+@flask_praetorian.auth_required
+def get_unit(id):
+
+    inc = Unit.query.filter_by(id=id)
+    result = guest_schema.dump(inc)
+    return jsonify(result)
+
+
+
+
+@guest.route("/update_unit",methods=['PUT'])
+@flask_praetorian.auth_required
+def update_unit():
+    id = request.json["id"]
+    sub_data = Unit.query.filter_by(id=id).first()
+    sub_data.name = request.json["name"]
+    sub_data.description =request.json["description"]
+    # sub_data.price =request.json["price"]
+
+    db.session.commit()
+    db.session.close()
+    resp = jsonify("success")
+    resp.status_code =201
+    return resp
+
+@guest.route("/delete_unit/<id>",methods=['DELETE'])
+@flask_praetorian.auth_required
+def delete_unit(id):
+      sub_data = Unit.query.filter_by(id=id).first()
+      
+      db.session.delete(sub_data)
+      db.session.commit()
+      db.session.close()
+      resp = jsonify("success")
+      resp.status_code =201
+      return resp
 
 
 

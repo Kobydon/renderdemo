@@ -631,6 +631,11 @@ class Itemi(db.Model):
     # school_name = db.Column(db.String(400))
     # created_by_id =db.Column(db.Integer,db.ForeignKey('user.id'))
 
+class Unit(db.Model):
+    id =db.Column(db.Integer,primary_key=True)
+    name = db.Column(db.String(5000))
+    description = db.Column(db.String(5000))
+    created_date = db.Column(db.String(400))
 
 
 class Category(db.Model):
