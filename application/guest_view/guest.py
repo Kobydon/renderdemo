@@ -5,7 +5,7 @@ from  application.extensions.extensions import *
 from  application.settings.settings import *
 from  application.settings.setup import app
 # from application.forms import LoginForm
-from application.database.user.user_db import db,Guests,User,Booking,Rooms,Payment,Reservation,Refund,Budget,Income,Expenses,Attendance,Item,Family,Category
+from application.database.user.user_db import db,Guests,User,Booking,Rooms,Payment,Reservation,Refund,Budget,Income,Expenses,Attendance,Itemi,Family,Category
 from sqlalchemy import or_,desc,and_
 from datetime import datetime
 from datetime import date
@@ -1004,7 +1004,7 @@ def add_item():
     
     # usr = user.firstname +" " + user.lastname
     created_date=datetime.now().strftime('%Y-%m-%d %H:%M')
-    inc = Item(name=name,description=description,price=price,
+    inc = Itemi(name=name,description=description,price=price,
                    created_by_id=flask_praetorian.current_user().id ,
                    created_date=created_date)
   
@@ -1021,7 +1021,7 @@ def add_item():
 @flask_praetorian.auth_required
 def get_item_list():
     # user = User.query.filter_by(id = flask_praetorian.current_user().id).first()
-    inc = Item.query.all()
+    inc = Itemi.query.all()
     result = guest_schema.dump(inc)
     return jsonify(result)
 
@@ -1031,7 +1031,7 @@ def get_item_list():
 @flask_praetorian.auth_required
 def get_income(id):
 
-    inc = Item.query.filter_by(id=id)
+    inc = Itemi.query.filter_by(id=id)
     result = guest_schema.dump(inc)
     return jsonify(result)
 
@@ -1042,7 +1042,7 @@ def get_income(id):
 @flask_praetorian.auth_required
 def update_item():
     id = request.json["id"]
-    sub_data = Item.query.filter_by(id=id).first()
+    sub_data = Itemi.query.filter_by(id=id).first()
     sub_data.name = request.json["name"]
     sub_data.description =request.json["description"]
     sub_data.price =request.json["price"]
@@ -1056,7 +1056,7 @@ def update_item():
 @guest.route("/delete_item/<id>",methods=['DELETE'])
 @flask_praetorian.auth_required
 def delete_item(id):
-      sub_data = Item.query.filter_by(id=id).first()
+      sub_data = Itemi.query.filter_by(id=id).first()
       
       db.session.delete(sub_data)
       db.session.commit()

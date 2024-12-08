@@ -623,7 +623,7 @@ class Family(db.Model):
     # created_by_id =db.Column(db.Integer,db.ForeignKey('user.id'))
 
 
-class Item(db.Model):
+class Itemi(db.Model):
     id =db.Column(db.Integer,primary_key=True)
     name = db.Column(db.String(5000))
     description = db.Column(db.String(5000))
