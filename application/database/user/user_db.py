@@ -634,15 +634,17 @@ class Family(db.Model):
     # school_name = db.Column(db.String(400))
     # created_by_id =db.Column(db.Integer,db.ForeignKey('user.id'))
 
-class Itema(db.Model):
+
+
+class Iteman(db.Model):
     id =db.Column(db.Integer,primary_key=True)
     name = db.Column(db.String(5000))
     description = db.Column(db.String(5000))
     created_date = db.Column(db.String(400))
     Category = db.Column(db.String(5000))
     family = db.Column(db.String(5000))
+    price = db.Column(db.String(400))
     unit = db.Column(db.String(400))
-    # school_name = db.Column(db.String(
 
 class Unit(db.Model):
     id =db.Column(db.Integer,primary_key=True)
