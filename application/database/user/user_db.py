@@ -623,13 +623,26 @@ class Family(db.Model):
     # created_by_id =db.Column(db.Integer,db.ForeignKey('user.id'))
 
 
-class Itemi(db.Model):
+# class Itemi(db.Model):
+#     id =db.Column(db.Integer,primary_key=True)
+#     name = db.Column(db.String(5000))
+#     description = db.Column(db.String(5000))
+#     created_date = db.Column(db.String(400))
+#     Category = db.Column(db.String(5000))
+#     family = db.Column(db.String(5000))
+#     unit = db.Column(db.String(400))
+    # school_name = db.Column(db.String(400))
+    # created_by_id =db.Column(db.Integer,db.ForeignKey('user.id'))
+
+class Itema(db.Model):
     id =db.Column(db.Integer,primary_key=True)
     name = db.Column(db.String(5000))
     description = db.Column(db.String(5000))
     created_date = db.Column(db.String(400))
-    # school_name = db.Column(db.String(400))
-    # created_by_id =db.Column(db.Integer,db.ForeignKey('user.id'))
+    Category = db.Column(db.String(5000))
+    family = db.Column(db.String(5000))
+    unit = db.Column(db.String(400))
+    # school_name = db.Column(db.String(
 
 class Unit(db.Model):
     id =db.Column(db.Integer,primary_key=True)
