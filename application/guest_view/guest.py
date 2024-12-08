@@ -1083,7 +1083,6 @@ def add_category():
     # usr = user.firstname +" " + user.lastname
     created_date=datetime.now().strftime('%Y-%m-%d %H:%M')
     inc = Category(name=name,description=description,
-                   created_by_id=flask_praetorian.current_user().id ,
                    created_date=created_date)
   
     db.session.add(inc)
@@ -1164,7 +1163,6 @@ def add_family():
     # usr = user.firstname +" " + user.lastname
     created_date=datetime.now().strftime('%Y-%m-%d %H:%M')
     inc = Family(name=name,description=description,
-                   created_by_id=flask_praetorian.current_user().id ,
                    created_date=created_date)
   
     db.session.add(inc)
