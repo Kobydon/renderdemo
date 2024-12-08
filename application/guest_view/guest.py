@@ -1008,7 +1008,6 @@ def add_item():
     # usr = user.firstname +" " + user.lastname
     created_date=datetime.now().strftime('%Y-%m-%d %H:%M')
     inc = Iteman(name=name,description=description,price=price,
-                   created_by_id=flask_praetorian.current_user().id ,
                    created_date=created_date,family=family,category=category,unit=unit)
   
     db.session.add(inc)
