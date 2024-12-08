@@ -20,7 +20,7 @@ guest = Blueprint("guest", __name__)
         
 class Guest_schema(ma.Schema):
     class Meta:
-        fields=("id","first_name","last_name","address","has_checkout","checkout_date","arrival","city","country","id_type","id_number","id_upload","dob","gender","work","remark","phone",
+        fields=("id","first_name","last_name","price","address","has_checkout","checkout_date","arrival","city","country","id_type","id_number","id_upload","dob","gender","work","remark","phone",
                 "region","email","username","arrival_date","checkout_date","guest_id","note","amount","created_date","date","type","attendace","name","description")
 
 
