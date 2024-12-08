@@ -597,7 +597,6 @@ class Income(db.Model):
     note = db.Column(db.String(400))
     created_date = db.Column(db.String(400))
     # school_name = db.Column(db.String(400))
- 
     created_by_id =db.Column(db.Integer,db.ForeignKey('user.id'))
 
 
@@ -614,3 +613,30 @@ class Budget(db.Model):
  
     created_by_id =db.Column(db.Integer,db.ForeignKey('user.id'))
   
+
+class Family(db.Model):
+    id =db.Column(db.Integer,primary_key=True)
+    name = db.Column(db.String(5000))
+    description = db.Column(db.String(5000))
+    created_date = db.Column(db.String(400))
+    # school_name = db.Column(db.String(400))
+    # created_by_id =db.Column(db.Integer,db.ForeignKey('user.id'))
+
+
+class Item(db.Model):
+    id =db.Column(db.Integer,primary_key=True)
+    name = db.Column(db.String(5000))
+    description = db.Column(db.String(5000))
+    created_date = db.Column(db.String(400))
+    # school_name = db.Column(db.String(400))
+    # created_by_id =db.Column(db.Integer,db.ForeignKey('user.id'))
+
+
+
+class Category(db.Model):
+    id =db.Column(db.Integer,primary_key=True)
+    name = db.Column(db.String(5000))
+    description = db.Column(db.String(5000))
+    created_date = db.Column(db.String(400))
+    # school_name = db.Column(db.String(400))
+    created_by_id =db.Column(db.Integer,db.ForeignKey('user.id'))

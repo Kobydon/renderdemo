@@ -5,7 +5,7 @@ from  application.extensions.extensions import *
 from  application.settings.settings import *
 from  application.settings.setup import app
 # from application.forms import LoginForm
-from application.database.user.user_db import db,Guests,User,Booking,Rooms,Payment,Reservation,Refund,Budget,Income,Expenses,Attendance
+from application.database.user.user_db import db,Guests,User,Booking,Rooms,Payment,Reservation,Refund,Budget,Income,Expenses,Attendance,Item,Family,Category
 from sqlalchemy import or_,desc,and_
 from datetime import datetime
 from datetime import date
@@ -21,7 +21,7 @@ guest = Blueprint("guest", __name__)
 class Guest_schema(ma.Schema):
     class Meta:
         fields=("id","first_name","last_name","address","has_checkout","checkout_date","arrival","city","country","id_type","id_number","id_upload","dob","gender","work","remark","phone",
-                "region","email","username","arrival_date","checkout_date","guest_id","note","amount","created_date","date","type","attendace","name")
+                "region","email","username","arrival_date","checkout_date","guest_id","note","amount","created_date","date","type","attendace","name","description")
 
 
 class Refund_Schema(ma.Schema):
@@ -994,10 +994,235 @@ def delete_income(id):
 
 
 
+@guest.route("/add_item",methods=['POST'])
+@flask_praetorian.auth_required
+def add_item():
+    # user = User.query.filter_by(id = flask_praetorian.current_user().id).first()
+    name= request.json["name"]
+    description =request.json["description"]
+    price= request.json["price"]
+    
+    # usr = user.firstname +" " + user.lastname
+    created_date=datetime.now().strftime('%Y-%m-%d %H:%M')
+    inc = Item(name=name,description=description,price=price,
+                   created_by_id=flask_praetorian.current_user().id ,
+                   created_date=created_date)
+  
+    db.session.add(inc)
+    db.session.commit()
+    db.session.close()
+    resp = jsonify("success")
+    resp.status_code =200
+    return resp
+
+
+
+@guest.route("/get_item_list",methods=['GET'])
+@flask_praetorian.auth_required
+def get_item_list():
+    # user = User.query.filter_by(id = flask_praetorian.current_user().id).first()
+    inc = Item.query.all()
+    result = guest_schema.dump(inc)
+    return jsonify(result)
+
+
+
+@guest.route("/get_item/<id>",methods=['GET'])
+@flask_praetorian.auth_required
+def get_income(id):
+
+    inc = Item.query.filter_by(id=id)
+    result = guest_schema.dump(inc)
+    return jsonify(result)
 
 
 
 
+@guest.route("/update_item",methods=['PUT'])
+@flask_praetorian.auth_required
+def update_item():
+    id = request.json["id"]
+    sub_data = Item.query.filter_by(id=id).first()
+    sub_data.name = request.json["name"]
+    sub_data.description =request.json["description"]
+    sub_data.price =request.json["price"]
+
+    db.session.commit()
+    db.session.close()
+    resp = jsonify("success")
+    resp.status_code =201
+    return resp
+
+@guest.route("/delete_item/<id>",methods=['DELETE'])
+@flask_praetorian.auth_required
+def delete_item(id):
+      sub_data = Item.query.filter_by(id=id).first()
+      
+      db.session.delete(sub_data)
+      db.session.commit()
+      db.session.close()
+      resp = jsonify("success")
+      resp.status_code =201
+      return resp
+
+
+
+
+
+
+
+
+@guest.route("/add_category",methods=['POST'])
+@flask_praetorian.auth_required
+def add_category():
+    # user = User.query.filter_by(id = flask_praetorian.current_user().id).first()
+    name= request.json["name"]
+    description =request.json["description"]
+    # price= request.json["price"]
+    
+    # usr = user.firstname +" " + user.lastname
+    created_date=datetime.now().strftime('%Y-%m-%d %H:%M')
+    inc = Category(name=name,description=description,
+                   created_by_id=flask_praetorian.current_user().id ,
+                   created_date=created_date)
+  
+    db.session.add(inc)
+    db.session.commit()
+    db.session.close()
+    resp = jsonify("success")
+    resp.status_code =200
+    return resp
+
+
+
+@guest.route("/get_category_list",methods=['GET'])
+@flask_praetorian.auth_required
+def get_category_list():
+    # user = User.query.filter_by(id = flask_praetorian.current_user().id).first()
+    inc = Category.query.all()
+    result = guest_schema.dump(inc)
+    return jsonify(result)
+
+
+
+@guest.route("/get_categroy/<id>",methods=['GET'])
+@flask_praetorian.auth_required
+def get_categroy(id):
+
+    inc = Category.query.filter_by(id=id)
+    result = guest_schema.dump(inc)
+    return jsonify(result)
+
+
+
+
+@guest.route("/update_category",methods=['PUT'])
+@flask_praetorian.auth_required
+def update_category():
+    id = request.json["id"]
+    sub_data = Category.query.filter_by(id=id).first()
+    sub_data.name = request.json["name"]
+    sub_data.description =request.json["description"]
+    # sub_data.price =request.json["price"]
+
+    db.session.commit()
+    db.session.close()
+    resp = jsonify("success")
+    resp.status_code =201
+    return resp
+
+@guest.route("/delete_category/<id>",methods=['DELETE'])
+@flask_praetorian.auth_required
+def delete_category(id):
+      sub_data = Category.query.filter_by(id=id).first()
+      
+      db.session.delete(sub_data)
+      db.session.commit()
+      db.session.close()
+      resp = jsonify("success")
+      resp.status_code =201
+      return resp
+
+
+
+
+
+
+
+
+
+
+
+@guest.route("/add_group",methods=['POST'])
+@flask_praetorian.auth_required
+def add_group():
+    # user = User.query.filter_by(id = flask_praetorian.current_user().id).first()
+    name= request.json["name"]
+    description =request.json["description"]
+    # price= request.json["price"]
+    
+    # usr = user.firstname +" " + user.lastname
+    created_date=datetime.now().strftime('%Y-%m-%d %H:%M')
+    inc = Family(name=name,description=description,
+                   created_by_id=flask_praetorian.current_user().id ,
+                   created_date=created_date)
+  
+    db.session.add(inc)
+    db.session.commit()
+    db.session.close()
+    resp = jsonify("success")
+    resp.status_code =200
+    return resp
+
+
+
+@guest.route("/get_group_list",methods=['GET'])
+@flask_praetorian.auth_required
+def get_group_list():
+    # user = User.query.filter_by(id = flask_praetorian.current_user().id).first()
+    inc = Family.query.all()
+    result = guest_schema.dump(inc)
+    return jsonify(result)
+
+
+
+@guest.route("/get_group/<id>",methods=['GET'])
+@flask_praetorian.auth_required
+def get_group(id):
+
+    inc = Family.query.filter_by(id=id)
+    result = guest_schema.dump(inc)
+    return jsonify(result)
+
+
+
+
+@guest.route("/update_group",methods=['PUT'])
+@flask_praetorian.auth_required
+def update_group():
+    id = request.json["id"]
+    sub_data = Family.query.filter_by(id=id).first()
+    sub_data.name = request.json["name"]
+    sub_data.description =request.json["description"]
+    # sub_data.price =request.json["price"]
+
+    db.session.commit()
+    db.session.close()
+    resp = jsonify("success")
+    resp.status_code =201
+    return resp
+
+@guest.route("/delete_group/<id>",methods=['DELETE'])
+@flask_praetorian.auth_required
+def delete_group(id):
+      sub_data = Family.query.filter_by(id=id).first()
+      
+      db.session.delete(sub_data)
+      db.session.commit()
+      db.session.close()
+      resp = jsonify("success")
+      resp.status_code =201
+      return resp
 
 
 
