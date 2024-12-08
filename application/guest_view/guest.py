@@ -1029,7 +1029,7 @@ def get_item_list():
 
 @guest.route("/get_item/<id>",methods=['GET'])
 @flask_praetorian.auth_required
-def get_income(id):
+def get_item(id):
 
     inc = Itemi.query.filter_by(id=id)
     result = guest_schema.dump(inc)
