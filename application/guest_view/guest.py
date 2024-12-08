@@ -1241,7 +1241,6 @@ def add_unit():
     # usr = user.firstname +" " + user.lastname
     created_date=datetime.now().strftime('%Y-%m-%d %H:%M')
     inc = Unit(name=name,description=description,
-                   created_by_id=flask_praetorian.current_user().id ,
                    created_date=created_date)
   
     db.session.add(inc)
