@@ -20,7 +20,7 @@ guest = Blueprint("guest", __name__)
         
 class Guest_schema(ma.Schema):
     class Meta:
-        fields=("id","first_name","last_name","unit","category","family","fprice","address","has_checkout","checkout_date","arrival","city","country","id_type","id_number","id_upload","dob","gender","work","remark","phone",
+        fields=("id","first_name","last_name","unit","Category","family","fprice","address","has_checkout","checkout_date","arrival","city","country","id_type","id_number","id_upload","dob","gender","work","remark","phone",
                 "region","email","username","arrival_date","checkout_date","guest_id","note","amount","created_date","date","type","attendace","name","description")
 
 
@@ -1008,7 +1008,7 @@ def add_item():
     # usr = user.firstname +" " + user.lastname
     created_date=datetime.now().strftime('%Y-%m-%d %H:%M')
     inc = Iteman(name=name,description=description,price=price,
-                   created_date=created_date,family=family,category=category,unit=unit)
+                   created_date=created_date,family=family,Category=category,unit=unit)
   
     db.session.add(inc)
     db.session.commit()
@@ -1048,7 +1048,7 @@ def update_item():
     sub_data.name = request.json["name"]
     sub_data.description =request.json["description"]
     sub_data.price =request.json["price"]
-    sub_data.category = request.json["category"]
+    sub_data.Category = request.json["category"]
     sub_data.unit =request.json["unit"]
     sub_data.faily =request.json["family"]
 
