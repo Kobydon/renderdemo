@@ -1676,18 +1676,3 @@ def delete_stock(id):
 
 
 
-
-@guest.route("/delete_category/<id>",methods=['DELETE'])
-@flask_praetorian.auth_required
-def delete_category(id):
-      sub_data = Category.query.filter_by(id=id).first()
-      
-      db.session.delete(sub_data)
-      db.session.commit()
-      db.session.close()
-      resp = jsonify("success")
-      resp.status_code =201
-      return resp
-
-
-
