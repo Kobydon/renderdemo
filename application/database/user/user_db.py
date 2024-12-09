@@ -653,6 +653,26 @@ class Unit(db.Model):
     created_date = db.Column(db.String(400))
 
 
+
+
+class Stock(db.Model):
+    id =db.Column(db.Integer,primary_key=True)
+    name = db.Column(db.String(5000))
+    store = db.Column(db.String(5000))
+    quantity = db.Column(db.String(5000))
+    created_date = db.Column(db.String(400))
+
+
+class Store(db.Model):
+    id =db.Column(db.Integer,primary_key=True)
+    name = db.Column(db.String(5000))
+    Category = db.Column(db.String(5000))
+    description = db.Column(db.String(5000))
+    created_date = db.Column(db.String(400))
+
+
+
+
 class Category(db.Model):
     id =db.Column(db.Integer,primary_key=True)
     name = db.Column(db.String(5000))

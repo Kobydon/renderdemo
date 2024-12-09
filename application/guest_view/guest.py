@@ -5,7 +5,7 @@ from  application.extensions.extensions import *
 from  application.settings.settings import *
 from  application.settings.setup import app
 # from application.forms import LoginForm
-from application.database.user.user_db import db,Guests,User,Booking,Rooms,Payment,Reservation,Refund,Budget,Income,Expenses,Attendance,Iteman,Family,Category,Unit
+from application.database.user.user_db import db,Guests,User,Booking,Rooms,Payment,Reservation,Refund,Budget,Income,Expenses,Attendance,Iteman,Family,Category,Unit,Stock,Store
 from sqlalchemy import or_,desc,and_
 from datetime import datetime
 from datetime import date
@@ -20,7 +20,7 @@ guest = Blueprint("guest", __name__)
         
 class Guest_schema(ma.Schema):
     class Meta:
-        fields=("id","first_name","last_name","unit","Category","family","fprice","address","has_checkout","checkout_date","arrival","city","country","id_type","id_number","id_upload","dob","gender","work","remark","phone",
+        fields=("id","first_name","last_name","unit","Category","family","price","address","has_checkout","checkout_date","arrival","city","country","id_type","id_number","id_upload","dob","gender","work","remark","phone",
                 "region","email","username","arrival_date","checkout_date","guest_id","note","amount","created_date","date","type","attendace","name","description")
 
 
@@ -1522,5 +1522,172 @@ def search_expense_dates_two():
         return jsonify(result), 200
     except Exception as e:
         print(f"Error occurred: {e}")
+
+
+
+
+
+
+
+
+@guest.route("/add_store",methods=['POST'])
+@flask_praetorian.auth_required
+def add_store():
+    # user = User.query.filter_by(id = flask_praetorian.current_user().id).first()
+    name= request.json["name"]
+    description =request.json["description"]
+    category= request.json["category"]
+    
+    # usr = user.firstname +" " + user.lastname
+    created_date=datetime.now().strftime('%Y-%m-%d %H:%M')
+    inc = Store(name=name,description=description,Category=category,
+                   created_date=created_date)
+  
+    db.session.add(inc)
+    db.session.commit()
+    db.session.close()
+    resp = jsonify("success")
+    resp.status_code =200
+    return resp
+
+
+
+@guest.route("/get_store_list",methods=['GET'])
+@flask_praetorian.auth_required
+def get_store_list():
+    # user = User.query.filter_by(id = flask_praetorian.current_user().id).first()
+    inc = Store.query.all()
+    result = guest_schema.dump(inc)
+    return jsonify(result)
+
+
+
+
+@guest.route("/update_store",methods=['PUT'])
+@flask_praetorian.auth_required
+def update_store():
+    id = request.json["id"]
+    sub_data = Store.query.filter_by(id=id).first()
+    sub_data.name = request.json["name"]
+    sub_data.description =request.json["description"]
+    sub_data.Category =request.json["category"]
+
+    db.session.commit()
+    db.session.close()
+    resp = jsonify("success")
+    resp.status_code =201
+    return resp
+
+
+
+
+@guest.route("/delete_store/<id>",methods=['DELETE'])
+@flask_praetorian.auth_required
+def delete_store(id):
+      sub_data = Store.query.filter_by(id=id).first()
+      
+      db.session.delete(sub_data)
+      db.session.commit()
+      db.session.close()
+      resp = jsonify("success")
+      resp.status_code =201
+      return resp
+
+
+
+
+
+
+
+
+
+@guest.route("/add_stock",methods=['POST'])
+@flask_praetorian.auth_required
+def add_stock():
+    # user = User.query.filter_by(id = flask_praetorian.current_user().id).first()
+    name= request.json["name"]
+    store =request.json["store"]
+    quantity= request.json["quantity"]
+    
+    # usr = user.firstname +" " + user.lastname
+    created_date=datetime.now().strftime('%Y-%m-%d %H:%M')
+    st = Stock.query.filter_by(name=name).first()
+    if st:
+        st.quantity= int(st.quantity) + int(quantity)
+
+    inc = Stock(name=name,store=store,quantity=quantity,
+                   created_date=created_date)
+  
+    db.session.add(inc)
+    db.session.commit()
+    db.session.close()
+    resp = jsonify("success")
+    resp.status_code =200
+    return resp
+
+
+
+@guest.route("/get_stock_list",methods=['GET'])
+@flask_praetorian.auth_required
+def get_stock_list():
+    # user = User.query.filter_by(id = flask_praetorian.current_user().id).first()
+    inc = Stock.query.all()
+    result = guest_schema.dump(inc)
+    return jsonify(result)
+
+
+
+
+@guest.route("/update_stock",methods=['PUT'])
+@flask_praetorian.auth_required
+def update_stock():
+
+    id = request.json["id"]
+    quantity =request.json["quantity"]
+    sub_data = Stock.query.filter_by(id=id).first()
+    sub_data.name = request.json["name"]
+    sub_data.store= request.json["store"]
+    sub_data.store= int(quantity) + int(sub_data.quantity) 
+    # sub_data.Category =request.json["category"]
+
+    db.session.commit()
+    db.session.close()
+    resp = jsonify("success")
+    resp.status_code =201
+    return resp
+
+
+
+
+@guest.route("/delete_stock/<id>",methods=['DELETE'])
+@flask_praetorian.auth_required
+def delete_stock(id):
+      sub_data = Stock.query.filter_by(id=id).first()
+      
+      db.session.delete(sub_data)
+      db.session.commit()
+      db.session.close()
+      resp = jsonify("success")
+      resp.status_code =201
+      return resp
+
+
+
+
+
+
+
+@guest.route("/delete_category/<id>",methods=['DELETE'])
+@flask_praetorian.auth_required
+def delete_category(id):
+      sub_data = Category.query.filter_by(id=id).first()
+      
+      db.session.delete(sub_data)
+      db.session.commit()
+      db.session.close()
+      resp = jsonify("success")
+      resp.status_code =201
+      return resp
+
 
 
