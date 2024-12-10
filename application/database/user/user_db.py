@@ -672,6 +672,25 @@ class Store(db.Model):
 
 
 
+class StockTransfer(db.Model):
+    id =db.Column(db.Integer,primary_key=True)
+    name = db.Column(db.String(5000))
+    department = db.Column(db.String(5000))
+    quantity = db.Column(db.String(5000))
+    
+    created_date = db.Column(db.String(400))
+
+
+
+class Department(db.Model):
+    id =db.Column(db.Integer,primary_key=True)
+    name = db.Column(db.String(5000))
+    description = db.Column(db.String(5000))
+    hod = db.Column(db.String(5000))
+    created_date = db.Column(db.String(400))
+
+
+
 
 class Category(db.Model):
     id =db.Column(db.Integer,primary_key=True)

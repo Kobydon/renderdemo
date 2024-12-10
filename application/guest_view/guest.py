@@ -5,7 +5,7 @@ from  application.extensions.extensions import *
 from  application.settings.settings import *
 from  application.settings.setup import app
 # from application.forms import LoginForm
-from application.database.user.user_db import db,Guests,User,Booking,Rooms,Payment,Reservation,Refund,Budget,Income,Expenses,Attendance,Iteman,Family,Category,Unit,Stock,Store
+from application.database.user.user_db import db,Guests,User,Booking,Rooms,Payment,Reservation,Refund,Budget,Income,Expenses,Attendance,Iteman,Family,Category,Unit,Stock,Store,StockTransfer,Department
 from sqlalchemy import or_,desc,and_
 from datetime import datetime
 from datetime import date
@@ -21,7 +21,7 @@ guest = Blueprint("guest", __name__)
 class Guest_schema(ma.Schema):
     class Meta:
         fields=("id","first_name","last_name","unit","Category","family","price","address","has_checkout","checkout_date","arrival","city","country","id_type","id_number","id_upload","dob","gender","work","remark","phone",
-                "region","email","username","arrival_date","checkout_date","guest_id","note","amount","created_date","date","type","attendace","name","description","store","quantity")
+                "region","email","username","arrival_date","checkout_date","guest_id","note","amount","created_date","date","type","attendace","name","description","store","quantity","hod")
 
 
 class Refund_Schema(ma.Schema):
@@ -1670,6 +1670,150 @@ def delete_stock(id):
       resp = jsonify("success")
       resp.status_code =201
       return resp
+
+
+
+
+
+
+
+
+@guest.route("/add_stock_transfer",methods=['POST'])
+@flask_praetorian.auth_required
+def add_stock_transfer():
+    # user = User.query.filter_by(id = flask_praetorian.current_user().id).first()
+    name= request.json["name"]
+    description =request.json["description"]
+    quantity= request.json["quantity"]
+    
+    # usr = user.firstname +" " + user.lastname
+    created_date=datetime.now().strftime('%Y-%m-%d %H:%M')
+    inc = StockTransfer(name=name,description=description,quantity=quantity,
+                   created_date=created_date)
+    
+    store = Stock.query.filter_by(name=name).first()
+    store.quantity = int(store.quantity) - int(quantity)
+  
+    db.session.add(inc)
+    db.session.commit()
+    db.session.close()
+    resp = jsonify("success")
+    resp.status_code =200
+    return resp
+
+
+
+@guest.route("/get_stock_transfer",methods=['GET'])
+@flask_praetorian.auth_required
+def get_stock_transfer():
+    # user = User.query.filter_by(id = flask_praetorian.current_user().id).first()
+    inc = StockTransfer.query.all()
+    result = guest_schema.dump(inc)
+    return jsonify(result)
+
+
+
+
+@guest.route("/update_stock_transfer",methods=['PUT'])
+@flask_praetorian.auth_required
+def update_stock_transfer():
+    id = request.json["id"]
+    sub_data = StockTransfer.query.filter_by(id=id).first()
+    sub_data.name = request.json["name"]
+    sub_data.description =request.json["description"]
+    sub_data.quantity =request.json["quantity"]
+
+    db.session.commit()
+    db.session.close()
+    resp = jsonify("success")
+    resp.status_code =201
+    return resp
+
+
+
+
+@guest.route("/delete_stock_transfer/<id>",methods=['DELETE'])
+@flask_praetorian.auth_required
+def delete_stock_transfer(id):
+      sub_data = Store.query.filter_by(id=id).first()
+      
+      db.session.delete(sub_data)
+      db.session.commit()
+      db.session.close()
+      resp = jsonify("success")
+      resp.status_code =201
+      return resp
+
+
+
+
+
+
+@guest.route("/add_deparment",methods=['POST'])
+@flask_praetorian.auth_required
+def add_deparment():
+    # user = User.query.filter_by(id = flask_praetorian.current_user().id).first()
+    name= request.json["name"]
+    description =request.json["description"]
+    hod= request.json["quantity"]
+    
+    # usr = user.firstname +" " + user.lastname
+    created_date=datetime.now().strftime('%Y-%m-%d %H:%M')
+    inc = Department(name=name,description=description,hod=hod,
+                   created_date=created_date)
+  
+    db.session.add(inc)
+    db.session.commit()
+    db.session.close()
+    resp = jsonify("success")
+    resp.status_code =200
+    return resp
+
+
+
+@guest.route("/get_department_list",methods=['GET'])
+@flask_praetorian.auth_required
+def get_department_list():
+    # user = User.query.filter_by(id = flask_praetorian.current_user().id).first()
+    inc = Department.query.all()
+    result = guest_schema.dump(inc)
+    return jsonify(result)
+
+
+
+
+@guest.route("/update_department",methods=['PUT'])
+@flask_praetorian.auth_required
+def update_department():
+    id = request.json["id"]
+    sub_data = Department.query.filter_by(id=id).first()
+    sub_data.name = request.json["name"]
+    sub_data.description =request.json["description"]
+    sub_data.hod =request.json["hod"]
+
+    db.session.commit()
+    db.session.close()
+    resp = jsonify("success")
+    resp.status_code =201
+    return resp
+
+
+
+
+@guest.route("/delete_department/<id>",methods=['DELETE'])
+@flask_praetorian.auth_required
+def delete_department(id):
+      sub_data = Department.query.filter_by(id=id).first()
+      
+      db.session.delete(sub_data)
+      db.session.commit()
+      db.session.close()
+      resp = jsonify("success")
+      resp.status_code =201
+      return resp
+
+
+
 
 
 
