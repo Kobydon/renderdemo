@@ -692,6 +692,15 @@ class Department(db.Model):
 
 
 
+class Vendor(db.Model):
+    id =db.Column(db.Integer,primary_key=True)
+    name = db.Column(db.String(5000))
+    phone = db.Column(db.String(5000))
+    address = db.Column(db.String(5000))
+    created_date = db.Column(db.String(400))
+
+
+
 class Category(db.Model):
     id =db.Column(db.Integer,primary_key=True)
     name = db.Column(db.String(5000))

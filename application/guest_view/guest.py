@@ -5,7 +5,7 @@ from  application.extensions.extensions import *
 from  application.settings.settings import *
 from  application.settings.setup import app
 # from application.forms import LoginForm
-from application.database.user.user_db import db,Guests,User,Booking,Rooms,Payment,Reservation,Refund,Budget,Income,Expenses,Attendance,Iteman,Family,Category,Unit,Stock,Store,StockTransfer,Department
+from application.database.user.user_db import db,Guests,User,Booking,Rooms,Payment,Reservation,Refund,Budget,Income,Expenses,Attendance,Iteman,Family,Category,Unit,Stock,Store,StockTransfer,Department,Vendor
 from sqlalchemy import or_,desc,and_
 from datetime import datetime
 from datetime import date
@@ -1749,17 +1749,17 @@ def delete_stock_transfer(id):
 
 
 
-@guest.route("/add_department",methods=['POST'])
+@guest.route("/add_vendor",methods=['POST'])
 @flask_praetorian.auth_required
-def add_deparment():
+def add_vendor():
     # user = User.query.filter_by(id = flask_praetorian.current_user().id).first()
     name= request.json["name"]
-    description =request.json["description"]
-    hod= request.json["hod"]
+    phone =request.json["phone"]
+    address= request.json["address"]
     
     # usr = user.firstname +" " + user.lastname
     created_date=datetime.now().strftime('%Y-%m-%d %H:%M')
-    inc = Department(name=name,description=description,hod=hod,
+    inc = Vendor(name=name,address=address,phone=phone,
                    created_date=created_date)
   
     db.session.add(inc)
@@ -1771,25 +1771,26 @@ def add_deparment():
 
 
 
-@guest.route("/get_department_list",methods=['GET'])
+@guest.route("/get_vendor_list",methods=['GET'])
 @flask_praetorian.auth_required
-def get_department_list():
+def get_vendor_list():
     # user = User.query.filter_by(id = flask_praetorian.current_user().id).first()
-    inc = Department.query.all()
+    inc = Vendor.query.all()
     result = guest_schema.dump(inc)
+    print("hello")
     return jsonify(result)
 
 
 
 
-@guest.route("/update_department",methods=['PUT'])
+@guest.route("/update_vendor",methods=['PUT'])
 @flask_praetorian.auth_required
-def update_department():
+def update_vendor():
     id = request.json["id"]
-    sub_data = Department.query.filter_by(id=id).first()
+    sub_data = Vendor.query.filter_by(id=id).first()
     sub_data.name = request.json["name"]
-    sub_data.description =request.json["description"]
-    sub_data.hod =request.json["hod"]
+    sub_data.phone =request.json["descphoneription"]
+    sub_data.address =request.json["address"]
 
     db.session.commit()
     db.session.close()
@@ -1800,10 +1801,10 @@ def update_department():
 
 
 
-@guest.route("/delete_department/<id>",methods=['DELETE'])
+@guest.route("/delete_vendor/<id>",methods=['DELETE'])
 @flask_praetorian.auth_required
-def delete_department(id):
-      sub_data = Department.query.filter_by(id=id).first()
+def delete_vendor(id):
+      sub_data = Vendor.query.filter_by(id=id).first()
       
       db.session.delete(sub_data)
       db.session.commit()
