@@ -1755,7 +1755,7 @@ def add_deparment():
     # user = User.query.filter_by(id = flask_praetorian.current_user().id).first()
     name= request.json["name"]
     description =request.json["description"]
-    hod= request.json["quantity"]
+    hod= request.json["hod"]
     
     # usr = user.firstname +" " + user.lastname
     created_date=datetime.now().strftime('%Y-%m-%d %H:%M')
