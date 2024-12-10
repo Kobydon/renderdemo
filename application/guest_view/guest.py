@@ -1749,7 +1749,7 @@ def delete_stock_transfer(id):
 
 
 
-@guest.route("/add_deparment",methods=['POST'])
+@guest.route("/add_department",methods=['POST'])
 @flask_praetorian.auth_required
 def add_deparment():
     # user = User.query.filter_by(id = flask_praetorian.current_user().id).first()
