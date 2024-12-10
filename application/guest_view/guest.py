@@ -1683,12 +1683,12 @@ def delete_stock(id):
 def add_stock_transfer():
     # user = User.query.filter_by(id = flask_praetorian.current_user().id).first()
     name= request.json["name"]
-    description =request.json["description"]
+    department =request.json["department"]
     quantity= request.json["quantity"]
     
     # usr = user.firstname +" " + user.lastname
     created_date=datetime.now().strftime('%Y-%m-%d %H:%M')
-    inc = StockTransfer(name=name,description=description,quantity=quantity,
+    inc = StockTransfer(name=name,quantity=quantity,department=department,
                    created_date=created_date)
     
     store = Stock.query.filter_by(name=name).first()
