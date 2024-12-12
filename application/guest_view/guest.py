@@ -1824,11 +1824,11 @@ def add_purchase():
     user = User.query.filter_by(id = flask_praetorian.current_user().id).first()
     item= request.json["item"]
     quantity =request.json["quantity"]
-    unit_price= request.json["unitPrice"]
+    unit_price= request.json["unit_price"]
     total_cost = request.json["total_cost"]
     status ="Pending"
     department = request.json["department"]
-    unit_price= request.json["unitPrice"]
+    # unit_price= request.json["unitPrice"]
     total_cost = request.json["total_cost"]
 
     # department = request.json["department"]
