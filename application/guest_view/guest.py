@@ -1838,7 +1838,7 @@ def add_purchase():
     created_date=datetime.now().strftime('%Y-%m-%d %H:%M')
 
     inc = PurchaseRequest(item=item,quantity=quantity,unit_price=unit_price,total_cost=total_cost,status=status,
-                          department=department, requested_by=requested_by,store=store,created_date=created_date)
+                          Department=department, requested_by=requested_by,store=store,created_date=created_date)
     
     # usr = user.firstname +" " + user.lastname
 
@@ -1879,7 +1879,7 @@ def update_purchase():
     sub_data.item = request.json["item"]
     sub_data.quantity =request.json["quantity"]
     sub_data.unit_price =request.json["unit_price"]
-    sub_data.department = request.json["department"]
+    sub_data.Department = request.json["department"]
     sub_data.total_cost =request.json["total_cost"]
   
 
