@@ -20,7 +20,7 @@ guest = Blueprint("guest", __name__)
         
 class Guest_schema(ma.Schema):
     class Meta:
-        fields=("id","first_name","last_name","unit","Category","family","department","price","address","has_checkout","checkout_date","arrival","city","country","id_type","id_number","id_upload","dob","gender","work","remark","phone",
+        fields=("id","first_name","last_nam'e","unit","Category","family","department","price","address","has_checkout","checkout_date","arrival","city","country","id_type","id_number","id_upload","dob","gender","work","remark","phone",
                 "region","email","username","arrival_date","checkout_date","guest_id","note","amount","created_date","date","type","attendace","name","description","store","quantity","hod","quantity","requested_by","item","approved_by",
                 "total_cost","unit_price","store","status","Department")
 
@@ -1900,7 +1900,7 @@ def approve_purchase():
     user = User.query.filter_by(id = flask_praetorian.current_user().id).first()
     id = request.json["id"]
     sub_data = PurchaseRequest.query.filter_by(id=id).first()
-    sub_data.status = request.json["Success"]
+    sub_data.status = "Success"
     sub_data.approved_by =user.firstname+" "+user.lastname
     sub_data.appoved_date = created_date=datetime.now().strftime('%Y-%m-%d %H:%M')
     item = sub_data.item
