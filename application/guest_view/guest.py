@@ -1937,6 +1937,79 @@ def delete_purchase(id):
 
 
 
+@guest.route("/add_department",methods=['POST'])
+@flask_praetorian.auth_required
+def add_department():
+    # user = User.query.filter_by(id = flask_praetorian.current_user().id).first()
+    name = request.json["name"]
+    description = request.json["description"]
+    hod = request.json["hod"]
+    # created_date = db.Column(db.String(400))
+    # usr = user.firstname +" " + user.lastname
+    created_date=datetime.now().strftime('%Y-%m-%d %H:%M')
+    inc = Department(name=name,description=description,hod=hod,
+                   created_date=created_date)
+  
+    db.session.add(inc)
+    db.session.commit()
+    db.session.close()
+    resp = jsonify("success")
+    resp.status_code =200
+    return resp
+
+
+
+@guest.route("/get_department_list",methods=['GET'])
+@flask_praetorian.auth_required
+def get_department_list():
+    # user = User.query.filter_by(id = flask_praetorian.current_user().id).first()
+    inc = Department.query.all()
+    result = guest_schema.dump(inc)
+    return jsonify(result)
+
+
+
+
+@guest.route("/update_department",methods=['PUT'])
+@flask_praetorian.auth_required
+def update_department():
+    id = request.json["id"]
+    sub_data = Department.query.filter_by(id=id).first()
+    sub_data.name = request.json["name"]
+    sub_data.description =request.json["description"]
+    sub_data.Category =request.json["hod"]
+
+    db.session.commit()
+    db.session.close()
+    resp = jsonify("success")
+    resp.status_code =201
+    return resp
+
+
+
+
+@guest.route("/delete_department/<id>",methods=['DELETE'])
+@flask_praetorian.auth_required
+def delete_department(id):
+      sub_data = Department.query.filter_by(id=id).first()
+      
+      db.session.delete(sub_data)
+      db.session.commit()
+      db.session.close()
+      resp = jsonify("success")
+      resp.status_code =201
+      return resp
+
+
+
+
+
+
+
+
+
+
+
 
 
 
