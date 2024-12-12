@@ -1892,30 +1892,46 @@ def update_purchase():
 
 
 
-
-
-@guest.route("/approve_purchase",methods=['PUT','POST'])
+@guest.route("/approve_purchase", methods=['PUT', 'POST'])
 @flask_praetorian.auth_required
 def approve_purchase():
-    user = User.query.filter_by(id = flask_praetorian.current_user().id).first()
-    id = request.json["id"]
-    sub_data = PurchaseRequest.query.filter_by(id=id).first()
-    sub_data.status = "Success"
-    sub_data.approved_by =user.firstname+" "+user.lastname
-    sub_data.appoved_date = created_date=datetime.now().strftime('%Y-%m-%d %H:%M')
-    item = sub_data.item
-    store = sub_data.item
-    created_date=datetime.now().strftime('%Y-%m-%d %H:%M')
-    quantity = sub_data.quantity
-    inc = PurchaseOrder(item=item,store=store,created_date=created_date,quantity=quantity)
-  
+    try:
+        # Get the current user
+        user = User.query.filter_by(id=flask_praetorian.current_user().id).first()
 
-    db.session.add(quantity)
-    db.session.commit()
-    db.session.close()
-    resp = jsonify("success")
-    resp.status_code =201
-    return resp
+        # Get the purchase request ID from the request body
+        id = request.json["id"]
+
+        # Retrieve the purchase request
+        sub_data = PurchaseRequest.query.filter_by(id=id).first()
+        if not sub_data:
+            return {"message": "Purchase request not found"}, 404
+
+        # Update the purchase request status
+        sub_data.status = "Success"
+        sub_data.approved_by = f"{user.firstname} {user.lastname}"
+        sub_data.approved_date = datetime.now()
+
+        # Create a new purchase order
+        item = sub_data.item
+        store = sub_data.store  # Assuming 'store' is a valid attribute in the model
+        quantity = sub_data.quantity
+        created_date = datetime.now()
+
+        new_order = PurchaseOrder(item=item, store=store, created_date=created_date, quantity=quantity)
+
+        # Add the new order to the session
+        db.session.add(new_order)
+
+        # Commit all changes
+        db.session.commit()
+
+        return {"message": "Purchase approved successfully"}, 200
+
+    except Exception as e:
+        db.session.rollback()  # Rollback in case of error
+        return {"error": str(e)}, 500
+
 
 
 @guest.route("/delete_purchase/<id>",methods=['DELETE'])
