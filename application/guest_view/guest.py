@@ -5,7 +5,7 @@ from  application.extensions.extensions import *
 from  application.settings.settings import *
 from  application.settings.setup import app
 # from application.forms import LoginForm
-from application.database.user.user_db import db,Guests,User,Booking,Rooms,Payment,Reservation,Refund,Budget,Income,Expenses,Attendance,Iteman,Family,Category,Unit,Stock,Store,StockTransfer,Department,Vendor
+from application.database.user.user_db import db,Guests,User,Booking,Rooms,Payment,Reservation,Refund,Budget,Income,Expenses,Attendance,Iteman,Family,Category,Unit,Stock,Store,StockTransfer,Department,Vendor,PurchaseOrder,PurchaseRequest
 from sqlalchemy import or_,desc,and_
 from datetime import datetime
 from datetime import date
@@ -21,7 +21,8 @@ guest = Blueprint("guest", __name__)
 class Guest_schema(ma.Schema):
     class Meta:
         fields=("id","first_name","last_name","unit","Category","family","department","price","address","has_checkout","checkout_date","arrival","city","country","id_type","id_number","id_upload","dob","gender","work","remark","phone",
-                "region","email","username","arrival_date","checkout_date","guest_id","note","amount","created_date","date","type","attendace","name","description","store","quantity","hod")
+                "region","email","username","arrival_date","checkout_date","guest_id","note","amount","created_date","date","type","attendace","name","description","store","quantity","hod","quantity","requested_by","item","approved_by",
+                "total_cost","unit_price","store","status")
 
 
 class Refund_Schema(ma.Schema):
@@ -1789,7 +1790,7 @@ def update_vendor():
     id = request.json["id"]
     sub_data = Vendor.query.filter_by(id=id).first()
     sub_data.name = request.json["name"]
-    sub_data.phone =request.json["descphoneription"]
+    sub_data.phone =request.json["phone"]
     sub_data.address =request.json["address"]
 
     db.session.commit()
@@ -1812,6 +1813,128 @@ def delete_vendor(id):
       resp = jsonify("success")
       resp.status_code =201
       return resp
+
+
+
+
+
+@guest.route("/add_purchase",methods=['POST'])
+@flask_praetorian.auth_required
+def add_purchase():
+    user = User.query.filter_by(id = flask_praetorian.current_user().id).first()
+    item= request.json["item"]
+    quantity =request.json["quantity"]
+    unit_price= request.json["unitPrice"]
+    total_cost = request.json["total_cost"]
+    status ="Pending"
+    department = request.json["department"]
+    unit_price= request.json["unitPrice"]
+    total_cost = request.json["total_cost"]
+
+    # department = request.json["department"]
+ 
+    requested_by = user.firstname + " "+user.lastname
+    store = request.json["store"]
+    created_date=datetime.now().strftime('%Y-%m-%d %H:%M')
+
+    inc = PurchaseRequest(item=item,quantity=quantity,unit_price=unit_price,total_cost=total_cost,status=status,
+                          department=department, requested_by=requested_by,store=store,created_date=created_date)
+    
+    # usr = user.firstname +" " + user.lastname
+
+  
+    db.session.add(inc)
+    db.session.commit()
+    db.session.close()
+    resp = jsonify("success")
+    resp.status_code =200
+    return resp
+
+
+
+@guest.route("/get_purchase_list",methods=['GET'])
+@flask_praetorian.auth_required
+def get_purchase_list():
+    # user = User.query.filter_by(id = flask_praetorian.current_user().id).first()
+    inc = PurchaseRequest.query.all()
+    result = guest_schema.dump(inc)
+    return jsonify(result)
+
+
+@guest.route("/get_order_list",methods=['GET'])
+@flask_praetorian.auth_required
+def get_order_list():
+    # user = User.query.filter_by(id = flask_praetorian.current_user().id).first()
+    inc = PurchaseOrder.query.all()
+    result = guest_schema.dump(inc)
+    return jsonify(result)
+
+
+
+@guest.route("/update_purchase",methods=['PUT'])
+@flask_praetorian.auth_required
+def update_purchase():
+    id = request.json["id"]
+    sub_data = PurchaseRequest.query.filter_by(id=id).first()
+    sub_data.item = request.json["item"]
+    sub_data.quantity =request.json["quantity"]
+    sub_data.unit_price =request.json["unit_price"]
+    sub_data.department = request.json["department"]
+    sub_data.total_cost =request.json["total_cost"]
+  
+
+
+    db.session.commit()
+    db.session.close()
+    resp = jsonify("success")
+    resp.status_code =201
+    return resp
+
+
+
+
+
+@guest.route("/approve_purchase",methods=['PUT','POST'])
+@flask_praetorian.auth_required
+def approve_purchase():
+    user = User.query.filter_by(id = flask_praetorian.current_user().id).first()
+    id = request.json["id"]
+    sub_data = PurchaseRequest.query.filter_by(id=id).first()
+    sub_data.status = request.json["Success"]
+    sub_data.approved_by =user.firstname+" "+user.lastname
+    sub_data.appoved_date = created_date=datetime.now().strftime('%Y-%m-%d %H:%M')
+    item = sub_data.item
+    store = sub_data.item
+    created_date=datetime.now().strftime('%Y-%m-%d %H:%M')
+    quantity = sub_data.quantity
+    inc = PurchaseOrder(item=item,store=store,created_date=created_date,quantity=quantity)
+  
+
+    db.session.add(quantity)
+    db.session.commit()
+    db.session.close()
+    resp = jsonify("success")
+    resp.status_code =201
+    return resp
+
+
+@guest.route("/delete_purchase/<id>",methods=['DELETE'])
+@flask_praetorian.auth_required
+def delete_purchase(id):
+      sub_data = PurchaseRequest.query.filter_by(id=id).first()
+      
+      db.session.delete(sub_data)
+      db.session.commit()
+      db.session.close()
+      resp = jsonify("success")
+      resp.status_code =201
+      return resp
+
+
+
+
+
+
 
 
 

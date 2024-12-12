@@ -708,3 +708,35 @@ class Category(db.Model):
     created_date = db.Column(db.String(400))
     # school_name = db.Column(db.String(400))
     created_by_id =db.Column(db.Integer,db.ForeignKey('user.id'))
+
+
+
+class PurchaseRequest(db.Model):
+    id =db.Column(db.Integer,primary_key=True)
+    item = db.Column(db.String(5000))
+    requested_by = db.Column(db.String(5000))
+    created_date = db.Column(db.String(400))
+    Department = db.Column(db.String(5000))
+    quantity = db.Column(db.String(5000))
+    unit_price = db.Column(db.String(5000))
+    total_cost = db.Column(db.String(5000))
+    status = db.Column(db.String(400))
+    store = db.Column(db.String(400))
+    approved_by = db.Column(db.String(5000))
+    approved_date = db.Column(db.String(5000))
+    # school_name = db.Column(db.String(400))
+
+
+
+class PurchaseOrder(db.Model):
+    id =db.Column(db.Integer,primary_key=True)
+    item = db.Column(db.String(5000))
+    store = db.Column(db.String(5000))
+    created_date = db.Column(db.String(400))
+    quantity = db.Column(db.String(5000))
+    
+    
+
+
+
+
