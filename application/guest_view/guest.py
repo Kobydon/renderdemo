@@ -22,7 +22,7 @@ class Guest_schema(ma.Schema):
     class Meta:
         fields=("id","first_name","last_name","unit","Category","family","department","price","address","has_checkout","checkout_date","arrival","city","country","id_type","id_number","id_upload","dob","gender","work","remark","phone",
                 "region","email","username","arrival_date","checkout_date","guest_id","note","amount","created_date","date","type","attendace","name","description","store","quantity","hod","quantity","requested_by","item","approved_by",
-                "total_cost","unit_price","store","status")
+                "total_cost","unit_price","store","status","Department")
 
 
 class Refund_Schema(ma.Schema):
