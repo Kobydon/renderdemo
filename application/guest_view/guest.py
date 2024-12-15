@@ -427,6 +427,24 @@ def get_payment():
      result = pay_schema.dump(pay)
      return jsonify(result)
 
+@guest.route("/current_payment", methods=["GET"])
+@flask_praetorian.auth_required
+def current_payment():
+    try:
+        # Get the current year
+        current_year = datetime.now().year
+        
+        # Filter payments where the payment_date contains the current year
+        payments = Payment.query.filter(Payment.payment_date.like(f"%{current_year}%")).order_by(Payment.payment_date.desc()).all()
+        
+        # Serialize the results
+        result = pay_schema.dump(payments)
+        
+        return jsonify(result), 200
+    except Exception as e:
+        # Handle unexpected errors gracefully
+        return jsonify({"error": str(e)}), 500
+
 
 
 @guest.route("/search_refund_dates",methods=["POST"])

@@ -133,13 +133,11 @@ def register():
 #@login_required
 
 def get_signin_client(): 
-      #user_man = User.query.all()  
-      #doc_appoint = Appointments.query.filter_by(doctor_id =current_user.id).all()
-      #rows = db.session.query(Appointments.doctor_id == current_user.id).count()
+    
         req = request.get_json(force=True)
         username = req.get("username", None)
         password = req.get("password", None)
-        owner= User.query.filter_by(username=username).first()
+        # owner= User.query.filter_by(username=username).first()
        
         
         user = guard.authenticate(username,password)
@@ -147,8 +145,7 @@ def get_signin_client():
         ret = {"id_token": guard.encode_jwt_token(user)}
 
 
-      #  print(ret)
-        #resp =jsonify("success")
+     
         return ( ret,200)
 
 
