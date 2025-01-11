@@ -527,6 +527,8 @@ class Attendance(db.Model):
         name = db.Column(db.String(400))
         attendance =db.Column(db.String(400))
         position=db.Column(db.String(400))
+        time_in =db.Column(db.String(400))
+        time_out=db.Column(db.String(400))
         created_date=db.Column(db.String(400))
         created_by_id =db.Column(db.Integer,db.ForeignKey('user.id'))
   
@@ -653,6 +655,14 @@ class Unit(db.Model):
     created_date = db.Column(db.String(400))
 
 
+
+
+class ReceivedItem(db.Model):
+    id =db.Column(db.Integer,primary_key=True)
+    name = db.Column(db.String(5000))
+    # store = db.Column(db.String(5000))
+    quantity = db.Column(db.String(5000))
+    created_date = db.Column(db.String(400))
 
 
 class Stock(db.Model):

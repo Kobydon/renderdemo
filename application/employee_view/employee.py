@@ -44,7 +44,7 @@ class PaySchema(ma.Schema):
 
 class AttendanceSchema(ma.Schema):
     class Meta:
-        fields=("id","name","attendance","position","created_date")
+        fields=("id","name","attendance","position","created_date","time_in","time_out")
 
 
 employee_schema = employeeSchema(many=True)
@@ -168,7 +168,9 @@ def add_attendance():
         name=request.json["name"],
         position=request.json["position"],
         attendance=request.json["attendance"],
-        created_date=datetime.now().strftime('%Y-%m-%d %H:%M'),
+        created_date=datetime.now().strftime('%Y-%m-%d'),
+        time_in = datetime.now().strftime('%H:%M'),
+        time_out = "-",
     
         created_by_id = flask_praetorian.current_user().id
            
@@ -176,6 +178,21 @@ def add_attendance():
        )
 
        db.session.add(attd)
+       db.session.commit()
+       resp = jsonify("success")
+       resp.status_code=200
+       return resp
+     
+
+
+
+@employee.route("/update_attendance",methods=["PUT"])
+@flask_praetorian.auth_required
+def update_attendance():
+       id = request.json["id"]
+
+       atd_data = Attendance.query.filter_by(id=id).first()
+       atd_data.time_out =datetime.now().strftime('%H:%M')
        db.session.commit()
        resp = jsonify("success")
        resp.status_code=200

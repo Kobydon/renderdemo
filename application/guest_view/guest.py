@@ -5,7 +5,7 @@ from  application.extensions.extensions import *
 from  application.settings.settings import *
 from  application.settings.setup import app
 # from application.forms import LoginForm
-from application.database.user.user_db import db,Guests,User,Booking,Rooms,Payment,Reservation,Refund,Budget,Income,Expenses,Attendance,Iteman,Family,Category,Unit,Stock,Store,StockTransfer,Department,Vendor,PurchaseOrder,PurchaseRequest
+from application.database.user.user_db import db,Guests,User,Booking,Rooms,Payment,Reservation,Refund,Budget,Income,Expenses,Attendance,Iteman,Family,Category,Unit,Stock,Store,StockTransfer,Department,Vendor,PurchaseOrder,PurchaseRequest,ReceivedItem
 from sqlalchemy import or_,desc,and_
 from datetime import datetime
 from datetime import date
@@ -20,9 +20,9 @@ guest = Blueprint("guest", __name__)
         
 class Guest_schema(ma.Schema):
     class Meta:
-        fields=("id","first_name","last_nam'e","unit","Category","family","department","price","address","has_checkout","checkout_date","arrival","city","country","id_type","id_number","id_upload","dob","gender","work","remark","phone",
-                "region","email","username","arrival_date","checkout_date","guest_id","note","amount","created_date","date","type","attendace","name","description","store","quantity","hod","quantity","requested_by","item","approved_by",
-                "total_cost","unit_price","store","status","Department")
+        fields=("id","first_name","last_nam e","unit","Category","family","department","price","address","has_checkout","checkout_date","arrival","city","country","id_type","id_number","id_upload","dob","gender","work","remark","phone",
+                "region","email","username","arrival_date","checkout_date","guest_id","note","amount","created_date","date","type","attendace","name","description","store","quantity","hod","requested_by","item","approved_by",
+                "total_cost","unit_price","store","status","Department","attendance","time_in","time_out","position")
 
 
 class Refund_Schema(ma.Schema):
@@ -456,6 +456,54 @@ def search_refund_dates():
     lst = refund.order_by(desc(Refund.refund_time))
     result = refund_schema.dump(lst)
     return jsonify(result)
+
+
+    
+
+@guest.route("/search_purchase_date",methods=["POST"])
+@flask_praetorian.auth_required
+def search_purchase_date():
+    date = request.json["date"]
+    print(date)
+    refund = PurchaseRequest.query.filter(PurchaseRequest.created_date.contains(date) )
+    lst = refund.order_by(desc(PurchaseRequest.created_date))
+    result = guest_schema.dump(lst)
+    return jsonify(result)
+
+
+
+@guest.route("/search_order_date",methods=["POST"])
+@flask_praetorian.auth_required
+def search_order_date():
+    date = request.json["date"]
+    print(date)
+    refund = PurchaseOrder.query.filter(PurchaseOrder.created_date.contains(date) )
+    lst = refund.order_by(desc(PurchaseOrder.created_date))
+    result = guest_schema.dump(lst)
+    return jsonify(result)
+
+
+@guest.route("/search_received_dates",methods=["POST"])
+@flask_praetorian.auth_required
+def search_received_dates():
+    date = request.json["date"]
+    # print(date)
+    refund = ReceivedItem.query.filter(ReceivedItem.created_date.contains(date) )
+    lst = refund.order_by(desc(ReceivedItem.created_date))
+    result = guest_schema.dump(lst)
+    return jsonify(result)
+
+@guest.route("/search_stock_dates",methods=["POST"])
+@flask_praetorian.auth_required
+def search_stock_dates():
+    date = request.json["date"]
+    # print(date)
+    refund = Stock.query.filter(Stock.created_date.contains(date) )
+    lst = refund.order_by(desc(Stock.created_date))
+    result = guest_schema.dump(lst)
+    return jsonify(result)
+
+
 
 @guest.route("/searchdates",methods=["POST"])
 @flask_praetorian.auth_required
@@ -2050,4 +2098,75 @@ def delete_department(id):
 
 
 
+
+
+
+@guest.route("/add_received_item",methods=['POST'])
+@flask_praetorian.auth_required
+def add_received_item():
+    # user = User.query.filter_by(id = flask_praetorian.current_user().id).first()
+    name= request.json["name"]
+    # store =request.json["store"]
+    quantity= request.json["quantity"]
+    
+    # usr = user.firstname +" " + user.lastname
+    created_date=datetime.now().strftime('%Y-%m-%d %H:%M')
+    # st = Stock.query.filter_by(name=name).first()
+    # if st:
+    #     st.quantity= int(st.quantity) + int(quantity)
+
+    itm = ReceivedItem(name=name,quantity=quantity,
+                   created_date=created_date)
+  
+    db.session.add(itm)
+    db.session.commit()
+    db.session.close()
+    resp = jsonify("success")
+    resp.status_code =200
+    return resp
+
+
+
+@guest.route("/get_received",methods=['GET'])
+@flask_praetorian.auth_required
+def get_received():    # user = User.query.filter_by(id = flask_praetorian.current_user().id).first()
+    itm = ReceivedItem.query.all()
+    result = guest_schema.dump(itm)
+    return jsonify(result)
+
+
+
+
+@guest.route("/update_received_item",methods=['PUT'])
+@flask_praetorian.auth_required
+def update_received_item():
+
+    id = request.json["id"]
+   
+    sub_data = ReceivedItem.query.filter_by(id=id).first()
+    sub_data.name = request.json["name"]
+    sub_data.quantity= request.json["store"]
+    # sub_data.store= int(quantity) + int(sub_data.quantity) 
+    # sub_data.Category =request.json["category"]
+
+    db.session.commit()
+    db.session.close()
+    resp = jsonify("success")
+    resp.status_code =201
+    return resp
+
+
+
+
+@guest.route("/delete_received_item/<id>",methods=['DELETE'])
+@flask_praetorian.auth_required
+def delete_received_item(id):
+      sub_data = ReceivedItem.query.filter_by(id=id).first()
+      
+      db.session.delete(sub_data)
+      db.session.commit()
+      db.session.close()
+      resp = jsonify("success")
+      resp.status_code =201
+      return resp
 
