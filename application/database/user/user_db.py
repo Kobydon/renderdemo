@@ -647,6 +647,7 @@ class Iteman(db.Model):
     family = db.Column(db.String(5000))
     price = db.Column(db.String(400))
     unit = db.Column(db.String(400))
+    voided=db.Column(db.String(400))
 
 class Unit(db.Model):
     id =db.Column(db.Integer,primary_key=True)
@@ -670,6 +671,18 @@ class Stock(db.Model):
     name = db.Column(db.String(5000))
     store = db.Column(db.String(5000))
     quantity = db.Column(db.String(5000))
+    created_date = db.Column(db.String(400))
+
+
+
+class returnRequest(db.Model):
+    id =db.Column(db.Integer,primary_key=True)
+    item = db.Column(db.String(5000))
+    item_id= db.Column(db.String(5000))
+    request_by = db.Column(db.String(5000))
+    quantity = db.Column(db.String(5000))
+    reason = db.Column(db.String(5000))
+    status  = db.Column(db.String(400))
     created_date = db.Column(db.String(400))
 
 
@@ -743,6 +756,7 @@ class PurchaseOrder(db.Model):
     item = db.Column(db.String(5000))
     store = db.Column(db.String(5000))
     created_date = db.Column(db.String(400))
+    voided = db.Column(db.String(400))
     quantity = db.Column(db.String(5000))
     
     

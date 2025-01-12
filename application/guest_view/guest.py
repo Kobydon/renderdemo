@@ -4,8 +4,10 @@ from sqlalchemy.sql.functions import current_time
 from  application.extensions.extensions import *
 from  application.settings.settings import *
 from  application.settings.setup import app
+from sqlalchemy import Float
+
 # from application.forms import LoginForm
-from application.database.user.user_db import db,Guests,User,Booking,Rooms,Payment,Reservation,Refund,Budget,Income,Expenses,Attendance,Iteman,Family,Category,Unit,Stock,Store,StockTransfer,Department,Vendor,PurchaseOrder,PurchaseRequest,ReceivedItem
+from application.database.user.user_db import db,Guests,User,Booking,Rooms,Payment,Reservation,Refund,Budget,Income,Expenses,Attendance,Iteman,Family,Category,Unit,Stock,Store,StockTransfer,Department,Vendor,PurchaseOrder,PurchaseRequest,ReceivedItem,returnRequest
 from sqlalchemy import or_,desc,and_
 from datetime import datetime
 from datetime import date
@@ -22,7 +24,7 @@ class Guest_schema(ma.Schema):
     class Meta:
         fields=("id","first_name","last_nam e","unit","Category","family","department","price","address","has_checkout","checkout_date","arrival","city","country","id_type","id_number","id_upload","dob","gender","work","remark","phone",
                 "region","email","username","arrival_date","checkout_date","guest_id","note","amount","created_date","date","type","attendace","name","description","store","quantity","hod","requested_by","item","approved_by",
-                "total_cost","unit_price","store","status","Department","attendance","time_in","time_out","position")
+                "total_cost","unit_price","store","status","Department","attendance","time_in","time_out","position","reason","voided","item_id","request_by")
 
 
 class Refund_Schema(ma.Schema):
@@ -447,6 +449,21 @@ def current_payment():
 
 
 
+
+
+
+@guest.route("/get_return_request",methods=["GET"])
+@flask_praetorian.auth_required
+def get_return_request():
+    # date = request.json["date"]
+    # print(date)
+    refund = returnRequest.query.order_by(returnRequest.created_date)
+    
+    result = guest_schema.dump(refund)
+    return jsonify(result)
+
+
+
 @guest.route("/search_refund_dates",methods=["POST"])
 @flask_praetorian.auth_required
 def search_refund_dates():
@@ -456,6 +473,19 @@ def search_refund_dates():
     lst = refund.order_by(desc(Refund.refund_time))
     result = refund_schema.dump(lst)
     return jsonify(result)
+
+
+@guest.route("/search_return_date",methods=["POST"])
+@flask_praetorian.auth_required
+def search_return_date():
+    date = request.json["date"]
+    print(date)
+    refund = returnRequest.query.filter(returnRequest.created_date.contains(date),returnRequest.status.contains("Success") )
+    lst = refund.order_by(desc(returnRequest.created_date))
+    result = guest_schema.dump(lst)
+    return jsonify(result)
+
+
 
 
     
@@ -469,6 +499,8 @@ def search_purchase_date():
     lst = refund.order_by(desc(PurchaseRequest.created_date))
     result = guest_schema.dump(lst)
     return jsonify(result)
+
+
 
 
 
@@ -514,6 +546,29 @@ def searchdates():
     lst = pay.order_by(desc(Payment.payment_date))
     result = pay_schema.dump(lst)
     return jsonify(result)
+
+@guest.route("/search_payment_date", methods=["POST"])
+@flask_praetorian.auth_required
+def search_payment_date():
+    # Extract date from the request payload
+    date = request.json.get("date")
+    
+    if not date:
+        return jsonify({"error": "Date is required"}), 400
+    
+    # Query to find payments with balance greater than 0, and payment date containing the given date
+    payments = Payment.query.filter(
+        Payment.payment_date.contains(date),
+        Payment.balance.cast(Float) > 0  # Cast balance to a float for comparison
+    ).order_by(Payment.payment_date.desc())
+
+    # Serialize the payments data
+    result = pay_schema.dump(payments)
+    
+    # Return the results as JSON
+    return jsonify(result)
+
+
 
 @guest.route("/get_payment_for/<id>",methods=["GET"])
 @flask_praetorian.auth_required
@@ -2000,6 +2055,44 @@ def approve_purchase():
 
 
 
+
+@guest.route("/approve_return_request", methods=['PUT', 'POST'])
+@flask_praetorian.auth_required
+def approve_return_request():
+    try:
+        # Get the current user
+        user = User.query.filter_by(id=flask_praetorian.current_user().id).first()
+
+        # Get the purchase request ID from the request body
+        id = request.json["id"]
+
+        # Retrieve the purchase request
+        sub_data = returnRequest.query.filter_by(id=id).first()
+        if not sub_data:
+            return {"message": "Purchase request not found"}, 404
+
+        # Update the purchase request status
+        sub_data.status = "Success"
+        sub_data.approved_by = f"{user.firstname} {user.lastname}"
+        sub_data.approved_date = datetime.now()
+
+        # Create a new purchase order
+        item_id= request.json["item_id"]
+        item = PurchaseOrder.query.filter_by(id=item_id).first()
+        item.voided = "yes" # Assuming 'store' is a valid attribute in the model
+       
+
+        # Commit all changes
+        db.session.commit()
+
+        return {"message": "Purchase approved successfully"}, 200
+
+    except Exception as e:
+        db.session.rollback()  # Rollback in case of error
+        return {"error": str(e)}, 500
+
+
+
 @guest.route("/delete_purchase/<id>",methods=['DELETE'])
 @flask_praetorian.auth_required
 def delete_purchase(id):
@@ -2169,4 +2262,26 @@ def delete_received_item(id):
       resp = jsonify("success")
       resp.status_code =201
       return resp
+
+
+@guest.route("/add_return_request",methods=['POST'])
+@flask_praetorian.auth_required
+def add_return_request():
+    item_id = request.json["id"]
+    item = request.json["item"]
+    qty = request.json["quantity"]
+    reason = request.json["reason"]
+    # itm = Iteman.query.filter_by(id=id).first()
+    # itm.voided="yes"
+    created_date=datetime.now().strftime('%Y-%m-%d %H:%M')
+    user = User.query.filter_by(id =flask_praetorian.current_user().id).first()
+    request_by= user.firstname +" "+ user.lastname
+
+    a = returnRequest(item_id=item_id,item=item,quantity=qty,reason=reason,created_date=created_date,request_by=request_by,status="Pending")
+    db.session.add(a)
+    db.session.commit()
+    resp = jsonify("success")
+    resp.status_code =200
+    return resp
+
 
