@@ -22,7 +22,7 @@ guest = Blueprint("guest", __name__)
         
 class Guest_schema(ma.Schema):
     class Meta:
-        fields=("id","first_name","last_nam e","unit","Category","family","department","price","address","has_checkout","checkout_date","arrival","city","country","id_type","id_number","id_upload","dob","gender","work","remark","phone",
+        fields=("id","first_name","last_name","unit","Category","family","department","price","address","has_checkout","checkout_date","arrival","city","country","id_type","id_number","id_upload","dob","gender","work","remark","phone",
                 "region","email","username","arrival_date","checkout_date","guest_id","note","amount","created_date","date","type","attendace","name","description","store","quantity","hod","requested_by","item","approved_by",
                 "total_cost","unit_price","store","status","Department","attendance","time_in","time_out","position","reason","voided","item_id","request_by")
 
@@ -592,34 +592,48 @@ def filter_payment_day(day):
 
 
 
-
-@guest.route("/update_payment",methods=["PUT"])
+@guest.route("/update_payment", methods=["PUT"])
 @flask_praetorian.auth_required
 def update_payment():
-          amount = request.json["amount"]
-          id = request.json["id"]
-          pay = Payment.query.filter_by(id=id).first()
-          pay.amount = int(request.json["amount"]) + int(pay.amount)
-          pay.method = request.json["method"]
-          pay.room_type  = request.json["room_type"]
-          pay.discount  = request.json["discount"]
-          pay.children  = request.json["children"]
-          pay.adult  = request.json["adult"]
-        
+    amount = request.json["amount"]
+    id = request.json["id"]
+    
+    # Query the payment by ID
+    pay = Payment.query.filter_by(id=id).first()
 
-          pay.checkin_date  = request.json["checkin_date"]
-          pay.balance  = int(amount) + int(pay.balance) - int(amount)
-          pay.checkout_date  = request.json["checkout_date"]
-          pay.status  = request.json["status"]
-        #   created_by_id = flask_praetorian.current_user().id
-          
-     
-          db.session.commit()
-          db.session.close()
-          
-          resp = jsonify("success")
-          resp.status_code =200
-          return resp
+    # Update the amount by adding the new amount to the existing amount
+    a= pay.amount = int(amount) + int(pay.amount)
+    pay.amount =a
+    pay.method = request.json["method"]
+    pay.room_type = request.json["room_type"]
+    pay.discount = request.json["discount"]
+    pay.children = request.json["children"]
+    pay.adult = request.json["adult"]
+    pay.checkin_date = request.json["checkin_date"]
+    pay.checkout_date = request.json["checkout_date"]
+    pay.status = request.json["status"]
+    pay.balance = a
+                      
+# int( request.json["amount"]) + int(pay.balance)
+    # Commit the changes to the database
+    db.session.commit()
+
+    # Re-query the payment to get the most recent data
+    p = Payment.query.filter_by(id=id).first()
+
+    # Calculate the new balance
+    b =  int(p.amount) - int(p.balance)  # Add the current amount and subtract the old amount
+    p.balance = b
+    print(b)
+
+    # Commit the balance update
+    db.session.commit()
+
+    # Return the success response
+    resp = jsonify("success")
+    resp.status_code = 200
+    return resp
+
 
 
 
@@ -647,7 +661,7 @@ def checkout(id):
         booking.has_checkout = True
 
     # Calculate the total payment balance for the guest
-    payments = Payment.query.filter_by(guest_id=id,status="success").all()
+    payments = Payment.query.filter_by(guest_id=booka.guest_id,status="success").all()
  # Convert payment.balance to an integer for summation
     total_balance = sum(int(payment.balance) for payment in payments if payment.balance and payment.balance.isdigit())
   
