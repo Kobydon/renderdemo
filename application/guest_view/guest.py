@@ -7,7 +7,7 @@ from  application.settings.setup import app
 from sqlalchemy import Float
 
 # from application.forms import LoginForm
-from application.database.user.user_db import db,Guests,User,Booking,Rooms,Payment,Reservation,Refund,Budget,Income,Expenses,Attendance,Iteman,Family,Category,Unit,Stock,Store,StockTransfer,Department,Vendor,PurchaseOrder,PurchaseRequest,ReceivedItem,returnRequest
+from application.database.user.user_db import db,Guests,User,Booking,Rooms,Payment,Reservation,Refund,Budget,Income,Expenses,Attendance,Iteman,Family,Category,Unit,Stock,Store,StockTransfer,Department,Vendor,PurchaseOrder,PurchaseRequest,ReceivedItem,returnRequest,GOP
 from sqlalchemy import or_,desc,and_
 from datetime import datetime
 from datetime import date
@@ -24,7 +24,7 @@ class Guest_schema(ma.Schema):
     class Meta:
         fields=("id","first_name","last_name","unit","Category","family","department","price","address","has_checkout","checkout_date","arrival","city","country","id_type","id_number","id_upload","dob","gender","work","remark","phone",
                 "region","email","username","arrival_date","checkout_date","guest_id","note","amount","created_date","date","type","attendace","name","description","store","quantity","hod","requested_by","item","approved_by",
-                "total_cost","unit_price","store","status","Department","attendance","time_in","time_out","position","reason","voided","item_id","request_by")
+                "total_cost","unit_price","store","status","Department","attendance","time_in","time_out","position","reason","voided","item_id","request_by","user")
 
 
 class Refund_Schema(ma.Schema):
@@ -547,11 +547,42 @@ def searchdates():
     result = pay_schema.dump(lst)
     return jsonify(result)
 
+@guest.route("/search_payment_date_two", methods=["POST"])
+@flask_praetorian.auth_required
+def search_payment_date_two():
+    # Extract the 'date' and 'date_two' from the request payload
+    date = request.json.get("date")
+    date_two = request.json.get("date_two")
+    
+    # Validate that 'date' is provided
+    if not date:
+        return jsonify({"error": "Date is required"}), 400
+    
+    # Query to find payments with balance > 0 and payment date matching either 'date' or 'date_two'
+    payments = Payment.query.filter(
+        or_(
+            Payment.payment_date.contains(date),
+            Payment.payment_date.contains(date_two)
+        )
+    ).filter(
+        Payment.balance.cast(Float) > 0  # Ensure balance is greater than 0, casting to Float for proper comparison
+    ).filter(
+        Payment.payment_date != None  # Make sure payment_date is not None
+    ).order_by(Payment.payment_date.desc())  # Order by payment date in descending order
+
+    # Serialize the payment data
+    result = pay_schema.dump(payments)
+    
+    # Return the result as JSON response
+    return jsonify(result)
+
+
 @guest.route("/search_payment_date", methods=["POST"])
 @flask_praetorian.auth_required
 def search_payment_date():
     # Extract date from the request payload
     date = request.json.get("date")
+    date_two = request.json.get("date_two")
     
     if not date:
         return jsonify({"error": "Date is required"}), 400
@@ -1547,8 +1578,8 @@ def search_income_dates_two():
     date = request.json.get("date")
     date_two = request.json.get("datetwo")
 
-    if not date or not date_two:
-        return jsonify({"error": "Both 'date' and 'datetwo' must be provided"}), 400
+    # if not date or not date_two:
+    #     return jsonify({"error": "Both 'date' and 'datetwo' must be provided"}), 400
 
     try:
         pay = Income.query.filter(
@@ -1563,6 +1594,84 @@ def search_income_dates_two():
     except Exception as e:
         print(f"Error occurred: {e}")
         return jsonify({"error": "An error occurred while fetching data"}), 500
+
+
+
+@guest.route("/searchdates_two", methods=["POST"])
+@flask_praetorian.auth_required
+def searchdates_two():
+    date = request.json.get("date")
+    date_two = request.json.get("date_two")
+
+    # if not date or not date_two:
+    #     return jsonify({"error": "Both 'date' and 'datetwo' must be provided"}), 400
+
+    try:
+        pay = Payment.query.filter(
+            or_(
+                Payment.payment_date.contains(date),
+                Payment.payment_date.contains(date_two)
+            )
+        ).order_by(desc(Payment.payment_date)).all()
+
+        result = pay_schema.dump(pay)
+        return jsonify(result), 200
+    except Exception as e:
+        print(f"Error occurred: {e}")
+        return jsonify({"error": "An error occurred while fetching data"}), 500
+
+
+
+@guest.route("/search_purchase_date_two", methods=["POST"])
+@flask_praetorian.auth_required
+def search_purchase_date_two():
+    date = request.json.get("date")
+    date_two = request.json.get("date_two")
+
+    # if not date or not date_two:
+    #     return jsonify({"error": "Both 'date' and 'datetwo' must be provided"}), 400
+
+    try:
+        pay = PurchaseOrder.query.filter(
+            or_(
+                PurchaseOrder.created_date.contains(date),
+                PurchaseOrder.created_date.contains(date_two)
+            )
+        ).order_by(desc(PurchaseOrder.created_date)).all()
+
+        result = guest_schema.dump(pay)
+        return jsonify(result), 200
+    except Exception as e:
+        print(f"Error occurred: {e}")
+        return jsonify({"error": "An error occurred while fetching data"}), 500
+
+
+
+
+@guest.route("/search_refund_dates_two", methods=["POST"])
+@flask_praetorian.auth_required
+def search_refund_dates_two():
+    date = request.json.get("date")
+    date_two = request.json.get("date_two")
+
+    # if not date or not date_two:
+    #     return jsonify({"error": "Both 'date' and 'datetwo' must be provided"}), 400
+
+    try:
+        pay = Refund.query.filter(
+            or_(
+                Refund.refund_time.contains(date),
+                Refund.refund_time.contains(date_two)
+            )
+        ).order_by(desc(Refund.refund_time)).all()
+
+        result = refund_schema.dump(pay)
+        return jsonify(result), 200
+    except Exception as e:
+        print(f"Error occurred: {e}")
+        return jsonify({"error": "An error occurred while fetching data"}), 500
+
+
 
 
 # @guest.route("/search_salary_dates",methods=["POST"])
@@ -1604,6 +1713,40 @@ def search_expense_dates():
     except Exception as e:
         # Handle unexpected errors
         return jsonify({"error": str(e)}), 500
+    
+
+
+
+
+@guest.route("/search_gop_dates", methods=["POST"])
+@flask_praetorian.auth_required
+def search_gop_dates():
+    """
+    Searches for expense records by a specific date.
+    """
+    try:
+        # Extract the date from the JSON request body
+        date = request.json.get("date")
+        
+        if not date:
+            return jsonify({"error": "Date is required"}), 400
+
+        # Query the Expenses table for records containing the specified date
+        gop_records = GOP.query.filter(Expenses.date.contains(date))
+
+        # Order the results by date in descending order
+        ordered_records = gop_records.order_by(desc(Expenses.date))
+
+        # Serialize the query result
+        result = guest_schema.dump(ordered_records)
+
+        # Return the serialized data as a JSON response
+        return jsonify(result), 200
+
+    except Exception as e:
+        # Handle unexpected errors
+        return jsonify({"error": str(e)}), 500
+
 
 
 
@@ -1643,8 +1786,8 @@ def search_expense_dates_two():
     date = request.json.get("date")
     date_two = request.json.get("datetwo")
 
-    if not date or not date_two:
-        return jsonify({"error": "Both 'date' and 'datetwo' must be provided"}), 400
+    # if not date or not date_two:
+    #     return jsonify({"error": "Both 'date' and 'datetwo' must be provided"}), 400
 
     try:
         pay = Expenses.query.filter(
@@ -2297,5 +2440,88 @@ def add_return_request():
     resp = jsonify("success")
     resp.status_code =200
     return resp
+
+
+
+
+
+
+
+
+@guest.route("/add_gop",methods=['POST'])
+@flask_praetorian.auth_required
+def add_gop():
+    user = User.query.filter_by(id = flask_praetorian.current_user().id).first()
+    name= request.json["name"]
+    amount =request.json["amount"]
+    note= request.json["note"]
+    date =request.json["date"]
+    usr = user.firstname +" " + user.lastname
+    created_date=datetime.now().strftime('%Y-%m-%d %H:%M')
+    gop = GOP(name=name,amount=amount,note=note,date=date,
+                   user=usr,created_by_id=flask_praetorian.current_user().id ,
+                   created_date=created_date)
+  
+    db.session.add(gop)
+    db.session.commit()
+    db.session.close()
+    resp = jsonify("success")
+    resp.status_code =200
+    return resp
+
+
+
+@guest.route("/get_gop_list",methods=['GET'])
+@flask_praetorian.auth_required
+def get_gop_list():
+    user = User.query.filter_by(id = flask_praetorian.current_user().id).first()
+    gop = GOP.query.filter_by(created_by_id=user.id)
+    result = guest_schema.dump(gop)
+    return jsonify(result)
+
+
+
+@guest.route("/get_gop/<id>",methods=['GET'])
+@flask_praetorian.auth_required
+def get_gop(id):
+
+    gop = GOP.query.filter_by(id=id)
+    result = guest_schema.dump(gop)
+    return jsonify(result)
+
+
+
+
+@guest.route("/update_gop",methods=['PUT'])
+@flask_praetorian.auth_required
+def update_gop():
+    id = request.json["id"]
+    sub_data = GOP.query.filter_by(id=id).first()
+    sub_data.name = request.json["name"]
+    sub_data.amount =request.json["amount"]
+    sub_data.note = request.json["note"]
+    sub_data.date =request.json["date"]
+    db.session.commit()
+    db.session.close()
+    resp = jsonify("success")
+    resp.status_code =201
+    return resp
+
+@guest.route("/delete_gop/<id>",methods=['DELETE'])
+@flask_praetorian.auth_required
+def delete_gop(id):
+      sub_data = GOP.query.filter_by(id=id).first()
+      
+      db.session.delete(sub_data)
+      db.session.commit()
+      db.session.close()
+      resp = jsonify("success")
+      resp.status_code =201
+      return resp
+
+
+
+
+
 
 

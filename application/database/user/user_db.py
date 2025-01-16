@@ -589,7 +589,18 @@ class Expenses(db.Model):
     user = db.Column(db.String(400))
     created_date = db.Column(db.String(400))
     created_by_id =db.Column(db.Integer,db.ForeignKey('user.id'))
-  
+
+class GOP(db.Model):
+        id =db.Column(db.Integer,primary_key=True)
+        name = db.Column(db.String(5000))
+        amount = db.Column(db.String(5000))
+        date = db.Column(db.String(5000))
+        note = db.Column(db.String(400)) 
+        # school_name = db.Column(db.String(400))
+        user = db.Column(db.String(400))
+        created_date = db.Column(db.String(400))
+        created_by_id =db.Column(db.Integer,db.ForeignKey('user.id'))
+    
       
 class Income(db.Model):
     id =db.Column(db.Integer,primary_key=True)
