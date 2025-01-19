@@ -461,6 +461,7 @@ class Payment(db.Model):
           discount  = db.Column(db.String(400))
           payment_date  = db.Column(db.String(400))
           balance=db.Column(db.String(400))
+          booking_id=db.Column(db.String(400))
 
           checkin_date  = db.Column(db.String(400))
           children  = db.Column(db.String(400))

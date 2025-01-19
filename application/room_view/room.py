@@ -26,7 +26,7 @@ class Room_schema(ma.Schema):
     class Meta:
         fields=("id","name","room_type","base_occupancy","extral_bed_price","kids_occupancy","base_price",
                 "amenities","description","image_one","image_two","image_three","occupied_state","status","occupied_by",
-                "reserved","session","duration","floor","room_number","assignee","task","guest_id","has_checkout"
+                "reserved","session","duration","floor","room_number","assignee","task","guest_id","has_checkout","booking_id","created_by_id","created_date"
 )
 
 
@@ -34,8 +34,8 @@ class Room_schema(ma.Schema):
 class BookingSchema(ma.Schema):
     class Meta:
         fields=("id","name","room_type", "arrival_date","departure_date","country","purpose",
-                "children","adult","status","room_type","checkout_date"
-                "created_date","room_number","guest_id","has_checkout"
+                "children","adult","status","room_type","checkout_date",
+                "created_date","room_number","guest_id","has_checkout","booking_id","created_by_id","created_date"
 )
 
 class ReportSchema(ma.Schema):

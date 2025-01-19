@@ -7,7 +7,7 @@ from  application.settings.setup import app
 from sqlalchemy import Float
 
 # from application.forms import LoginForm
-from application.database.user.user_db import db,Guests,User,Booking,Rooms,Payment,Reservation,Refund,Budget,Income,Expenses,Attendance,Iteman,Family,Category,Unit,Stock,Store,StockTransfer,Department,Vendor,PurchaseOrder,PurchaseRequest,ReceivedItem,returnRequest,GOP
+from application.database.user.user_db import db,Guests,User,Booking,Rooms,Payment,Reservation,Refund,Budget,Income,Expenses,Attendance,Iteman,Family,Category,Unit,Stock,Store,StockTransfer,Department,Vendor,PurchaseOrder,PurchaseRequest,ReceivedItem,returnRequest,GOP,RoomType
 from sqlalchemy import or_,desc,and_
 from datetime import datetime
 from datetime import date
@@ -36,7 +36,7 @@ class Refund_Schema(ma.Schema):
         
 class PaySchema(ma.Schema):
     class Meta:
-        fields=("id","name","amount","balance","method","children","adult","payment","checkin_date","checkout_date","room_type","discount","status","payment_date","guest_id")
+        fields=("id","name","amount","balance","method","children","adult","payment","checkin_date","checkout_date","room_type","discount","status","payment_date","guest_id","booking_id")
 
 class ReserveSchema(ma.Schema):
     class Meta:
@@ -334,6 +334,7 @@ def add_payment():
     room_number = request.json.get("room_number")
     name = request.json.get("name")
     status = request.json.get("status")
+    booking_id = request.json.get("booking_id")
     # Create a new payment entry
     pay = Payment(
         name=name,
@@ -349,7 +350,7 @@ def add_payment():
         payment_date=datetime.now().strftime('%Y-%m-%d %H:%M'),
         checkin_date=request.json.get("checkin_date"),
         checkout_date=request.json.get("checkout_date"),
-        status=status,
+        status=status,booking_id=booking_id,
         created_by_id=flask_praetorian.current_user().id
     )
 
@@ -668,6 +669,79 @@ def update_payment():
 
 
 
+
+
+
+
+
+
+@guest.route("/update_payment_checkout", methods=["PUT"])
+@flask_praetorian.auth_required
+def update_payment_checkout():
+    amount = request.json["amount"]
+    id = request.json["id"]
+    
+    # Query the payment by ID
+    pay = Payment.query.filter_by(id=id).first()
+    guest_id = request.json["guest_id"]
+    # Update the amount by adding the new amount to the existing amount
+    a= pay.amount = int(amount) + int(pay.amount)
+    pay.amount =a
+    pay.method = request.json["method"]
+    pay.room_type = request.json["room_type"]
+    pay.discount = request.json["discount"]
+    pay.children = request.json["children"]
+    pay.adult = request.json["adult"]
+    pay.checkin_date = request.json["checkin_date"]
+    pay.checkout_date = request.json["checkout_date"]
+    pay.status = request.json["status"]
+    pay.balance = a
+                      
+# int( request.json["amount"]) + int(pay.balance)
+    # Commit the changes to the database
+    db.session.commit()
+
+
+   
+
+    # Re-query the payment to get the most recent data
+    p = Payment.query.filter_by(id=id).first()
+
+    # Calculate the new balance
+    b =  int(p.amount) - int(p.balance)  # Add the current amount and subtract the old amount
+    p.balance = b
+    book = Booking.query.filter_by(guest_id=p.guest_id).first()
+    guest = Guests.query.filter_by(id=book.guest_id).first()
+    room = Rooms.query.filter_by(room_number=book.room_number).first()
+    
+    # Commit the balance update
+    db.session.commit()
+
+    payments = Payment.query.filter_by(guest_id=guest_id, status="success").all()
+    if not payments:
+        return jsonify({"error": "No successful payments found for this guest"}), 404
+    
+    total_balance = sum(float(payment.balance) for payment in payments if payment.balance and payment.balance.replace('.', '', 1).isdigit())
+    if total_balance<=0:
+        book.has_checkout = True
+        room.occupied_by = "none"
+        room.occupied_state = "available"
+        guest.has_checkout = datetime.now().strftime('%Y-%m-%d %H:%M')
+        db.session.commit()
+
+    else:
+        return 401
+    # Return the success response
+    resp = jsonify("success")
+    resp.status_code = 200
+    return resp
+
+
+
+
+
+
+
 @guest.route("/delete_payment/<id>",methods=["DELETE"])
 def delete_payment(id):
         pay = Payment.query.filter_by(id=id).first()
@@ -680,39 +754,81 @@ def delete_payment(id):
 @guest.route("/checkout/<id>", methods=["PUT"])
 @flask_praetorian.auth_required
 def checkout(id):
-    # Retrieve the guest
-    booka = Booking.query.filter_by(id=id).first()
-    guest = Guests.query.filter_by(id=booka.guest_id).first()
+    # Retrieve the booking and corresponding guest
+    booking = Booking.query.filter_by(id=id).first()
+    if not booking:
+        return jsonify({"error": "Booking not found"}), 404
+
+    guest = Guests.query.filter_by(id=booking.guest_id).first()
     if not guest:
         return jsonify({"error": "Guest not found"}), 404
 
-    # Mark all bookings for this guest as checked out
-    bookings = Booking.query.filter_by(id=id).all()
-    for booking in bookings:
-        booking.has_checkout = True
-
     # Calculate the total payment balance for the guest
-    payments = Payment.query.filter_by(guest_id=booka.guest_id,status="success").all()
- # Convert payment.balance to an integer for summation
-    total_balance = sum(int(payment.balance) for payment in payments if payment.balance and payment.balance.isdigit())
-  
-    print(total_balance)
+    payments = Payment.query.filter_by(guest_id=booking.guest_id, status="success").all()
+    if not payments:
+        return jsonify({"error": "No successful payments found for this guest"}), 404
+    
+    total_balance = sum(float(payment.balance) for payment in payments if payment.balance and payment.balance.replace('.', '', 1).isdigit())
 
-    # Check if the balance is non-positive to allow checkout
-    if total_balance <= 0:
-        room = Rooms.query.filter_by(room_number=booka.room_number).first()
-        if room:
-            room.occupied_by = "none"
-            room.occupied_state = "available"
+    # Get the room details for checkout logic
+    room = Rooms.query.filter_by(room_number=booking.room_number).first()
+    if not room:
+        return jsonify({"error": "Room not found"}), 404
+
+    room_type = RoomType.query.filter_by(room_type=room.room_type).first()
+    if not room_type:
+        return jsonify({"error": "Room type not found"}), 404
+
+    # Get current time for checkout logic
+    current_time = datetime.now()
+    current_time_str = current_time.strftime('%Y-%m-%d %H:%M')
+
+    # Check if the current date is past the departure date
+    departure_date = datetime.strptime(booking.departure_date, "%Y-%m-%d")
+    
+    # Case: Checkout after the departure date, charge for extra days
+    if current_time > departure_date:
+        # Calculate the extra days the guest stayed beyond the departure date
+        extra_days = (current_time - departure_date).days
         
-        guest.has_checkout = datetime.now().strftime('%Y-%m-%d %H:%M')
+        # Apply charges for extra days
+        extra_charge_per_day = 1.0 * float(room_type.base_price)  # Modify as per your pricing rules
+        extra_charge = extra_days * extra_charge_per_day
         
-        db.session.commit()  # Commit all changes
+        total_balance += extra_charge  # Add extra charge for extra days stayed
+        
+        # Debugging output to check extra charge calculation
+        print(f"Guest stayed {extra_days} extra days. Extra charge: {extra_charge}")
 
-        return jsonify({"message": "Checkout successful", "balance": total_balance}), 200
-    else:
-        return jsonify({"error": "Outstanding balance", "balance": total_balance}), 401
+    # Update the payment balance (whether for late checkout or not)
+    last_payment = payments[-1]  # Assuming the last successful payment is the one to update
+    last_payment.balance = str(total_balance)  # Convert total_balance back to string for storage
 
+    # Debugging output to check balance before commit
+    print(f"Updating payment balance for guest {guest.id}: {last_payment.balance}")
+
+    try:
+        db.session.commit()
+        return 401
+    except Exception as e:
+        print(f"Error during commit: {e}")
+        db.session.rollback()
+
+    # Update room state and guest checkout timestamp
+    
+    room.occupied_by = "none"
+    room.occupied_state = "available"
+    guest.has_checkout = current_time_str
+
+    # Commit the changes to the database again (room and guest updates)
+    try:
+        db.session.commit()
+        print("Room and guest commit successful.")
+    except Exception as e:
+        print(f"Error during commit: {e}")
+        db.session.rollback()
+
+    return jsonify({"message": "Checkout successful", "balance": total_balance}), 200
 
 @guest.route("/add_reservation", methods=["POST"])
 @flask_praetorian.auth_required
