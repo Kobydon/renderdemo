@@ -435,6 +435,7 @@ class Booking(db.Model):
      room_number=db.Column(db.String(400))
      
      status=db.Column(db.String(400))
+     session=db.Column(db.String(400))
      create_date = db.Column(db.String(400))
      created_by_id =db.Column(db.Integer,db.ForeignKey('user.id'))
 
@@ -448,7 +449,17 @@ class Refund(db.Model):
           
           payment_id =  db.Column(db.String(400))
           reason  = db.Column(db.String(400))
+          session  = db.Column(db.String(400))
           authorized_by  = db.Column(db.String(400))
+
+
+class Session(db.Model):
+          id = db.Column(db.Integer,primary_key=True)
+          open_date =  db.Column(db.String(400))  
+          close_date = db.Column(db.String(400))
+          status  = db.Column(db.String(400))
+          open_by =db.Column(db.String(400))  
+          close_by =db.Column(db.String(400))  
           
 
 class Payment(db.Model):
@@ -468,6 +479,7 @@ class Payment(db.Model):
           adult  = db.Column(db.String(400))
           checkout_date  = db.Column(db.String(400))
           status  = db.Column(db.String(400))
+          session  = db.Column(db.String(400))
           guest_id =db.Column(db.Integer,db.ForeignKey('guests.id'))
           created_by_id =db.Column(db.Integer,db.ForeignKey('user.id'))
 

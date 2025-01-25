@@ -7,7 +7,7 @@ from  application.settings.setup import app
 from sqlalchemy import Float
 
 # from application.forms import LoginForm
-from application.database.user.user_db import db,Guests,User,Booking,Rooms,Payment,Reservation,Refund,Budget,Income,Expenses,Attendance,Iteman,Family,Category,Unit,Stock,Store,StockTransfer,Department,Vendor,PurchaseOrder,PurchaseRequest,ReceivedItem,returnRequest,GOP,RoomType
+from application.database.user.user_db import db,Guests,User,Booking,Rooms,Payment,Reservation,Refund,Budget,Income,Expenses,Attendance,Iteman,Family,Category,Unit,Stock,Store,StockTransfer,Department,Vendor,PurchaseOrder,PurchaseRequest,ReceivedItem,returnRequest,GOP,RoomType,Session
 from sqlalchemy import or_,desc,and_
 from datetime import datetime
 from datetime import date
@@ -22,21 +22,22 @@ guest = Blueprint("guest", __name__)
         
 class Guest_schema(ma.Schema):
     class Meta:
-        fields=("id","first_name","last_name","unit","Category","family","department","price","address","has_checkout","checkout_date","arrival","city","country","id_type","id_number","id_upload","dob","gender","work","remark","phone",
+        fields=("id","first_name","last_name","unit","Category","family","open_by","department","price","address","has_checkout","checkout_date","arrival","city","country","id_type","id_number","id_upload","dob","gender","work","remark","phone",
                 "region","email","username","arrival_date","checkout_date","guest_id","note","amount","created_date","date","type","attendace","name","description","store","quantity","hod","requested_by","item","approved_by",
-                "total_cost","unit_price","store","status","Department","attendance","time_in","time_out","position","reason","voided","item_id","request_by","user")
+                "total_cost","unit_price","store","status","Department","attendance","time_in","time_out","position","reason","voided","item_id","request_by","user",
+                    "close_by","open_date","close_date")
 
 
 class Refund_Schema(ma.Schema):
     class Meta:
-        fields=("id","reason","refund_amount","payment_id","name","refund_time","status","authorized_by")
+        fields=("id","reason","refund_amount","payment_id","name","refund_time","status","authorized_by","session")
 
 
         
         
 class PaySchema(ma.Schema):
     class Meta:
-        fields=("id","name","amount","balance","method","children","adult","payment","checkin_date","checkout_date","room_type","discount","status","payment_date","guest_id","booking_id")
+        fields=("id","name","amount","balance","method","children","adult","payment","checkin_date","checkout_date","room_type","discount","status","payment_date","guest_id","booking_id","session")
 
 class ReserveSchema(ma.Schema):
     class Meta:
@@ -289,10 +290,13 @@ def fetch_guest(id):
 @guest.route("/add_booking",methods=["POST"])
 @flask_praetorian.auth_required
 def add_booking():
+    session = Session.query.filter_by(status="current").first()
+    if session:
+        open_date=session.open_date
     room_number=request.json["room_number"]
     name=request.json["name"]
     guest_id = request.json["guest_id"]
-    booking = Booking(name=request.json["name"],  room_type=request.json["room_type"],country=request.json["country"],
+    booking = Booking(name=request.json["name"],  room_type=request.json["room_type"],country=request.json["country"],session=open_date,
     
      purpose=request.json["purpose"],
       
@@ -330,6 +334,9 @@ def add_booking():
 @flask_praetorian.auth_required
 def add_payment():
     # Extract data from the request
+    session = Session.query.filter_by(status="current").first()
+    if session:
+        open_date=session.open_date
     amount = request.json.get("amount")
     room_number = request.json.get("room_number")
     name = request.json.get("name")
@@ -350,7 +357,7 @@ def add_payment():
         payment_date=datetime.now().strftime('%Y-%m-%d %H:%M'),
         checkin_date=request.json.get("checkin_date"),
         checkout_date=request.json.get("checkout_date"),
-        status=status,booking_id=booking_id,
+        status=status,booking_id=booking_id,session=open_date,
         created_by_id=flask_praetorian.current_user().id
     )
 
@@ -470,8 +477,8 @@ def get_return_request():
 def search_refund_dates():
     date = request.json["date"]
     print(date)
-    refund = Refund.query.filter(Refund.refund_time.contains(date) )
-    lst = refund.order_by(desc(Refund.refund_time))
+    refund = Refund.query.filter(Refund.session.contains(date) )
+    lst = refund.order_by(desc(Refund.session))
     result = refund_schema.dump(lst)
     return jsonify(result)
 
@@ -543,8 +550,8 @@ def search_stock_dates():
 def searchdates():
     date = request.json["date"]
     print(date)
-    pay = Payment.query.filter(Payment.payment_date.contains(date) )
-    lst = pay.order_by(desc(Payment.payment_date))
+    pay = Payment.query.filter(Payment.session.contains(date) )
+    lst = pay.order_by(desc(Payment.session))
     result = pay_schema.dump(lst)
     return jsonify(result)
 
@@ -562,14 +569,14 @@ def search_payment_date_two():
     # Query to find payments with balance > 0 and payment date matching either 'date' or 'date_two'
     payments = Payment.query.filter(
         or_(
-            Payment.payment_date.contains(date),
-            Payment.payment_date.contains(date_two)
+            Payment.session.contains(date),
+            Payment.session.contains(date_two)
         )
     ).filter(
         Payment.balance.cast(Float) > 0  # Ensure balance is greater than 0, casting to Float for proper comparison
     ).filter(
-        Payment.payment_date != None  # Make sure payment_date is not None
-    ).order_by(Payment.payment_date.desc())  # Order by payment date in descending order
+        Payment.session != None  # Make sure payment_date is not None
+    ).order_by(Payment.session.desc())  # Order by payment date in descending order
 
     # Serialize the payment data
     result = pay_schema.dump(payments)
@@ -590,9 +597,9 @@ def search_payment_date():
     
     # Query to find payments with balance greater than 0, and payment date containing the given date
     payments = Payment.query.filter(
-        Payment.payment_date.contains(date),
+        Payment.session.contains(date),
         Payment.balance.cast(Float) > 0  # Cast balance to a float for comparison
-    ).order_by(Payment.payment_date.desc())
+    ).order_by(Payment.session.desc())
 
     # Serialize the payments data
     result = pay_schema.dump(payments)
@@ -750,7 +757,6 @@ def delete_payment(id):
         resp= jsonify("success")
         resp.status_code=200
         return resp
-
 @guest.route("/checkout/<id>", methods=["PUT"])
 @flask_praetorian.auth_required
 def checkout(id):
@@ -809,16 +815,16 @@ def checkout(id):
 
     try:
         db.session.commit()
-        return 401
     except Exception as e:
         print(f"Error during commit: {e}")
         db.session.rollback()
+        return jsonify({"error": "Failed to commit changes"}), 401  # Return error response
 
     # Update room state and guest checkout timestamp
-    
     room.occupied_by = "none"
     room.occupied_state = "available"
     guest.has_checkout = current_time_str
+    booking.has_checkout = True
 
     # Commit the changes to the database again (room and guest updates)
     try:
@@ -827,8 +833,10 @@ def checkout(id):
     except Exception as e:
         print(f"Error during commit: {e}")
         db.session.rollback()
+        return jsonify({"error": "Failed to commit changes"}), 401  # Return error response
 
     return jsonify({"message": "Checkout successful", "balance": total_balance}), 200
+
 
 @guest.route("/add_reservation", methods=["POST"])
 @flask_praetorian.auth_required
@@ -1030,11 +1038,14 @@ def cancel_reservation(id):
 @guest.route("/add_refund",methods=["POST"])
 @flask_praetorian.auth_required
 def add_refund():
+          session = Session.query.filter_by(status="current").first()
+          if session:
+                 open_date=session.open_date
           authorized_by=request.json["authorized_by"]
           id = request.json["id"]
           refund_amount = request.json["refund_amount"]
         #   amount= request.json["amount"]
-          refund = Refund( name = request.json["name"],
+          refund = Refund( name = request.json["name"],session=open_date,
           refund_amount = request.json["refund_amount"],
         #   description = request.json["description"],
           reason=request.json["reason"],
@@ -1725,10 +1736,10 @@ def searchdates_two():
     try:
         pay = Payment.query.filter(
             or_(
-                Payment.payment_date.contains(date),
-                Payment.payment_date.contains(date_two)
+                Payment.session.contains(date),
+                Payment.session.contains(date_two)
             )
-        ).order_by(desc(Payment.payment_date)).all()
+        ).order_by(desc(Payment.session)).all()
 
         result = pay_schema.dump(pay)
         return jsonify(result), 200
@@ -1776,8 +1787,8 @@ def search_refund_dates_two():
     try:
         pay = Refund.query.filter(
             or_(
-                Refund.refund_time.contains(date),
-                Refund.refund_time.contains(date_two)
+                Refund.session.contains(date),
+                Refund.session.contains(date_two)
             )
         ).order_by(desc(Refund.refund_time)).all()
 
@@ -2640,4 +2651,53 @@ def delete_gop(id):
 
 
 
+@guest.route("/add_session",methods=['POST'])
+@flask_praetorian.auth_required
+def add_session():
+    user = User.query.filter_by(id = flask_praetorian.current_user().id).first()
+    session_data = Session.query.filter_by(status="current").first()
+    if session:
+      session_data.status="old"
+    usr = user.firstname +" " + user.lastname
+    created_date=datetime.now().strftime('%Y-%m-%d %H:%M')
+    exp = Session(open_date=created_date,close_date="",
+                   open_by=usr,status ="current")
+  
+    db.session.add(exp)
+  
+    db.session.commit()
+    db.session.close()
+    resp = jsonify("success")
+    resp.status_code =200
+    return resp
 
+
+
+@guest.route("/close_session",methods=['PUT'])
+@flask_praetorian.auth_required
+def close_session():
+    id = request.json["id"]
+   
+
+    user = User.query.filter_by(id = flask_praetorian.current_user().id).first()
+  
+    usr = user.firstname +" " + user.lastname
+    created_date=datetime.now().strftime('%Y-%m-%d %H:%M')
+    session_data = Session.query.filter_by(id=id).first()
+    session_data.status="old"
+    session_data.close_by=usr
+    session_data.close_date=created_date
+  
+    db.session.commit()
+    db.session.close()
+    resp = jsonify("success")
+    resp.status_code =200
+    return resp
+
+
+@guest.route("/get_current_session")
+@flask_praetorian.auth_required
+def get_current_session():
+    session_data =  Session.query.filter_by(status="current").all()
+    results = guest_schema.dump(session_data)
+    return jsonify(results)
