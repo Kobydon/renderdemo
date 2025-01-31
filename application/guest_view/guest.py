@@ -2691,7 +2691,7 @@ def close_session():
     db.session.commit()
     db.session.close()
     resp = jsonify("success")
-    resp.status_code =200
+    resp.status_code =201
     return resp
 
 
@@ -2699,5 +2699,14 @@ def close_session():
 @flask_praetorian.auth_required
 def get_current_session():
     session_data =  Session.query.filter_by(status="current").all()
+    results = guest_schema.dump(session_data)
+    return jsonify(results)
+
+
+
+@guest.route("/get_all_session")
+@flask_praetorian.auth_required
+def get_all_session():
+    session_data =  Session.query.order_by(Session.open_date)
     results = guest_schema.dump(session_data)
     return jsonify(results)
