@@ -208,12 +208,12 @@ class Guests(db.Model):
     password = db.Column(db.String(255))  # Adjusted column size
     dob = db.Column(db.String(100))  # Adjusted column size
     country = db.Column(db.String(100))  # Adjusted column size
-    arrival_date = db.Column(db.DateTime)  # Changed to DateTime
+    arrival_date = db.Column(db.String(200))  # Changed to DateTime
     photo = db.Column(db.String(500))  # Adjusted column size for image paths
     id_type = db.Column(db.String(50))  # Adjusted column size
     id_upload = db.Column(db.String(500))  # Adjusted column size for file paths
     id_number = db.Column(db.String(100))  # Adjusted column size
-    checkout_date = db.Column(db.DateTime)  # Changed to DateTime
+    checkout_date = db.Column(db.String(200))  # Changed to DateTime
     remark = db.Column(db.String(255))  # Adjusted column size
     work = db.Column(db.String(255))  # Adjusted column size
     city = db.Column(db.String(100))  # Adjusted column size
@@ -235,8 +235,8 @@ class Booking(db.Model):
     room_type = db.Column(db.String(100))  # Adjusted column size
     country = db.Column(db.String(100))  # Adjusted column size
     purpose = db.Column(db.String(255))  # Adjusted column size
-    departure_date = db.Column(db.DateTime)  # Changed to DateTime
-    arrival_date = db.Column(db.DateTime)  # Changed to DateTime
+    departure_date = db.Column(db.String(200))  # Changed to DateTime
+    arrival_date = db.Column(db.String(200))  # Changed to DateTime
     adult = db.Column(db.String(10))  # Adjusted column size
     children = db.Column(db.String(10))  # Adjusted column size
     guest_id = db.Column(db.Integer, db.ForeignKey('guests.id'))
@@ -260,6 +260,14 @@ class Refund(db.Model):
     authorized_by = db.Column(db.String(255))  # Adjusted column size
 
 
+class Wifi(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    code = db.Column(db.String(100))  # Adjusted column size
+    state = db.Column(db.String(255))  # Adjusted column size]
+    duration =db.Column(db.String(255)) 
+  # Adjusted column size
+
+
 class Session(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     open_date = db.Column(db.DateTime)  # Changed to DateTime
@@ -277,15 +285,16 @@ class Payment(db.Model):
     method = db.Column(db.String(50))  # Adjusted column size
     room_type = db.Column(db.String(100))  # Adjusted column size
     discount = db.Column(db.String(50))  # Adjusted column size
-    payment_date = db.Column(db.DateTime)  # Changed to DateTime
+    payment_date = db.Column(db.String(200))  # Changed to DateTime
     balance = db.Column(db.String(100))  # Adjusted column size
     booking_id = db.Column(db.String(100))  # Adjusted column size
-    checkin_date = db.Column(db.DateTime)  # Changed to DateTime
+    checkin_date = db.Column(db.String(200))  # Changed to DateTime
     children = db.Column(db.String(10))  # Adjusted column size
     adult = db.Column(db.String(10))  # Adjusted column size
-    checkout_date = db.Column(db.DateTime)  # Changed to DateTime
+    checkout_date = db.Column(db.String(200))  # Changed to DateTime
     status = db.Column(db.String(50))  # Adjusted column size
     session = db.Column(db.String(50))  # Adjusted column size
+    wifi_code = db.Column(db.String(200)) 
     guest_id = db.Column(db.Integer, db.ForeignKey('guests.id'))
     created_by_id = db.Column(db.Integer, db.ForeignKey('user.id'))
 

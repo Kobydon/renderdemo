@@ -7,7 +7,7 @@ from  application.settings.setup import app
 from sqlalchemy import Float
 
 # from application.forms import LoginForm
-from application.database.user.user_db import db,Guests,User,Booking,Rooms,Payment,Reservation,Refund,Budget,Income,Expenses,Attendance,Iteman,Family,Category,Unit,Stock,Store,StockTransfer,Department,Vendor,PurchaseOrder,PurchaseRequest,ReceivedItem,returnRequest,GOP,RoomType,Session
+from application.database.user.user_db import db,Guests,User,Booking,Rooms,Payment,Reservation,Refund,Budget,Income,Expenses,Attendance,Iteman,Family,Category,Unit,Stock,Store,StockTransfer,Department,Vendor,PurchaseOrder,PurchaseRequest,ReceivedItem,returnRequest,GOP,RoomType,Session,Wifi
 from sqlalchemy import or_,desc,and_
 from datetime import datetime
 from datetime import date
@@ -25,7 +25,7 @@ class Guest_schema(ma.Schema):
         fields=("id","first_name","last_name","unit","Category","family","open_by","department","price","address","has_checkout","checkout_date","arrival","city","country","id_type","id_number","id_upload","dob","gender","work","remark","phone",
                 "region","email","username","arrival_date","checkout_date","guest_id","note","amount","created_date","date","type","attendace","name","description","store","quantity","hod","requested_by","item","approved_by",
                 "total_cost","unit_price","store","status","Department","attendance","time_in","time_out","position","reason","voided","item_id","request_by","user",
-                    "close_by","open_date","close_date")
+                    "close_by","open_date","close_date","wifi_code")
 
 
 class Refund_Schema(ma.Schema):
@@ -37,7 +37,7 @@ class Refund_Schema(ma.Schema):
         
 class PaySchema(ma.Schema):
     class Meta:
-        fields=("id","name","amount","balance","method","children","adult","payment","checkin_date","checkout_date","room_type","discount","status","payment_date","guest_id","booking_id","session")
+        fields=("id","name","amount","balance","method","children","adult","wifi_code","payment","checkin_date","checkout_date","room_type","discount","status","payment_date","guest_id","booking_id","session","code")
 
 class ReserveSchema(ma.Schema):
     class Meta:
@@ -342,9 +342,27 @@ def add_payment():
     name = request.json.get("name")
     status = request.json.get("status")
     booking_id = request.json.get("booking_id")
+    days = request.json["days"]  # Use .get() to avoid KeyError
+    
+    if not days:
+        return jsonify({"error": "Missing 'days' in request"}), 400  # Return error if days is missing
+
+    print("Days:", days)  # Confirm 'days' value is received
+
+    # Query for an available WiFi code
+    wifi_code = Wifi.query.filter_by(state="available", duration=days).order_by(func.random()).first()
+
+    if not wifi_code:
+        return jsonify({"error": "No available WiFi codes"}), 404  # Return 404 if no matching code is found
+
+    
+     # Serialize result
+   
+
     # Create a new payment entry
     pay = Payment(
         name=name,
+        wifi_code=wifi_code.code,
         amount=amount,
         refund_amount="0",
         balance=request.json.get("balance"),
@@ -358,8 +376,7 @@ def add_payment():
         checkin_date=request.json.get("checkin_date"),
         checkout_date=request.json.get("checkout_date"),
         status=status,booking_id=booking_id,session=open_date,
-        created_by_id=flask_praetorian.current_user().id
-    )
+        created_by_id=flask_praetorian.current_user().id)
 
     # Update room status
     room = Rooms.query.filter_by(room_number=room_number).first()
@@ -371,6 +388,7 @@ def add_payment():
     # Commit the changes to the database
     try:
         db.session.add(pay)
+        wifi_code.state="used"
         db.session.commit()
     except Exception as e:
         db.session.rollback()
@@ -2707,6 +2725,33 @@ def get_current_session():
 @guest.route("/get_all_session")
 @flask_praetorian.auth_required
 def get_all_session():
-    session_data =  Session.query.order_by(Session.open_date)
+    session_data =  Session.query.order_by(desc(Session.open_date))
     results = guest_schema.dump(session_data)
     return jsonify(results)
+
+
+@guest.route("/get_wifi_code", methods=["POST"])
+@flask_praetorian.auth_required
+def get_wifi_code():
+    data = request.json  # Get full JSON data
+    print("Received data:", data)  # Debugging log
+    days = data.get("days")  # Use .get() to avoid KeyError
+    
+    if not days:
+        return jsonify({"error": "Missing 'days' in request"}), 400  # Return error if days is missing
+
+    print("Days:", days)  # Confirm 'days' value is received
+
+    # Query for an available WiFi code
+    wifi_code = Wifi.query.filter_by(state="available", duration=days).order_by(func.random()).first()
+
+    if not wifi_code:
+        return jsonify({"error": "No available WiFi codes"}), 404  # Return 404 if no matching code is found
+
+    results = pay_schema.dump(wifi_code, many=False) 
+     # Serialize result
+    print(wifi_code.code)
+    print("WiFi Code Found:", results)  # Debugging log
+    
+    return jsonify(results)
+
