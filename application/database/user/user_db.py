@@ -2,6 +2,7 @@ from application.extensions.extensions import *
 from application.settings.setup import app
 from application.settings.settings import *
 from flask_migrate import Migrate
+from datetime import datetime, timezone
 
 
 
@@ -17,6 +18,7 @@ class User(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(255), unique=True)
     firstname = db.Column(db.String(255))
+    company_name= db.Column(db.String(500))  
     lastname = db.Column(db.String(255))
     city = db.Column(db.String(300))  # Changed to 300 if needed
     country = db.Column(db.String(255))
@@ -65,6 +67,8 @@ class User(db.Model):
                                       backref='reservie', lazy=True)
     item_for = db.relationship('Item', foreign_keys='Item.created_by_id',
                                backref='itemiie', lazy=True)
+    orders = db.relationship('Order', backref='user', lazy=True)
+    held_orders = db.relationship('HeldCart', backref='user', lazy=True)
 
     @property
     def identity(self):
@@ -119,11 +123,13 @@ class Insurance(db.Model):
 
 class Task(db.Model):
     id = db.Column(db.Integer, primary_key=True)
+    company_name= db.Column(db.String(200))
     name = db.Column(db.String(255))  # Adjusted column size
 
 
 class RoomReport(db.Model):
     id = db.Column(db.Integer, primary_key=True)
+    company_name= db.Column(db.String(200))
     room_number = db.Column(db.String(100))  # Adjusted column size
     room_type = db.Column(db.String(100))  # Adjusted column size
     employee = db.Column(db.String(255))  # Adjusted column size
@@ -165,6 +171,7 @@ class RoomType(db.Model):
     image_two = db.Column(db.String(500))  # Adjusted column size
     image_three = db.Column(db.String(500))  # Adjusted column size
     created_by_id = db.Column(db.Integer, db.ForeignKey('user.id'))
+    company_name= db.Column(db.String(500))  
 
 class Rooms(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -182,6 +189,7 @@ class Rooms(db.Model):
     assignee = db.Column(db.String(100))  # Adjusted column size
     task = db.Column(db.String(100))  # Adjusted column size
     date_booked = db.Column(db.DateTime)  # Changed to DateTime
+    company_name= db.Column(db.String(500))  
     created_by_id = db.Column(db.Integer, db.ForeignKey('user.id'))
 
 
@@ -197,12 +205,14 @@ class Transaction(db.Model):
     status = db.Column(db.String(50))  # Adjusted column size
     type = db.Column(db.String(50))  # Adjusted column size
     created_date = db.Column(db.DateTime)  # Changed to DateTime
+    company_name= db.Column(db.String(500))  
     created_by_id = db.Column(db.Integer, db.ForeignKey('user.id'))
 
 
 class Guests(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     room_number = db.Column(db.String(100))  # Adjusted column size
+    company_name= db.Column(db.String(500))  
     username = db.Column(db.String(255))  # Adjusted column size
     email = db.Column(db.String(255))  # Adjusted column size
     password = db.Column(db.String(255))  # Adjusted column size
@@ -231,6 +241,7 @@ class Guests(db.Model):
 
 class Booking(db.Model):
     id = db.Column(db.Integer, primary_key=True)
+    company_name= db.Column(db.String(500))  
     name = db.Column(db.String(255))  # Adjusted column size
     room_type = db.Column(db.String(100))  # Adjusted column size
     country = db.Column(db.String(100))  # Adjusted column size
@@ -250,6 +261,7 @@ class Booking(db.Model):
 
 class Refund(db.Model):
     id = db.Column(db.Integer, primary_key=True)
+    company_name= db.Column(db.String(500))  
     refund_amount = db.Column(db.String(100))  # Adjusted column size
     name = db.Column(db.String(255))  # Adjusted column size
     status = db.Column(db.String(50))  # Adjusted column size
@@ -262,6 +274,7 @@ class Refund(db.Model):
 
 class Wifi(db.Model):
     id = db.Column(db.Integer, primary_key=True)
+    company_name= db.Column(db.String(500))  
     code = db.Column(db.String(100))  # Adjusted column size
     state = db.Column(db.String(255))  # Adjusted column size]
     duration =db.Column(db.String(255)) 
@@ -270,15 +283,59 @@ class Wifi(db.Model):
 
 class Session(db.Model):
     id = db.Column(db.Integer, primary_key=True)
+    company_name= db.Column(db.String(500))  
     open_date = db.Column(db.DateTime)  # Changed to DateTime
     close_date = db.Column(db.DateTime)  # Changed to DateTime
     status = db.Column(db.String(50))  # Adjusted column size
     open_by = db.Column(db.String(255))  # Adjusted column size
     close_by = db.Column(db.String(255))  # Adjusted column size
 
+class Order(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    items = db.Column(db.String(200))  # JSON string of order items
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    total = db.Column(db.Float, nullable=False)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    company_name = db.Column(db.String(200))
+    order_status = db.Column(db.String(200), default="Pending")  # Pending, Confirmed, Completed
+    waiter = db.Column(db.String(200))
+    status = db.Column(db.String(20), default="paid")  # Status: paid, pending
+
+    # Relationship to OrderItem
+    order_items = db.relationship('OrderItem', backref='order', lazy=True, cascade="all, delete-orphan")
+
+
+# ✅ Order Items Model
+class OrderItem(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    order_id = db.Column(db.Integer, db.ForeignKey('order.id'), nullable=False)
+    item_id = db.Column(db.Integer, db.ForeignKey('iteman.id'), nullable=False)  # Link to inventory
+    quantity = db.Column(db.Integer, nullable=False)
+    category = db.Column(db.String(200))
+    waiter = db.Column(db.String(400))
+    status = db.Column(db.String(200), default="Pending")  # Pending, In Progress, Completed
+    item_name = db.Column(db.String(200))
+    company_name = db.Column(db.String(400))
+    created_date = db.Column(db.String(400))
+    family =db.Column(db.String(200))
+    item = db.relationship('Iteman', backref=db.backref('order_items', lazy=True))
+
+
+# ✅ Held Orders Model (For Holding Carts)
+class HeldCart(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    items = db.Column(db.String(500))  # JSON string of cart items
+    total = db.Column(db.Float, nullable=False)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    company_name = db.Column(db.String(200))
+    status = db.Column(db.String(200))
+    waiter = db.Column(db.String(200))
+
 
 class Payment(db.Model):
     id = db.Column(db.Integer, primary_key=True)
+    company_name= db.Column(db.String(500))  
     refund_amount = db.Column(db.String(100))  # Adjusted column size
     name = db.Column(db.String(255))  # Adjusted column size
     amount = db.Column(db.String(100))  # Adjusted column size
@@ -299,8 +356,23 @@ class Payment(db.Model):
     created_by_id = db.Column(db.Integer, db.ForeignKey('user.id'))
 
 
+
+
+class PosPayment(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    company_name= db.Column(db.String(500))  
+    name = db.Column(db.String(255))  # Adjusted column size
+    amount = db.Column(db.String(100))  # Adjusted column size
+    payment_date = db.Column(db.String(200))  # Changed to DateTime
+    attendant= db.Column(db.String(100)) 
+    quantity= db.Column(db.String(100)) 
+    created_by_id = db.Column(db.Integer, db.ForeignKey('user.id'))
+
+
+
 class Item(db.Model):
     id = db.Column(db.Integer, primary_key=True)
+    company_name= db.Column(db.String(500))  
     item_name = db.Column(db.String(255))  # Adjusted column size
     item_type = db.Column(db.String(100))  # Adjusted column size
     auth_level = db.Column(db.String(50))  # Adjusted column size
@@ -325,6 +397,7 @@ class Item(db.Model):
     
 class Employee(db.Model):
     id = db.Column(db.Integer, primary_key=True)
+    company_name= db.Column(db.String(500))  
     first_name = db.Column(db.String(400))
     last_name = db.Column(db.String(400))
     email = db.Column(db.String(400))
@@ -348,6 +421,7 @@ class Employee(db.Model):
 
 class Attendance(db.Model):
     id = db.Column(db.Integer, primary_key=True)
+    company_name= db.Column(db.String(500))  
     name = db.Column(db.String(400))
     attendance = db.Column(db.String(400))
     position = db.Column(db.String(400))
@@ -376,6 +450,7 @@ class Reservation(db.Model):
     created_date = db.Column(db.String(400))
     payment_status = db.Column(db.Text)
     status = db.Column(db.Text)
+    company_name= db.Column(db.String(500))  
     created_by_id = db.Column(db.Integer, db.ForeignKey('user.id'))
 
     def __repr__(self):
@@ -388,6 +463,7 @@ class Todo(db.Model):
     position = db.Column(db.String(400))
     created_for = db.Column(db.String(400))
     created_date = db.Column(db.String(400))
+    company_name= db.Column(db.String(500))  
     created_by = db.Column(db.String(400))
 
     def __repr__(self):
@@ -401,6 +477,7 @@ class Expenses(db.Model):
     note = db.Column(db.String(400))
     user = db.Column(db.String(400))
     created_date = db.Column(db.String(400))
+    company_name= db.Column(db.String(500))  
     created_by_id = db.Column(db.Integer, db.ForeignKey('user.id'))
 
     def __repr__(self):
@@ -411,6 +488,7 @@ class GOP(db.Model):
     name = db.Column(db.Text)
     amount = db.Column(db.Text)
     date = db.Column(db.Text)
+    company_name= db.Column(db.String(500))  
     note = db.Column(db.String(400))
     user = db.Column(db.String(400))
     created_date = db.Column(db.String(400))
@@ -425,6 +503,7 @@ class Income(db.Model):
     amount = db.Column(db.Text)
     date = db.Column(db.Text)
     note = db.Column(db.String(400))
+    company_name= db.Column(db.String(500))  
     created_date = db.Column(db.String(400))
     created_by_id = db.Column(db.Integer, db.ForeignKey('user.id'))
 
@@ -437,6 +516,7 @@ class Budget(db.Model):
     amount = db.Column(db.Text)
     type = db.Column(db.Text)
     note = db.Column(db.String(400))
+    company_name= db.Column(db.String(500))  
     created_date = db.Column(db.String(400))
     created_by_id = db.Column(db.Integer, db.ForeignKey('user.id'))
 
@@ -447,6 +527,7 @@ class Family(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.Text)
     description = db.Column(db.Text)
+    company_name= db.Column(db.String(500))  
     created_date = db.Column(db.String(400))
 
     def __repr__(self):
@@ -462,6 +543,9 @@ class Iteman(db.Model):
     price = db.Column(db.String(400))
     unit = db.Column(db.String(400))
     voided = db.Column(db.String(400))
+  
+    quantity= db.Column(db.String(200))
+    company_name= db.Column(db.String(500))  
 
     def __repr__(self):
         return f"<Iteman(id={self.id}, name={self.name}, price={self.price}, voided={self.voided})>"
@@ -471,6 +555,7 @@ class Unit(db.Model):
     name = db.Column(db.Text)
     description = db.Column(db.Text)
     created_date = db.Column(db.String(400))
+    company_name= db.Column(db.String(500))  
 
     def __repr__(self):
         return f"<Unit(id={self.id}, name={self.name})>"
@@ -478,6 +563,7 @@ class Unit(db.Model):
 class ReceivedItem(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.Text)
+    company_name= db.Column(db.String(500))  
     quantity = db.Column(db.Text)
     created_date = db.Column(db.String(400))
 
@@ -489,10 +575,23 @@ class Stock(db.Model):
     name = db.Column(db.Text)
     store = db.Column(db.Text)
     quantity = db.Column(db.Text)
-    created_date = db.Column(db.String(400))
+    company_name= db.Column(db.String(500))  
+    created_date = db.Column(db.String(400))\
 
     def __repr__(self):
         return f"<Stock(id={self.id}, name={self.name}, store={self.store}, quantity={self.quantity})>"
+    
+
+class StockUsage(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.Text)
+    store = db.Column(db.Text)
+    operation = db.Column(db.String(500))  
+    quantity = db.Column(db.Text)
+    company_name= db.Column(db.String(500))  
+    created_date = db.Column(db.String(400))
+
+
 
 
 class returnRequest(db.Model):
@@ -503,6 +602,7 @@ class returnRequest(db.Model):
     quantity = db.Column(db.Text)
     reason = db.Column(db.Text)
     status = db.Column(db.String(400))
+    company_name= db.Column(db.String(500))  
     created_date = db.Column(db.String(400))
 
     def __repr__(self):
@@ -513,6 +613,7 @@ class Store(db.Model):
     name = db.Column(db.Text)
     category = db.Column(db.Text)
     description = db.Column(db.Text)
+    company_name= db.Column(db.String(500))  
     created_date = db.Column(db.String(400))
 
     def __repr__(self):
@@ -522,6 +623,7 @@ class StockTransfer(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.Text)
     department = db.Column(db.Text)
+    company_name= db.Column(db.String(500))  
     quantity = db.Column(db.Text)
     created_date = db.Column(db.String(400))
 
@@ -533,6 +635,7 @@ class Department(db.Model):
     name = db.Column(db.Text)
     description = db.Column(db.Text)
     hod = db.Column(db.Text)
+    company_name= db.Column(db.String(500))  
     created_date = db.Column(db.String(400))
 
     def __repr__(self):
@@ -543,6 +646,7 @@ class Vendor(db.Model):
     name = db.Column(db.Text)
     phone = db.Column(db.Text)
     address = db.Column(db.Text)
+    company_name= db.Column(db.String(500))  
     created_date = db.Column(db.String(400))
 
     def __repr__(self):
@@ -552,6 +656,7 @@ class Category(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.Text)
     description = db.Column(db.Text)
+    company_name= db.Column(db.String(500))  
     created_date = db.Column(db.String(400))
     created_by_id = db.Column(db.Integer, db.ForeignKey('user.id'))
 
@@ -566,6 +671,7 @@ class PurchaseRequest(db.Model):
     department = db.Column(db.Text)
     quantity = db.Column(db.Text)
     unit_price = db.Column(db.Text)
+    company_name= db.Column(db.String(500))  
     total_cost = db.Column(db.Text)
     status = db.Column(db.String(400))
     store = db.Column(db.String(400))
@@ -578,6 +684,7 @@ class PurchaseRequest(db.Model):
 class PurchaseOrder(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     item = db.Column(db.Text)
+    company_name= db.Column(db.String(500))  
     store = db.Column(db.Text)
     created_date = db.Column(db.String(400))
     voided = db.Column(db.String(400))

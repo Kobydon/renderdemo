@@ -22,7 +22,7 @@ class User_schema(ma.Schema):
         fields=("id","firstname","lastname","about","email","username","hashed_password",
                 "roles","city","country","address","phone","created_date",
                 "account_status",
-                    "state","transaction_pin" ,"photo"
+                    "state","transaction_pin" ,"photo","company_name"
 )
         
 
@@ -47,7 +47,9 @@ user_schema=User_schema(many=True)
 
 
 @user.route("/register_quick",methods=["POST"])
+@flask_praetorian.auth_required
 def register_quick():
+    us = User.query.filter_by(id = flask_praetorian.current_user().id).first()
     firstname =request.json["firstname"]
     username = request.json["username"]
     password = request.json["password"]
@@ -60,12 +62,12 @@ def register_quick():
     address = request.json["address"]
 
 
-    role = "guest"
+    role = request.json["role"]
     phone = request.json["phone"]
     # confirm_password= request.json["confirm_password"]
     hashed_password= guard.hash_password(password)
     # if password == confirm_password:
-    owner = User(firstname=firstname,lastname=lastname,about=about,country=country,
+    owner = User(firstname=firstname,lastname=lastname,about=about,country=country,company_name=us.company_name,
                     city=city ,phone=phone,username=username,hashed_password=hashed_password,roles=role,address=address,
                     email=email,created_date=datetime.now().strftime('%Y-%m-%d %H:%M'))
     db.session.add(owner)
@@ -78,7 +80,17 @@ def register_quick():
 
 
 
+@user.route("/find_cashier",methods=["POST"])
+def find_cashier():
+    user = User.query.filter_by(password=request.json["password"]).first()
+    resp =jsonify("success")
+    if user:
+        
+         resp.status_code=200
+    return resp
+    
 
+ 
 
 @user.route("/register",methods=["POST"])
 def register():
@@ -87,7 +99,7 @@ def register():
     username = request.json["username"]
     password = request.json["password"]
     lastname =request.json["lastname"]
-   
+    company_name=request.json["company_name"]
     # country = request.json["country"]
     # city = request.json["city"]
 
@@ -110,7 +122,7 @@ def register():
     # confirm_password= request.json["confirm_password"]
     hashed_password= guard.hash_password(password)
     # if password == confirm_password:
-    owner = User(firstname=firstname,lastname=lastname,username=username,hashed_password=hashed_password,roles=role,
+    owner = User(firstname=firstname,lastname=lastname,username=username,hashed_password=hashed_password,roles=role,company_name=company_name,
                     email=email,created_date=datetime.now().strftime('%Y-%m-%d %H:%M')
                  \
                
@@ -162,7 +174,8 @@ def get_info():
 @user.route("/get_users",methods=['GET'])
 @flask_praetorian.auth_required
 def get_users():
-    info = db.session.query(User).all()
+    us = User.query.filter_by(id = flask_praetorian.current_user().id).first()
+    info = db.session.query(User).filter_by(company_name=us.company_name)
     results =user_schema.dump(info)
     return jsonify(results)
 

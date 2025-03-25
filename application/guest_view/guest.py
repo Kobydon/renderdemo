@@ -5,27 +5,43 @@ from  application.extensions.extensions import *
 from  application.settings.settings import *
 from  application.settings.setup import app
 from sqlalchemy import Float
-
+import json
 # from application.forms import LoginForm
-from application.database.user.user_db import db,Guests,User,Booking,Rooms,Payment,Reservation,Refund,Budget,Income,Expenses,Attendance,Iteman,Family,Category,Unit,Stock,Store,StockTransfer,Department,Vendor,PurchaseOrder,PurchaseRequest,ReceivedItem,returnRequest,GOP,RoomType,Session,Wifi
+from application.database.user.user_db import db,Guests,User,Booking,Rooms,Payment,Reservation,Refund,Budget,Income,Expenses,Attendance,Iteman,Family,Category,Unit,Stock,Store,StockTransfer,Department,Vendor,PurchaseOrder,PurchaseRequest,ReceivedItem,returnRequest,GOP,RoomType,Session,Wifi,Order,StockUsage,PosPayment,OrderItem,HeldCart
 from sqlalchemy import or_,desc,and_
 from datetime import datetime
 from datetime import date
 from flask import session
 
-
+from collections import Counter
 
 guest = Blueprint("guest", __name__)
 
+class OrderSchema(ma.Schema):
+    class Meta:
+        fields=("id","user_id","item_name","items","total","created_at","company_name","created_at","total","waiter","order_status","order_id","waiter","status",
+                "quantity",)
 
-        
+
+
+
+
+
+
+
+order_schema = OrderSchema()
+orders_schema = OrderSchema(many=True)
         
 class Guest_schema(ma.Schema):
     class Meta:
-        fields=("id","first_name","last_name","unit","Category","family","open_by","department","price","address","has_checkout","checkout_date","arrival","city","country","id_type","id_number","id_upload","dob","gender","work","remark","phone",
+        fields=("id","first_name","last_name","operation","unit","category","family","open_by","department","price","address","has_checkout","checkout_date","arrival","city","country","id_type","id_number","id_upload","dob","gender","work","remark","phone",
                 "region","email","username","arrival_date","checkout_date","guest_id","note","amount","created_date","date","type","attendace","name","description","store","quantity","hod","requested_by","item","approved_by",
                 "total_cost","unit_price","store","status","Department","attendance","time_in","time_out","position","reason","voided","item_id","request_by","user",
-                    "close_by","open_date","close_date","wifi_code")
+                    "close_by","open_date","close_date","wifi_code","order_id","waiter")
+
+
+
+
 
 
 class Refund_Schema(ma.Schema):
@@ -37,7 +53,7 @@ class Refund_Schema(ma.Schema):
         
 class PaySchema(ma.Schema):
     class Meta:
-        fields=("id","name","amount","balance","method","children","adult","wifi_code","payment","checkin_date","checkout_date","room_type","discount","status","payment_date","guest_id","booking_id","session","code")
+        fields=("id","name","amount","balance","method","children","adult","wifi_code","payment","checkin_date","checkout_date","room_type","discount","status","payment_date","guest_id","booking_id","session","code","attendant")
 
 class ReserveSchema(ma.Schema):
     class Meta:
@@ -59,7 +75,7 @@ reserve_schema =ReserveSchema(many=True)
 @flask_praetorian.auth_required
 
 def add_guest():
-        
+        us = User.query.filter_by(id = flask_praetorian.current_user().id).first()
         username= request.json["username"]
         email= request.json["email"]
         password= request.json["password"]
@@ -105,7 +121,7 @@ def add_guest():
         user =User(username=username,email=email,hashed_password=hashed_password,roles="guest",
                    created_date=datetime.now().strftime('%Y-%m-%d %H:%M'),  firstname= first_name, lastname=last_name,
         country= country,address= address,
-        city = city,  phone = phone)
+        city = city,  phone = phone,company_name=us.company_name)
         db.session.add(user)
         db.session.commit()
         db.session.add(owner)
@@ -122,7 +138,8 @@ def add_guest():
 @guest.route("/get_all_guest",methods=["GET"])
 @flask_praetorian.auth_required
 def get_all_guest():
-    guests = Guests.query.all()
+    us = User.query.filter_by(id = flask_praetorian.current_user().id).first()
+    guests = Guests.query.filter_by(company_name=us.company_name)
     results = guest_schema.dump(guests)
 
     return jsonify(results)
@@ -132,6 +149,7 @@ def get_all_guest():
 @guest.route("/add_expense",methods=['POST'])
 @flask_praetorian.auth_required
 def add_expense():
+    # us = User.query.filter_by(id = flask_praetorian.current_user().id).first()
     user = User.query.filter_by(id = flask_praetorian.current_user().id).first()
     name= request.json["name"]
     amount =request.json["amount"]
@@ -141,7 +159,7 @@ def add_expense():
     created_date=datetime.now().strftime('%Y-%m-%d %H:%M')
     exp = Expenses(name=name,amount=amount,note=note,date=date,
                    user=usr,created_by_id=flask_praetorian.current_user().id ,
-                   created_date=created_date)
+                   created_date=created_date,company_name=user.company_name)
   
     db.session.add(exp)
     db.session.commit()
@@ -156,7 +174,7 @@ def add_expense():
 @flask_praetorian.auth_required
 def get_expense_list():
     user = User.query.filter_by(id = flask_praetorian.current_user().id).first()
-    exp = Expenses.query.filter_by(created_by_id=user.id)
+    exp = Expenses.query.filter_by(company_name=user.company_name)
     result = guest_schema.dump(exp)
     return jsonify(result)
 
@@ -187,6 +205,23 @@ def update_expense():
     resp = jsonify("success")
     resp.status_code =201
     return resp
+
+
+@guest.route("/confirm_oder",methods=['PUT'])
+@flask_praetorian.auth_required
+def confirm_oder():
+    id = request.json["id"]
+    sub_data = HeldCart.query.filter_by(id=id).first()
+    if sub_data:
+        sub_data.status="Confirmed"
+    db.session.commit()
+    resp = jsonify("success")
+    resp.status_code =201
+    return resp
+
+
+
+
 
 @guest.route("/delete_expense/<id>",methods=['DELETE'])
 @flask_praetorian.auth_required
@@ -290,6 +325,7 @@ def fetch_guest(id):
 @guest.route("/add_booking",methods=["POST"])
 @flask_praetorian.auth_required
 def add_booking():
+    us = User.query.filter_by(id = flask_praetorian.current_user().id).first()
     session = Session.query.filter_by(status="current").first()
     if session:
         open_date=session.open_date
@@ -314,12 +350,13 @@ def add_booking():
      
      status=request.json["status"],
      create_date=datetime.now().strftime('%Y-%m-%d %H:%M'),
-     created_by_id = flask_praetorian.current_user().id,guest_id=guest_id,
+     created_by_id = flask_praetorian.current_user().id,guest_id=guest_id,company_name=us.company_name
     )
     room = Rooms.query.filter_by(room_number=room_number).first()
     guest = Guests.query.filter_by(id=guest_id).first()
     guest.room_number = room_number
-   
+    room.occupied_state="occupied"
+    room.occupied_by=request.json["name"]
     db.session.add(booking)
     db.session.commit()
     db.session.close()
@@ -334,6 +371,8 @@ def add_booking():
 @flask_praetorian.auth_required
 def add_payment():
     # Extract data from the request
+    us = User.query.filter_by(id = flask_praetorian.current_user().id).first()
+    code=""
     session = Session.query.filter_by(status="current").first()
     if session:
         open_date=session.open_date
@@ -352,8 +391,9 @@ def add_payment():
     # Query for an available WiFi code
     wifi_code = Wifi.query.filter_by(state="available", duration=days).order_by(func.random()).first()
 
-    if not wifi_code:
-        return jsonify({"error": "No available WiFi codes"}), 404  # Return 404 if no matching code is found
+    if wifi_code:
+        code=wifi_code # Return 404 if no matching code is found
+        wifi_code.state="used"
 
     
      # Serialize result
@@ -362,7 +402,7 @@ def add_payment():
     # Create a new payment entry
     pay = Payment(
         name=name,
-        wifi_code=wifi_code.code,
+        wifi_code=code,
         amount=amount,
         refund_amount="0",
         balance=request.json.get("balance"),
@@ -376,7 +416,16 @@ def add_payment():
         checkin_date=request.json.get("checkin_date"),
         checkout_date=request.json.get("checkout_date"),
         status=status,booking_id=booking_id,session=open_date,
-        created_by_id=flask_praetorian.current_user().id)
+        created_by_id=flask_praetorian.current_user().id,company_name=us.company_name)
+    
+    inc = Income(
+            amount=amount,
+            date=datetime.now().strftime('%Y-%m-%d'),
+            note=request.json.get("room_type"),
+            created_date=datetime.now().strftime('%Y-%m-%d %H:%M'),
+            created_by_id=flask_praetorian.current_user().id
+        )
+
 
     # Update room status
     room = Rooms.query.filter_by(room_number=room_number).first()
@@ -388,7 +437,8 @@ def add_payment():
     # Commit the changes to the database
     try:
         db.session.add(pay)
-        wifi_code.state="used"
+        db.session.add(inc)
+        
         db.session.commit()
     except Exception as e:
         db.session.rollback()
@@ -450,7 +500,8 @@ def add_payment():
 @guest.route("/get_payment",methods=["GET"])
 @flask_praetorian.auth_required
 def get_payment():
-     pay = Payment.query.all()
+     us = User.query.filter_by(id = flask_praetorian.current_user().id).first()
+     pay = Payment.query.filter_by(company_name=us.company_name)
     #  lst =  pay.order_by(desc(Payment.payment_date))
      result = pay_schema.dump(pay)
      return jsonify(result)
@@ -481,21 +532,35 @@ def current_payment():
 @guest.route("/get_return_request",methods=["GET"])
 @flask_praetorian.auth_required
 def get_return_request():
+    us = User.query.filter_by(id = flask_praetorian.current_user().id).first()
     # date = request.json["date"]
     # print(date)
-    refund = returnRequest.query.order_by(returnRequest.created_date)
+    refund = returnRequest.query.filter_by(company_name=us.company_name).order_by(returnRequest.created_date)
     
     result = guest_schema.dump(refund)
     return jsonify(result)
 
 
 
+@guest.route("/search_stock_usuage",methods=["POST"])
+@flask_praetorian.auth_required
+def search_stock_usuage():
+    us = User.query.filter_by(id = flask_praetorian.current_user().id).first()
+    date = request.json["date"]
+    print(date)
+    refund = StockUsage.query.filter(StockUsage.created_date.contains(date) ,StockUsage.company_name.contains(us.company_name))
+    lst = refund.order_by(desc(StockUsage.created_date))
+    result = guest_schema.dump(lst)
+    return jsonify(result)
+
+
 @guest.route("/search_refund_dates",methods=["POST"])
 @flask_praetorian.auth_required
 def search_refund_dates():
+    us = User.query.filter_by(id = flask_praetorian.current_user().id).first()
     date = request.json["date"]
     print(date)
-    refund = Refund.query.filter(Refund.session.contains(date) )
+    refund = Refund.query.filter(Refund.session.contains(date) ,Refund.company_name.contains(us.company_name))
     lst = refund.order_by(desc(Refund.session))
     result = refund_schema.dump(lst)
     return jsonify(result)
@@ -504,9 +569,11 @@ def search_refund_dates():
 @guest.route("/search_return_date",methods=["POST"])
 @flask_praetorian.auth_required
 def search_return_date():
+    us = User.query.filter_by(id = flask_praetorian.current_user().id).first()
     date = request.json["date"]
     print(date)
-    refund = returnRequest.query.filter(returnRequest.created_date.contains(date),returnRequest.status.contains("Success") )
+    refund = returnRequest.query.filter(returnRequest.created_date.contains(date),returnRequest.status.contains("Success") ,
+                                        returnRequest.company_name.contains(us.company_name))
     lst = refund.order_by(desc(returnRequest.created_date))
     result = guest_schema.dump(lst)
     return jsonify(result)
@@ -519,9 +586,10 @@ def search_return_date():
 @guest.route("/search_purchase_date",methods=["POST"])
 @flask_praetorian.auth_required
 def search_purchase_date():
+    us = User.query.filter_by(id = flask_praetorian.current_user().id).first()
     date = request.json["date"]
     print(date)
-    refund = PurchaseRequest.query.filter(PurchaseRequest.created_date.contains(date) )
+    refund = PurchaseRequest.query.filter(PurchaseRequest.created_date.contains(date),PurchaseRequest.company_name.contains(us.company_name) )
     lst = refund.order_by(desc(PurchaseRequest.created_date))
     result = guest_schema.dump(lst)
     return jsonify(result)
@@ -533,9 +601,10 @@ def search_purchase_date():
 @guest.route("/search_order_date",methods=["POST"])
 @flask_praetorian.auth_required
 def search_order_date():
+    us = User.query.filter_by(id = flask_praetorian.current_user().id).first()
     date = request.json["date"]
     print(date)
-    refund = PurchaseOrder.query.filter(PurchaseOrder.created_date.contains(date) )
+    refund = PurchaseOrder.query.filter(PurchaseOrder.created_date.contains(date) ,PurchaseOrder.company_name.contains(us.company_name))
     lst = refund.order_by(desc(PurchaseOrder.created_date))
     result = guest_schema.dump(lst)
     return jsonify(result)
@@ -544,9 +613,10 @@ def search_order_date():
 @guest.route("/search_received_dates",methods=["POST"])
 @flask_praetorian.auth_required
 def search_received_dates():
+    us = User.query.filter_by(id = flask_praetorian.current_user().id).first()
     date = request.json["date"]
     # print(date)
-    refund = ReceivedItem.query.filter(ReceivedItem.created_date.contains(date) )
+    refund = ReceivedItem.query.filter(ReceivedItem.created_date.contains(date),ReceivedItem.company_name.contains(us.company_name) )
     lst = refund.order_by(desc(ReceivedItem.created_date))
     result = guest_schema.dump(lst)
     return jsonify(result)
@@ -554,9 +624,10 @@ def search_received_dates():
 @guest.route("/search_stock_dates",methods=["POST"])
 @flask_praetorian.auth_required
 def search_stock_dates():
+    us = User.query.filter_by(id = flask_praetorian.current_user().id).first()
     date = request.json["date"]
     # print(date)
-    refund = Stock.query.filter(Stock.created_date.contains(date) )
+    refund = Stock.query.filter(Stock.created_date.contains(date) ,Stock.company_name.contains(us.company_name))
     lst = refund.order_by(desc(Stock.created_date))
     result = guest_schema.dump(lst)
     return jsonify(result)
@@ -566,17 +637,74 @@ def search_stock_dates():
 @guest.route("/searchdates",methods=["POST"])
 @flask_praetorian.auth_required
 def searchdates():
+    us = User.query.filter_by(id = flask_praetorian.current_user().id).first()
     date = request.json["date"]
     print(date)
-    pay = Payment.query.filter(Payment.session.contains(date) )
+    pay = Payment.query.filter(Payment.session.contains(date),Payment.company_name.contains(us.company_name) )
     lst = pay.order_by(desc(Payment.session))
     result = pay_schema.dump(lst)
     return jsonify(result)
+
+
+
+@guest.route("/search_held_order_dates", methods=["POST"])
+@flask_praetorian.auth_required
+def search_held_order_dates():
+    # Get the current user
+    user = User.query.filter_by(id=flask_praetorian.current_user().id).first()
+    if not user:
+        return jsonify({"error": "User not found"}), 404
+
+    # Get date from request
+    date = request.json.get("date")
+    if not date:
+        return jsonify({"error": "Date is required"}), 400
+
+    # Query HeldCart with filtering
+    held_orders = HeldCart.query.filter(
+        HeldCart.created_at.contains(date),
+        HeldCart.company_name == user.company_name
+    ).order_by(desc(HeldCart.created_at)).all()
+
+    # Deserialize 'items' field before returning JSON response
+    result = []
+    for order in held_orders:
+        try:
+            order_items = json.loads(order.items)  # Convert string to list
+        except json.JSONDecodeError:
+            order_items = []  # Handle bad JSON data gracefully
+        
+        result.append({
+            "id": order.id,
+            "company_name": order.company_name,
+            "created_at": order.created_at,
+            "status": order.status,
+            "total": order.total,
+            "waiter": order.waiter,
+            "items": order_items  # Now 'items' is a proper list
+        })
+
+    return jsonify(result), 200
+
+
+@guest.route("/searchdates_pos",methods=["POST"])
+@flask_praetorian.auth_required
+def searchdates_pos():
+    us = User.query.filter_by(id = flask_praetorian.current_user().id).first()
+    date = request.json["date"]
+    # print(date)
+    pay = PosPayment.query.filter(PosPayment.payment_date.contains(date),PosPayment.company_name.contains(us.company_name) )
+    lst = pay.order_by(desc(PosPayment.payment_date))
+    result = pay_schema.dump(lst)
+    return jsonify(result)
+
+
 
 @guest.route("/search_payment_date_two", methods=["POST"])
 @flask_praetorian.auth_required
 def search_payment_date_two():
     # Extract the 'date' and 'date_two' from the request payload
+    us = User.query.filter_by(id = flask_praetorian.current_user().id).first()
     date = request.json.get("date")
     date_two = request.json.get("date_two")
     
@@ -594,7 +722,7 @@ def search_payment_date_two():
         Payment.balance.cast(Float) > 0  # Ensure balance is greater than 0, casting to Float for proper comparison
     ).filter(
         Payment.session != None  # Make sure payment_date is not None
-    ).order_by(Payment.session.desc())  # Order by payment date in descending order
+    ).filter(Payment.company_name.conatins(us.company_name)).order_by(Payment.session.desc())  # Order by payment date in descending order
 
     # Serialize the payment data
     result = pay_schema.dump(payments)
@@ -606,6 +734,7 @@ def search_payment_date_two():
 @guest.route("/search_payment_date", methods=["POST"])
 @flask_praetorian.auth_required
 def search_payment_date():
+    us = User.query.filter_by(id = flask_praetorian.current_user().id).first()
     # Extract date from the request payload
     date = request.json.get("date")
     date_two = request.json.get("date_two")
@@ -615,7 +744,7 @@ def search_payment_date():
     
     # Query to find payments with balance greater than 0, and payment date containing the given date
     payments = Payment.query.filter(
-        Payment.session.contains(date),
+        Payment.session.contains(date),Payment.company_name.contains(us.company_name),
         Payment.balance.cast(Float) > 0  # Cast balance to a float for comparison
     ).order_by(Payment.session.desc())
 
@@ -627,9 +756,39 @@ def search_payment_date():
 
 
 
+
+@guest.route("/search_payment_held_date", methods=["POST"])
+@flask_praetorian.auth_required
+def search_payment_held_date():
+    us = User.query.filter_by(id = flask_praetorian.current_user().id).first()
+    # Extract date from the request payload
+    date = request.json.get("date")
+    date_two = request.json.get("date_two")
+    
+    if not date:
+        return jsonify({"error": "Date is required"}), 400
+    
+    # Query to find payments with balance greater than 0, and payment date containing the given date
+    payments = HeldCart.query.filter(
+        HeldCart.created_at.contains(date),HeldCart.company_name.contains(us.company_name),
+        HeldCart.total.cast(Float) > 0 ,HeldCart.status=="Pending"
+    ).order_by(Payment.session.desc())
+
+    # Serialize the payments data
+    result = orders_schema.dump(payments)
+    
+    # Return the results as JSON
+    return jsonify(result)
+
+
+
+
+
+
 @guest.route("/get_payment_for/<id>",methods=["GET"])
 @flask_praetorian.auth_required
 def get_payment_for(id):
+     
      pay = Payment.query.filter_by(id=id).all()
      result = pay_schema.dump(pay)
      return jsonify(result)
@@ -859,6 +1018,7 @@ def checkout(id):
 @guest.route("/add_reservation", methods=["POST"])
 @flask_praetorian.auth_required
 def add_reservation():
+    us = User.query.filter_by(id = flask_praetorian.current_user().id).first()
     # Extract data from the request
     name = request.json.get("name")
     arrival = request.json.get("arrival")
@@ -883,7 +1043,7 @@ def add_reservation():
         country=request.json.get("country"),
         price=request.json.get("price"),
         created_date=datetime.now().strftime('%Y-%m-%d %H:%M'),
-        created_by_id=flask_praetorian.current_user().id
+        created_by_id=flask_praetorian.current_user().id,company_name=us.company_name
     )
 
     # Save the reservation to the database
@@ -929,8 +1089,8 @@ def add_reservation():
         sender="jxkalmhefacbuk@gmail.com",
         recipients=["kevinfiadzeawu@gmail.com"]
     )
-    msg.body = email_message
-    mail.send(msg)
+    # msg.body = email_message
+    # mail.send(msg)
 
     # Return a success response
     return jsonify("success"), 200
@@ -940,7 +1100,8 @@ def add_reservation():
 @guest.route("/get_reserve",methods=["GET"])
 @flask_praetorian.auth_required
 def get_reserve():
-      rsv = db.session.query(Reservation).filter(Reservation.created_by_id ==flask_praetorian.current_user().id)
+      us = User.query.filter_by(id = flask_praetorian.current_user().id).first()
+      rsv = db.session.query(Reservation).filter(Reservation.created_by_id ==flask_praetorian.current_user().id,company_name=us.company_name)
     #   lst = rsv.order_by(desc(Reservation.created_date))
       result = reserve_schema.dump(rsv)
       return jsonify(result)
@@ -949,7 +1110,8 @@ def get_reserve():
 @guest.route("/get_all_reserve",methods=["GET"])
 @flask_praetorian.auth_required
 def get_all_reserve():
-      rsv = db.session.query(Reservation).all()
+      us = User.query.filter_by(id = flask_praetorian.current_user().id).first()
+      rsv = db.session.query(Reservation).filter_by(company_name=us.company_name)
 
       result = reserve_schema.dump(rsv)
       return jsonify(result)
@@ -1027,7 +1189,7 @@ def update_reservation():
             recipients=[email]
         )
         msg.body = email_message
-        mail.send(msg)
+        # mail.send(msg)
 
         # Return a success response
         return jsonify("success"), 200
@@ -1056,6 +1218,7 @@ def cancel_reservation(id):
 @guest.route("/add_refund",methods=["POST"])
 @flask_praetorian.auth_required
 def add_refund():
+          us = User.query.filter_by(id = flask_praetorian.current_user().id).first()
           session = Session.query.filter_by(status="current").first()
           if session:
                  open_date=session.open_date
@@ -1068,7 +1231,7 @@ def add_refund():
         #   description = request.json["description"],
           reason=request.json["reason"],
           authorized_by=request.json["authorized_by"],
-          payment_id = request.json["id"],
+          payment_id = request.json["id"],company_name=us.company,
       
 
           status = "pending",
@@ -1084,7 +1247,7 @@ def add_refund():
           msg = Message('Kevo Executive Hotel', sender = 'jxkalmhefacbuk@gmail.com', recipients = ['kevinfiadzeawu@gmail.com'])
           msg.body = mm 
         #   + flask_praetorian.current_user().firstname + " "+flask_praetorian.current_user().lastname
-          mail.send(msg)
+        #   mail.send(msg)
           resp = jsonify("success")
           resp.status_code=200
           return resp
@@ -1092,8 +1255,9 @@ def add_refund():
 @guest.route("/get_refund", methods=["GET"])
 @flask_praetorian.auth_required
 def get_refund():
+    us = User.query.filter_by(id = flask_praetorian.current_user().id).first()
     # Query the Refund table, ordering by the latest refund time
-    refund_list = Refund.query.order_by(Refund.refund_time.desc()).all()
+    refund_list = Refund.query.filter_by(company_name=us.company_name).order_by(Refund.refund_time.desc()).all()
     
     # Serialize the results
     result = refund_schema.dump(refund_list)
@@ -1234,6 +1398,7 @@ def delete_budget(id):
 @guest.route("/add_income",methods=['POST'])
 @flask_praetorian.auth_required
 def add_income():
+
     user = User.query.filter_by(id = flask_praetorian.current_user().id).first()
     name= request.json["name"]
     amount =request.json["amount"]
@@ -1243,7 +1408,7 @@ def add_income():
     created_date=datetime.now().strftime('%Y-%m-%d %H:%M')
     inc = Income(name=name,amount=amount,note=note,date=date,
                    created_by_id=flask_praetorian.current_user().id ,
-                   created_date=created_date)
+                   created_date=created_date,company_name=user.company_name)
   
     db.session.add(inc)
     db.session.commit()
@@ -1258,7 +1423,8 @@ def add_income():
 @flask_praetorian.auth_required
 def get_income_list():
     # user = User.query.filter_by(id = flask_praetorian.current_user().id).first()
-    inc = Income.query.all()
+    us = User.query.filter_by(id = flask_praetorian.current_user().id).first()
+    inc = Income.query.filter_by(company_name=us.company_name)
     result = guest_schema.dump(inc)
     return jsonify(result)
 
@@ -1310,6 +1476,7 @@ def delete_income(id):
 @flask_praetorian.auth_required
 def add_item():
     # user = User.query.filter_by(id = flask_praetorian.current_user().id).first()
+    us = User.query.filter_by(id = flask_praetorian.current_user().id).first()
     name= request.json["name"]
     description =request.json["description"]
     price= request.json["price"]
@@ -1319,8 +1486,8 @@ def add_item():
     
     # usr = user.firstname +" " + user.lastname
     created_date=datetime.now().strftime('%Y-%m-%d %H:%M')
-    inc = Iteman(name=name,description=description,price=price,
-                   created_date=created_date,family=family,Category=category,unit=unit)
+    inc = Iteman(name=name,description=description,price=price,quantity="0",
+                   created_date=created_date,family=family,category=category,unit=unit,company_name=us.company_name)
   
     db.session.add(inc)
     db.session.commit()
@@ -1334,8 +1501,9 @@ def add_item():
 @guest.route("/get_item_list",methods=['GET'])
 @flask_praetorian.auth_required
 def get_item_list():
+    us = User.query.filter_by(id = flask_praetorian.current_user().id).first()
     # user = User.query.filter_by(id = flask_praetorian.current_user().id).first()
-    inc = Iteman.query.all()
+    inc = Iteman.query.filter_by(company_name=us.company_name)
     result = guest_schema.dump(inc)
     return jsonify(result)
 
@@ -1344,8 +1512,20 @@ def get_item_list():
 @guest.route("/get_item/<id>",methods=['GET'])
 @flask_praetorian.auth_required
 def get_item(id):
+    us = User.query.filter_by(id = flask_praetorian.current_user().id).first()
+    inc = Iteman.query.filter_by(id=id,company_name=us.company_name)
+    result = guest_schema.dump(inc)
+    return jsonify(result)
 
-    inc = Iteman.query.filter_by(id=id)
+
+
+@guest.route("/get_food/<id>",methods=['GET'])
+@flask_praetorian.auth_required
+def get_food(id):
+    us = User.query.filter_by(id = flask_praetorian.current_user().id).first()
+    cat = Category.query.filter_by(id=id,company_name=us.company_name).first()
+
+    inc = Iteman.query.filter_by(category=cat.name,company_name=us.company_name)
     result = guest_schema.dump(inc)
     return jsonify(result)
 
@@ -1392,6 +1572,7 @@ def delete_item(id):
 @guest.route("/add_category",methods=['POST'])
 @flask_praetorian.auth_required
 def add_category():
+    us = User.query.filter_by(id = flask_praetorian.current_user().id).first()
     # user = User.query.filter_by(id = flask_praetorian.current_user().id).first()
     name= request.json["name"]
     description =request.json["description"]
@@ -1400,7 +1581,7 @@ def add_category():
     # usr = user.firstname +" " + user.lastname
     created_date=datetime.now().strftime('%Y-%m-%d %H:%M')
     inc = Category(name=name,description=description,
-                   created_date=created_date)
+                   created_date=created_date,company_name=us.company_name)
   
     db.session.add(inc)
     db.session.commit()
@@ -1414,8 +1595,9 @@ def add_category():
 @guest.route("/get_category_list",methods=['GET'])
 @flask_praetorian.auth_required
 def get_category_list():
+    us = User.query.filter_by(id = flask_praetorian.current_user().id).first()
     # user = User.query.filter_by(id = flask_praetorian.current_user().id).first()
-    inc = Category.query.all()
+    inc = Category.query.filter_by(company_name=us.company_name)
     result = guest_schema.dump(inc)
     return jsonify(result)
 
@@ -1472,6 +1654,7 @@ def delete_category(id):
 @guest.route("/add_family",methods=['POST'])
 @flask_praetorian.auth_required
 def add_family():
+    us = User.query.filter_by(id = flask_praetorian.current_user().id).first()
     # user = User.query.filter_by(id = flask_praetorian.current_user().id).first()
     name= request.json["name"]
     description =request.json["description"]
@@ -1480,7 +1663,7 @@ def add_family():
     # usr = user.firstname +" " + user.lastname
     created_date=datetime.now().strftime('%Y-%m-%d %H:%M')
     inc = Family(name=name,description=description,
-                   created_date=created_date)
+                   created_date=created_date,company_name=us.company_name)
   
     db.session.add(inc)
     db.session.commit()
@@ -1494,8 +1677,9 @@ def add_family():
 @guest.route("/get_family_list",methods=['GET'])
 @flask_praetorian.auth_required
 def get_family_list():
+    us = User.query.filter_by(id = flask_praetorian.current_user().id).first()
     # user = User.query.filter_by(id = flask_praetorian.current_user().id).first()
-    inc = Family.query.all()
+    inc = Family.query.filter_by(company_name=us.company_name)
     result = guest_schema.dump(inc)
     return jsonify(result)
 
@@ -1550,7 +1734,8 @@ def delete_family(id):
 @guest.route("/add_unit",methods=['POST'])
 @flask_praetorian.auth_required
 def add_unit():
-    # user = User.query.filter_by(id = flask_praetorian.current_user().id).first()
+    user = User.query.filter_by(id = flask_praetorian.current_user().id).first()
+
     name= request.json["name"]
     description =request.json["description"]
     # price= request.json["price"]
@@ -1558,7 +1743,7 @@ def add_unit():
     # usr = user.firstname +" " + user.lastname
     created_date=datetime.now().strftime('%Y-%m-%d %H:%M')
     inc = Unit(name=name,description=description,
-                   created_date=created_date)
+                   created_date=created_date,company_name=user.company_name)
   
     db.session.add(inc)
     db.session.commit()
@@ -1572,8 +1757,8 @@ def add_unit():
 @guest.route("/get_unit_list",methods=['GET'])
 @flask_praetorian.auth_required
 def get_unit_list():
-    # user = User.query.filter_by(id = flask_praetorian.current_user().id).first()
-    inc = Unit.query.all()
+    user = User.query.filter_by(id = flask_praetorian.current_user().id).first()
+    inc = Unit.query.filter_by(company_name=user.company_name)
     result = guest_schema.dump(inc)
     return jsonify(result)
 
@@ -1635,7 +1820,7 @@ def add_budget():
     created_date=datetime.now().strftime('%Y-%m-%d %H:%M')
     inc = Budget(name=name,amount=amount,note=note,type=type,
                    created_by_id=flask_praetorian.current_user().id ,
-                   created_date=created_date)
+                   created_date=created_date,company_name=user.company_name)
   
     db.session.add(inc)
     db.session.commit()
@@ -1649,8 +1834,8 @@ def add_budget():
 @guest.route("/get_budget_list",methods=['GET'])
 @flask_praetorian.auth_required
 def get_budget_list():
-    # user = User.query.filter_by(id = flask_praetorian.current_user().id).first()
-    inc = Budget.query.all()
+    user = User.query.filter_by(id = flask_praetorian.current_user().id).first()
+    inc = Budget.query.filter_by(company_name=user.company_name)
     result = guest_schema.dump(inc)
     return jsonify(result)
 
@@ -1667,9 +1852,10 @@ def get_budget_list():
 @guest.route("/search_attendance_date",methods=["POST"])
 @flask_praetorian.auth_required
 def search_attendance_date():
+    us = User.query.filter_by(id = flask_praetorian.current_user().id).first()
     date = request.json["date"]
     # print(date)
-    pay = Attendance.query.filter(Attendance.created_date.contains(date) )
+    pay = Attendance.query.filter(Attendance.created_date.contains(date),Attendance.company_name.contains(us.company_name) )
     lst = pay.order_by(desc(Attendance.created_date))
     result = guest_schema.dump(lst)
     return jsonify(result)
@@ -1677,6 +1863,7 @@ def search_attendance_date():
 @guest.route("/search_income_dates", methods=["POST"])
 @flask_praetorian.auth_required
 def search_income_dates():
+    us = User.query.filter_by(id = flask_praetorian.current_user().id).first()
     """
     Searches for income records by a specific date.
     """
@@ -1688,7 +1875,7 @@ def search_income_dates():
             return jsonify({"error": "Date is required"}), 400
 
         # Query the Income table for records containing the specified date
-        income_records = Income.query.filter(Income.date.contains(date))
+        income_records = Income.query.filter(Income.date.contains(date),Income.company_name.contains(us.company_name))
 
         # Order the results by date in descending order
         ordered_records = income_records.order_by(desc(Income.date))
@@ -1709,9 +1896,10 @@ def search_income_dates():
 @guest.route("/search_budget_dates",methods=["POST"])
 @flask_praetorian.auth_required
 def search_budget_dates():
+    us = User.query.filter_by(id = flask_praetorian.current_user().id).first()
     date = request.json["date"]
     # print(date)
-    pay = Budget.query.filter(Budget.created_date.contains(date) )
+    pay = Budget.query.filter(Budget.created_date.contains(date),Budget.company_name.contains(us.company_name) )
     lst = pay.order_by(desc(Budget.created_date))
     result = guest_schema.dump(lst)
     return jsonify(result)
@@ -1720,6 +1908,7 @@ def search_budget_dates():
 @guest.route("/search_income_dates_two", methods=["POST"])
 @flask_praetorian.auth_required
 def search_income_dates_two():
+    us = User.query.filter_by(id = flask_praetorian.current_user().id).first()
     date = request.json.get("date")
     date_two = request.json.get("datetwo")
 
@@ -1732,7 +1921,7 @@ def search_income_dates_two():
                 Income.date.contains(date),
                 Income.date.contains(date_two)
             )
-        ).order_by(desc(Income.date)).all()
+        ).filter(Income.company_name.contains(us.company_name)).order_by(desc(Income.date)).all()
 
         result = guest_schema.dump(pay)
         return jsonify(result), 200
@@ -1745,6 +1934,7 @@ def search_income_dates_two():
 @guest.route("/searchdates_two", methods=["POST"])
 @flask_praetorian.auth_required
 def searchdates_two():
+    us = User.query.filter_by(id = flask_praetorian.current_user().id).first()
     date = request.json.get("date")
     date_two = request.json.get("date_two")
 
@@ -1757,7 +1947,7 @@ def searchdates_two():
                 Payment.session.contains(date),
                 Payment.session.contains(date_two)
             )
-        ).order_by(desc(Payment.session)).all()
+        ).filter(Payment.company_name.contains(us.company_name)).order_by(desc(Payment.session)).all()
 
         result = pay_schema.dump(pay)
         return jsonify(result), 200
@@ -1770,6 +1960,7 @@ def searchdates_two():
 @guest.route("/search_purchase_date_two", methods=["POST"])
 @flask_praetorian.auth_required
 def search_purchase_date_two():
+    us = User.query.filter_by(id = flask_praetorian.current_user().id).first()
     date = request.json.get("date")
     date_two = request.json.get("date_two")
 
@@ -1782,7 +1973,7 @@ def search_purchase_date_two():
                 PurchaseOrder.created_date.contains(date),
                 PurchaseOrder.created_date.contains(date_two)
             )
-        ).order_by(desc(PurchaseOrder.created_date)).all()
+        ).filter(PurchaseOrder.company_name.contains(us.company_name)).order_by(desc(PurchaseOrder.created_date)).all()
 
         result = guest_schema.dump(pay)
         return jsonify(result), 200
@@ -1796,6 +1987,7 @@ def search_purchase_date_two():
 @guest.route("/search_refund_dates_two", methods=["POST"])
 @flask_praetorian.auth_required
 def search_refund_dates_two():
+    us = User.query.filter_by(id = flask_praetorian.current_user().id).first()
     date = request.json.get("date")
     date_two = request.json.get("date_two")
 
@@ -1808,7 +2000,7 @@ def search_refund_dates_two():
                 Refund.session.contains(date),
                 Refund.session.contains(date_two)
             )
-        ).order_by(desc(Refund.refund_time)).all()
+        ).filter(Refund.company_name.contains(us.company_name)).order_by(desc(Refund.refund_time)).all()
 
         result = refund_schema.dump(pay)
         return jsonify(result), 200
@@ -1832,7 +2024,9 @@ def search_refund_dates_two():
 
 @guest.route("/search_expense_dates", methods=["POST"])
 @flask_praetorian.auth_required
+
 def search_expense_dates():
+    us = User.query.filter_by(id = flask_praetorian.current_user().id).first()
     """
     Searches for expense records by a specific date.
     """
@@ -1844,7 +2038,7 @@ def search_expense_dates():
             return jsonify({"error": "Date is required"}), 400
 
         # Query the Expenses table for records containing the specified date
-        expense_records = Expenses.query.filter(Expenses.date.contains(date))
+        expense_records = Expenses.query.filter(Expenses.date.contains(date),Expenses.company_name.contains(us.company_name))
 
         # Order the results by date in descending order
         ordered_records = expense_records.order_by(desc(Expenses.date))
@@ -1866,6 +2060,7 @@ def search_expense_dates():
 @guest.route("/search_gop_dates", methods=["POST"])
 @flask_praetorian.auth_required
 def search_gop_dates():
+    us = User.query.filter_by(id = flask_praetorian.current_user().id).first()
     """
     Searches for expense records by a specific date.
     """
@@ -1877,10 +2072,10 @@ def search_gop_dates():
             return jsonify({"error": "Date is required"}), 400
 
         # Query the Expenses table for records containing the specified date
-        gop_records = GOP.query.filter(Expenses.date.contains(date))
+        gop_records = GOP.query.filter(GOP.date.contains(date),GOP.company_name.contains(us.company_name))
 
         # Order the results by date in descending order
-        ordered_records = gop_records.order_by(desc(Expenses.date))
+        ordered_records = gop_records.order_by(desc(GOP.date))
 
         # Serialize the query result
         result = guest_schema.dump(ordered_records)
@@ -1898,11 +2093,12 @@ def search_gop_dates():
 @guest.route("/search_expense_budget_dates",methods=["POST"])
 @flask_praetorian.auth_required
 def search_expense_budget_dates():
+    us = User.query.filter_by(id = flask_praetorian.current_user().id).first()
     date = request.json["date"]
     # year =request.json["year"]
     type ="expense"
     # print(date)
-    pay = Budget.query.filter(Budget.term.date(date))
+    pay = Budget.query.filter(Budget.created_date.contains(date),Budget.company_name.contains(us.company_name),Budget.type.contains(type))
     lst = pay.order_by(desc(Budget.created_date))
     result = guest_schema.dump(lst)
     return jsonify(result)
@@ -1912,11 +2108,12 @@ def search_expense_budget_dates():
 @guest.route("/search_income_budget_dates",methods=["POST"])
 @flask_praetorian.auth_required
 def search_income_budget_dates():
+    us = User.query.filter_by(id = flask_praetorian.current_user().id).first()
     date = request.json["date"]
     # year =request.json["year"]
-    # type ="income"
+    type ="income"
     # print(date)
-    pay = Budget.query.filter(Budget.date.contains(date))
+    pay = Budget.query.filter(Budget.created_date.contains(date),Budget.company_name.contains(us.company_name),Budget.type.contains(type))
     lst = pay.order_by(desc(Budget.created_date))
     result = guest_schema.dump(lst)
     return jsonify(result)
@@ -1928,6 +2125,7 @@ def search_income_budget_dates():
 @guest.route("/search_expense_dates_two", methods=["POST"])
 @flask_praetorian.auth_required
 def search_expense_dates_two():
+    us = User.query.filter_by(id = flask_praetorian.current_user().id).first()
     date = request.json.get("date")
     date_two = request.json.get("datetwo")
 
@@ -1940,7 +2138,7 @@ def search_expense_dates_two():
                 Expenses.date.contains(date),
                 Expenses.date.contains(date_two)
             )
-        ).order_by(desc(Expenses.date)).all()
+        ).filter(Expenses.company_name.contains(us.company_name)).order_by(desc(Expenses.date)).all()
 
         result = guest_schema.dump(pay)
         return jsonify(result), 200
@@ -1957,15 +2155,16 @@ def search_expense_dates_two():
 @guest.route("/add_store",methods=['POST'])
 @flask_praetorian.auth_required
 def add_store():
-    # user = User.query.filter_by(id = flask_praetorian.current_user().id).first()
+    user = User.query.filter_by(id = flask_praetorian.current_user().id).first()
+
     name= request.json["name"]
     description =request.json["description"]
     category= request.json["category"]
     
     # usr = user.firstname +" " + user.lastname
     created_date=datetime.now().strftime('%Y-%m-%d %H:%M')
-    inc = Store(name=name,description=description,Category=category,
-                   created_date=created_date)
+    inc = Store(name=name,description=description,category=category,
+                   created_date=created_date,company_name=user.company_name)
   
     db.session.add(inc)
     db.session.commit()
@@ -1979,8 +2178,9 @@ def add_store():
 @guest.route("/get_store_list",methods=['GET'])
 @flask_praetorian.auth_required
 def get_store_list():
+    us = User.query.filter_by(id = flask_praetorian.current_user().id).first()
     # user = User.query.filter_by(id = flask_praetorian.current_user().id).first()
-    inc = Store.query.all()
+    inc = Store.query.filter_by(company_name=us.company_name)
     result = guest_schema.dump(inc)
     return jsonify(result)
 
@@ -2028,7 +2228,7 @@ def delete_store(id):
 @guest.route("/add_stock",methods=['POST'])
 @flask_praetorian.auth_required
 def add_stock():
-    # user = User.query.filter_by(id = flask_praetorian.current_user().id).first()
+    user = User.query.filter_by(id = flask_praetorian.current_user().id).first()
     name= request.json["name"]
     store =request.json["store"]
     quantity= request.json["quantity"]
@@ -2039,10 +2239,15 @@ def add_stock():
     if st:
         st.quantity= int(st.quantity) + int(quantity)
 
-    inc = Stock(name=name,store=store,quantity=quantity,
+    inc = Stock(name=name,store=store,quantity=quantity,company_name=user.company_name,
                    created_date=created_date)
+    
+      
+    stu = StockUsage(name=name,operation="Added",store=store,quantity=quantity,created_date=created_date,company_name=user.company_name,
+                      )
   
     db.session.add(inc)
+    db.session.add(stu)
     db.session.commit()
     db.session.close()
     resp = jsonify("success")
@@ -2051,11 +2256,21 @@ def add_stock():
 
 
 
+@guest.route("/get_stock_usuage",methods=['GET'])
+@flask_praetorian.auth_required
+def get_stock_usuage():
+    user = User.query.filter_by(id = flask_praetorian.current_user().id).first()
+    inc = StockUsage.query.filter_by(company_name=user.company_name).order_by(desc(StockUsage.created_date))
+    result = guest_schema.dump(inc)
+    return jsonify(result)
+
+
+
 @guest.route("/get_stock_list",methods=['GET'])
 @flask_praetorian.auth_required
 def get_stock_list():
-    # user = User.query.filter_by(id = flask_praetorian.current_user().id).first()
-    inc = Stock.query.all()
+    user = User.query.filter_by(id = flask_praetorian.current_user().id).first()
+    inc = Stock.query.filter_by(company_name=user.company_name)
     result = guest_schema.dump(inc)
     return jsonify(result)
 
@@ -2105,7 +2320,7 @@ def delete_stock(id):
 @guest.route("/add_stock_transfer",methods=['POST'])
 @flask_praetorian.auth_required
 def add_stock_transfer():
-    # user = User.query.filter_by(id = flask_praetorian.current_user().id).first()
+    user = User.query.filter_by(id = flask_praetorian.current_user().id).first()
     name= request.json["name"]
     department =request.json["department"]
     quantity= request.json["quantity"]
@@ -2113,12 +2328,19 @@ def add_stock_transfer():
     # usr = user.firstname +" " + user.lastname
     created_date=datetime.now().strftime('%Y-%m-%d %H:%M')
     inc = StockTransfer(name=name,quantity=quantity,department=department,
-                   created_date=created_date)
+                   created_date=created_date,company_name=user.company_name)
+    
+    stu = StockUsage(name=name,operation="Transfer",store=department,quantity=quantity,created_date=created_date,company_name=user.company_name,
+                      )
     
     store = Stock.query.filter_by(name=name).first()
     store.quantity = int(store.quantity) - int(quantity)
+
+    item =Iteman.query.filter_by(name=name).first()
+    item.quantity = int(item.quantity) + int(quantity)
   
     db.session.add(inc)
+    db.session.add(stu)
     db.session.commit()
     db.session.close()
     resp = jsonify("success")
@@ -2130,8 +2352,8 @@ def add_stock_transfer():
 @guest.route("/get_stock_transfer",methods=['GET'])
 @flask_praetorian.auth_required
 def get_stock_transfer():
-    # user = User.query.filter_by(id = flask_praetorian.current_user().id).first()
-    inc = StockTransfer.query.all()
+    user = User.query.filter_by(id = flask_praetorian.current_user().id).first()
+    inc = StockTransfer.query.filter_by(company_name=user.company_name)
     result = guest_schema.dump(inc)
     return jsonify(result)
 
@@ -2176,7 +2398,7 @@ def delete_stock_transfer(id):
 @guest.route("/add_vendor",methods=['POST'])
 @flask_praetorian.auth_required
 def add_vendor():
-    # user = User.query.filter_by(id = flask_praetorian.current_user().id).first()
+    user = User.query.filter_by(id = flask_praetorian.current_user().id).first()
     name= request.json["name"]
     phone =request.json["phone"]
     address= request.json["address"]
@@ -2184,7 +2406,7 @@ def add_vendor():
     # usr = user.firstname +" " + user.lastname
     created_date=datetime.now().strftime('%Y-%m-%d %H:%M')
     inc = Vendor(name=name,address=address,phone=phone,
-                   created_date=created_date)
+                   created_date=created_date,company_name=user.company_name)
   
     db.session.add(inc)
     db.session.commit()
@@ -2198,8 +2420,8 @@ def add_vendor():
 @guest.route("/get_vendor_list",methods=['GET'])
 @flask_praetorian.auth_required
 def get_vendor_list():
-    # user = User.query.filter_by(id = flask_praetorian.current_user().id).first()
-    inc = Vendor.query.all()
+    user = User.query.filter_by(id = flask_praetorian.current_user().id).first()
+    inc = Vendor.query.filter_by(company_name=user.company_name)
     result = guest_schema.dump(inc)
     print("hello")
     return jsonify(result)
@@ -2260,7 +2482,7 @@ def add_purchase():
     store = request.json["store"]
     created_date=datetime.now().strftime('%Y-%m-%d %H:%M')
 
-    inc = PurchaseRequest(item=item,quantity=quantity,unit_price=unit_price,total_cost=total_cost,status=status,
+    inc = PurchaseRequest(item=item,quantity=quantity,unit_price=unit_price,total_cost=total_cost,status=status,company_name=user.company_name,
                           Department=department, requested_by=requested_by,store=store,created_date=created_date)
     
     # usr = user.firstname +" " + user.lastname
@@ -2278,8 +2500,8 @@ def add_purchase():
 @guest.route("/get_purchase_list",methods=['GET'])
 @flask_praetorian.auth_required
 def get_purchase_list():
-    # user = User.query.filter_by(id = flask_praetorian.current_user().id).first()
-    inc = PurchaseRequest.query.all()
+    user = User.query.filter_by(id = flask_praetorian.current_user().id).first()
+    inc = PurchaseRequest.query.filter_by(company_name=user.company_name)
     result = guest_schema.dump(inc)
     return jsonify(result)
 
@@ -2287,8 +2509,8 @@ def get_purchase_list():
 @guest.route("/get_order_list",methods=['GET'])
 @flask_praetorian.auth_required
 def get_order_list():
-    # user = User.query.filter_by(id = flask_praetorian.current_user().id).first()
-    inc = PurchaseOrder.query.all()
+    user = User.query.filter_by(id = flask_praetorian.current_user().id).first()
+    inc = PurchaseOrder.query.filter_by(company_name=user.company_name)
     result = guest_schema.dump(inc)
     return jsonify(result)
 
@@ -2417,7 +2639,7 @@ def delete_purchase(id):
 @guest.route("/add_department",methods=['POST'])
 @flask_praetorian.auth_required
 def add_department():
-    # user = User.query.filter_by(id = flask_praetorian.current_user().id).first()
+    user = User.query.filter_by(id = flask_praetorian.current_user().id).first()
     name = request.json["name"]
     description = request.json["description"]
     hod = request.json["hod"]
@@ -2425,7 +2647,7 @@ def add_department():
     # usr = user.firstname +" " + user.lastname
     created_date=datetime.now().strftime('%Y-%m-%d %H:%M')
     inc = Department(name=name,description=description,hod=hod,
-                   created_date=created_date)
+                   created_date=created_date,company_name=user.company_name)
   
     db.session.add(inc)
     db.session.commit()
@@ -2439,8 +2661,8 @@ def add_department():
 @guest.route("/get_department_list",methods=['GET'])
 @flask_praetorian.auth_required
 def get_department_list():
-    # user = User.query.filter_by(id = flask_praetorian.current_user().id).first()
-    inc = Department.query.all()
+    user = User.query.filter_by(id = flask_praetorian.current_user().id).first()
+    inc = Department.query.filter_by(company_name=user.company_name)
     result = guest_schema.dump(inc)
     return jsonify(result)
 
@@ -2499,7 +2721,7 @@ def delete_department(id):
 @guest.route("/add_received_item",methods=['POST'])
 @flask_praetorian.auth_required
 def add_received_item():
-    # user = User.query.filter_by(id = flask_praetorian.current_user().id).first()
+    user = User.query.filter_by(id = flask_praetorian.current_user().id).first()
     name= request.json["name"]
     # store =request.json["store"]
     quantity= request.json["quantity"]
@@ -2510,7 +2732,7 @@ def add_received_item():
     # if st:
     #     st.quantity= int(st.quantity) + int(quantity)
 
-    itm = ReceivedItem(name=name,quantity=quantity,
+    itm = ReceivedItem(name=name,quantity=quantity,company_name=user.company_name,
                    created_date=created_date)
   
     db.session.add(itm)
@@ -2524,8 +2746,9 @@ def add_received_item():
 
 @guest.route("/get_received",methods=['GET'])
 @flask_praetorian.auth_required
-def get_received():    # user = User.query.filter_by(id = flask_praetorian.current_user().id).first()
-    itm = ReceivedItem.query.all()
+def get_received():    
+    us = User.query.filter_by(id = flask_praetorian.current_user().id).first()
+    itm = ReceivedItem.query.filter_by(company_name=us.company_name)
     result = guest_schema.dump(itm)
     return jsonify(result)
 
@@ -2569,6 +2792,7 @@ def delete_received_item(id):
 @guest.route("/add_return_request",methods=['POST'])
 @flask_praetorian.auth_required
 def add_return_request():
+    us = User.query.filter_by(id = flask_praetorian.current_user().id).first()
     item_id = request.json["id"]
     item = request.json["item"]
     qty = request.json["quantity"]
@@ -2579,7 +2803,7 @@ def add_return_request():
     user = User.query.filter_by(id =flask_praetorian.current_user().id).first()
     request_by= user.firstname +" "+ user.lastname
 
-    a = returnRequest(item_id=item_id,item=item,quantity=qty,reason=reason,created_date=created_date,request_by=request_by,status="Pending")
+    a = returnRequest(item_id=item_id,item=item,quantity=qty,reason=reason,created_date=created_date,request_by=request_by,status="Pending",company_name=us.company_name)
     db.session.add(a)
     db.session.commit()
     resp = jsonify("success")
@@ -2605,7 +2829,7 @@ def add_gop():
     created_date=datetime.now().strftime('%Y-%m-%d %H:%M')
     gop = GOP(name=name,amount=amount,note=note,date=date,
                    user=usr,created_by_id=flask_praetorian.current_user().id ,
-                   created_date=created_date)
+                   created_date=created_date,company_name=user.company_name)
   
     db.session.add(gop)
     db.session.commit()
@@ -2620,7 +2844,7 @@ def add_gop():
 @flask_praetorian.auth_required
 def get_gop_list():
     user = User.query.filter_by(id = flask_praetorian.current_user().id).first()
-    gop = GOP.query.filter_by(created_by_id=user.id)
+    gop = GOP.query.filter_by(company_name=user.company_name)
     result = guest_schema.dump(gop)
     return jsonify(result)
 
@@ -2668,27 +2892,35 @@ def delete_gop(id):
 
 
 
+from datetime import datetime
+from flask import jsonify
 
-@guest.route("/add_session",methods=['POST'])
+@guest.route("/add_session", methods=['POST'])
 @flask_praetorian.auth_required
 def add_session():
-    user = User.query.filter_by(id = flask_praetorian.current_user().id).first()
+    user = User.query.filter_by(id=flask_praetorian.current_user().id).first()
     session_data = Session.query.filter_by(status="current").first()
-    if session:
-      session_data.status="old"
-    usr = user.firstname +" " + user.lastname
-    created_date=datetime.now().strftime('%Y-%m-%d %H:%M')
-    exp = Session(open_date=created_date,close_date="",
-                   open_by=usr,status ="current")
-  
-    db.session.add(exp)
-  
+    
+    if session_data:  # Fix: Using `session_data` instead of `session`
+        session_data.status = "old"
+    
+    usr = f"{user.firstname} {user.lastname}"
+    created_date = datetime.now().strftime('%Y-%m-%d %H:%M')
+
+    # Fix: Assign `None` instead of an empty string for close_date
+    new_session = Session(
+        open_date=created_date,
+        close_date=None,  # Use `None` instead of `""`
+        company_name=user.company_name,
+        open_by=usr,
+        status="current"
+    )
+
+    db.session.add(new_session)
     db.session.commit()
     db.session.close()
-    resp = jsonify("success")
-    resp.status_code =200
-    return resp
 
+    return jsonify("success"), 200
 
 
 @guest.route("/close_session",methods=['PUT'])
@@ -2716,7 +2948,8 @@ def close_session():
 @guest.route("/get_current_session")
 @flask_praetorian.auth_required
 def get_current_session():
-    session_data =  Session.query.filter_by(status="current").all()
+    us = User.query.filter_by(id = flask_praetorian.current_user().id).first()
+    session_data =  Session.query.filter_by(status="current",company_name=us.company_name).all()
     results = guest_schema.dump(session_data)
     return jsonify(results)
 
@@ -2725,7 +2958,8 @@ def get_current_session():
 @guest.route("/get_all_session")
 @flask_praetorian.auth_required
 def get_all_session():
-    session_data =  Session.query.order_by(desc(Session.open_date))
+    us = User.query.filter_by(id = flask_praetorian.current_user().id).first()
+    session_data =  Session.query.filter_by(company_name=us.company_name).order_by(desc(Session.open_date))
     results = guest_schema.dump(session_data)
     return jsonify(results)
 
@@ -2733,6 +2967,7 @@ def get_all_session():
 @guest.route("/get_wifi_code", methods=["POST"])
 @flask_praetorian.auth_required
 def get_wifi_code():
+    us = User.query.filter_by(id = flask_praetorian.current_user().id).first()
     data = request.json  # Get full JSON data
     print("Received data:", data)  # Debugging log
     days = data.get("days")  # Use .get() to avoid KeyError
@@ -2743,7 +2978,7 @@ def get_wifi_code():
     print("Days:", days)  # Confirm 'days' value is received
 
     # Query for an available WiFi code
-    wifi_code = Wifi.query.filter_by(state="available", duration=days).order_by(func.random()).first()
+    wifi_code = Wifi.query.filter_by(state="available", duration=days,company_name=user.company_name).order_by(func.random()).first()
 
     if not wifi_code:
         return jsonify({"error": "No available WiFi codes"}), 404  # Return 404 if no matching code is found
@@ -2755,3 +2990,325 @@ def get_wifi_code():
     
     return jsonify(results)
 
+import json
+
+
+@guest.route('/create_orders', methods=['POST'])
+@flask_praetorian.auth_required
+def create_orders():
+    us = User.query.filter_by(id=flask_praetorian.current_user().id).first()
+    data = request.json
+
+    print("Incoming data:", data)  # ✅ Debug incoming request
+
+    if not data or 'cartItems' not in data or 'total' not in data:
+        return jsonify({"error": "Invalid request"}), 400
+
+    # ✅ Always store valid JSON
+    items = json.dumps(data.get('cartItems', []))
+
+    new_order = Order(
+        user_id=us.id,
+        items=items,
+        total=float(data['total']),
+        company_name=us.company_name,
+        waiter=us.firstname,
+        order_status="Pending",
+        status="paid",
+     
+    )
+    db.session.add(new_order)
+    db.session.commit()
+
+    # ✅ Deduct Stock & Create Order Items
+    for cart_item in data['cartItems']:
+        item_name = cart_item.get('name')
+        item_quantity = int(cart_item.get('qty', 0))
+        category = cart_item.get('category')
+        family = cart_item.get('family')
+        price  = cart_item.get('price')
+        total_price = int(price) * int(item_quantity)
+        item = Iteman.query.filter_by(name=item_name).first()
+        if not item:
+            return jsonify({"error": f"Item '{item_name}' not found"}), 404
+        if int(item.quantity) < int( item_quantity):
+            return jsonify({"error": f"Not enough stock for {item_name}"}), 400
+        old_quantity = int(item.quantity)
+
+
+        item.quantity =   old_quantity -item_quantity  # 🔻 Deduct stock
+
+        order_item = OrderItem(
+            item_name=item_name,
+            order_id=new_order.id,
+            item_id=item.id,
+            quantity=item_quantity,
+            category=category,
+            waiter=us.firstname + " " + us.lastname,
+            status="Pending",
+            company_name=us.company_name,   created_date=datetime.now().strftime('%Y-%m-%d %H:%M') ,
+            family =family
+        )
+
+        pos_payment = PosPayment(company_name=us.company_name,name=item_name,amount=total_price,
+                                 quantity=item_quantity,attendant=us.firstname +" "+us.lastname,created_by_id=us.id,
+                                 payment_date=datetime.now().strftime('%Y-%m-%d %H:%M'))
+        
+
+        income = Income(name=item_name + "-"+ us.firstname +" "+us.lastname,amount =total_price,date =datetime.now().strftime('%Y-%m-%d %H:%M'),
+                        note="Pos Payment",company_name=us.company_name,created_date=datetime.now().strftime('%Y-%m-%d %H:%M'),
+                        created_by_id=us.id)
+
+    
+
+        
+        db.session.add(pos_payment)
+        db.session.add(income)
+        db.session.add(order_item)
+        db.session.commit()
+
+
+
+       
+
+  
+
+    return jsonify({
+        "id": new_order.id,
+        "company_name": new_order.company_name,
+        "created_at": new_order.created_at.strftime('%Y-%m-%d %H:%M:%S'),
+        "items": items,
+        "order_status": new_order.order_status,
+        "total": new_order.total,
+        "user_id": new_order.user_id,
+        "waiter": new_order.waiter
+    }), 201
+
+
+@guest.route('/get_orders', methods=['GET'])
+@flask_praetorian.auth_required
+def get_orders():
+    user = flask_praetorian.current_user()
+    orders = OrderItem.query.filter_by(company_name=user.company_name,family="food").order_by(OrderItem.id.desc()).all()
+    return jsonify(orders_schema.dump(orders))
+
+
+@guest.route('/update_order_status/<int:order_id>', methods=['PUT'])
+@flask_praetorian.auth_required
+def update_order_status(order_id):
+    data = request.json
+    new_status = data.get("status")
+
+    order = Order.query.get(order_id)
+    if not order:
+        return jsonify({"error": "Order not found"}), 404
+
+    order.order_status = new_status
+    db.session.commit()
+
+    return jsonify({"message": f"Order {order_id} updated to {new_status}"}), 200
+
+@guest.route('/hold_order', methods=['POST'])
+@flask_praetorian.auth_required
+def hold_order():
+    user = flask_praetorian.current_user()
+    data = request.json
+
+    # Validate request body
+    if not data or 'id' not in data or 'cartItems' not in data or 'total' not in data:
+        return jsonify({"error": "Invalid request"}), 400
+
+    hold_id = data['id']  # Get hold ID
+
+    existing_hold = HeldCart.query.filter_by(user_id=user.id, status="Pending", id=hold_id).first()
+
+    if existing_hold:
+        existing_items = json.loads(existing_hold.items)
+        new_items = data['cartItems']
+
+        item_dict = {item['id']: item for item in existing_items}
+
+        for new_item in new_items:
+            new_item_id = new_item['id']
+            new_item_qty = int(new_item['qty']) 
+
+            if new_item_id in item_dict:
+                item_dict[new_item_id]['qty'] = new_item_qty
+            else:
+                new_item['qty'] = new_item_qty
+                item_dict[new_item_id] = new_item
+
+        existing_hold.items = json.dumps(list(item_dict.values()))
+        existing_hold.total = data['total']
+    else:
+        for item in data['cartItems']:
+            item['qty'] = int(item['qty'])
+
+        existing_hold = HeldCart(
+            user_id=user.id,
+            items=json.dumps(data['cartItems']),
+            total=float(data['total']),
+            company_name=user.company_name,
+            status="Pending",
+            waiter=f"{user.firstname} {user.lastname}"
+        )
+        db.session.add(existing_hold)
+
+    db.session.commit()
+
+    return jsonify({"message": "Order held successfully", "id": existing_hold.id}), 201
+
+
+
+@guest.route('/held_orders/<id>', methods=['GET'])
+@flask_praetorian.auth_required
+def get_held_orders(id):
+    user_id = flask_praetorian.current_user().id
+    held_orders = HeldCart.query.filter_by(user_id=user_id).all()
+    return jsonify(orders_schema.dump(held_orders))
+
+
+
+@guest.route('/get_helding_orders', methods=['GET'])
+@flask_praetorian.auth_required
+def get_helding_orders():
+    user = flask_praetorian.current_user()
+    us = User.query.filter_by(id=user.id).first()
+    
+    held_orders = HeldCart.query.filter_by(status="Pending",company_name=us.company_name).all()
+    orders_list = [
+        {
+            "id": order.id,
+            "items": json.loads(order.items),  # Convert JSON string back to list
+            "total": order.total,
+            "waiter":order.waiter,
+            "company_name": order.company_name,
+            "status": order.status
+        }
+        for order in held_orders
+    ]
+
+    return jsonify(orders_list)
+
+
+
+
+
+
+    
+
+
+@guest.route('/remove_held_order/<int:hold_id>', methods=['DELETE'])
+@flask_praetorian.auth_required
+def remove_held_order(hold_id):
+    held_order = HeldCart.query.get(hold_id)
+    if not held_order:
+        return jsonify({"error": "Held order not found"}), 404
+
+    db.session.delete(held_order)
+    db.session.commit()
+
+    return jsonify({"message": f"Held order {hold_id} removed"}), 200
+
+
+@guest.route('/load_held_order/<int:hold_id>', methods=['GET'])
+@flask_praetorian.auth_required
+def load_held_order(hold_id):
+    held_order = HeldCart.query.get(hold_id)
+    if not held_order:
+        return jsonify({"error": "Held order not found"}), 404
+
+    return jsonify({
+        "id": held_order.id,
+        "items": json.loads(held_order.items),
+        "total": held_order.total
+    }), 200
+
+
+@guest.route('/merge_orders', methods=['POST'])
+@flask_praetorian.auth_required
+def merge_orders():
+    data = request.json
+    order_ids = data.get("order_ids", [])
+
+    if not order_ids:
+        return jsonify({"error": "No orders selected"}), 400
+
+    orders = HeldCart.query.filter(HeldCart.id.in_(order_ids)).all()
+    merged_items = []
+    total = 0
+
+    for order in orders:
+        merged_items.extend(json.loads(order.items))
+        total += order.total
+
+    new_held = HeldCart(
+        user_id=flask_praetorian.current_user().id,
+        items=json.dumps(merged_items),
+        total=total,
+        company_name=flask_praetorian.current_user().company_name
+    )
+    db.session.add(new_held)
+
+    # Delete old held carts
+    for order in orders:
+        db.session.delete(order)
+
+    db.session.commit()
+    return jsonify({"message": "Orders merged successfully", "id": new_held.id}), 200
+
+
+
+
+@guest.route("/search_most_item", methods=["POST"])
+@flask_praetorian.auth_required
+def search_most_item():
+    user = User.query.filter_by(id=flask_praetorian.current_user().id).first()
+    date = request.json.get("date")
+
+    if not user:
+        return jsonify({"error": "User not found"}), 404
+
+    if not date:
+        return jsonify({"error": "Date is required"}), 400
+
+    # Query OrderItem instead of Order to get item details directly
+    order_items = OrderItem.query.filter(
+        OrderItem.created_date.contains(date),
+        OrderItem.company_name == user.company_name
+    ).all()
+
+    # Count occurrences of each item_name
+    item_counts = Counter(item.item_name for item in order_items)
+
+    # Convert to a list of dictionaries for JSON response
+    result = [{"name": name, "count": count} for name, count in item_counts.most_common()]
+
+    return jsonify(result), 200
+
+
+
+
+
+@guest.route("/search_most_attendant", methods=["POST"])
+@flask_praetorian.auth_required
+def search_most_attendant():
+    us = User.query.filter_by(id=flask_praetorian.current_user().id).first()
+    date = request.json.get("date")
+
+    if not date:
+        return jsonify({"error": "Date is required"}), 400
+
+    # Query orders from the given date
+    orders = Order.query.filter(
+        Order.created_at.contains(date), 
+        Order.company_name == us.company_name
+    ).all()
+
+    # Count appearances of each attendant (assuming 'attendant' is a string field)
+    attendant_counts = Counter(order.waiter for order in orders if order.waiter)
+
+    # Convert to a list of dictionaries for JSON response
+    result = [{"waiter": waiter, "count": count} for waiter, count in attendant_counts.most_common()]
+
+    return jsonify(result), 200

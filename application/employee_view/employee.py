@@ -57,7 +57,8 @@ todo_schema= TodoSchema(many=True)
 @employee.route("/get_employees",methods=["GET"])
 @flask_praetorian.auth_required
 def get_employees():
-    emp = Employee.query.all()
+    us = User.query.filter_by(id = flask_praetorian.current_user().id).first()
+    emp = Employee.query.filter_by(company_name=us.company_name)
     result = employee_schema.dump(emp)
     return jsonify(result)
 
@@ -67,6 +68,7 @@ def get_employees():
 @employee.route("/add_employee",methods=["POST"])
 @flask_praetorian.auth_required
 def add_employee():
+       us = User.query.filter_by(id = flask_praetorian.current_user().id).first()
     #   id_upload=request.json["id_upload"],
         #  photo=request.json["photo"],
        emp = Employee(
@@ -86,7 +88,7 @@ def add_employee():
         id_number=request.json["id_number"],
         remark=request.json["remark"],
         city=request.json["city"],
-        created_by_id = flask_praetorian.current_user().id
+        created_by_id = flask_praetorian.current_user().id,company_name=us.company_name
            
 
        )
@@ -151,7 +153,8 @@ def delete_employee(id):
 @employee.route("/get_attendance_list",methods=["GET"])
 @flask_praetorian.auth_required
 def get_attendance_list():
-    attd = db.session.query(Attendance).all()
+    us = User.query.filter_by(id = flask_praetorian.current_user().id).first()
+    attd = db.session.query(Attendance).filter_by(company_name=us.company_name)
 #     load = attd.order_by(desc(Attendance.created_date))
     result = attendance_schema.dump(attd)
     return jsonify(result)
@@ -164,6 +167,7 @@ def get_attendance_list():
 @employee.route("/add_attendance",methods=["POST"])
 @flask_praetorian.auth_required
 def add_attendance():
+       us = User.query.filter_by(id = flask_praetorian.current_user().id).first()
        attd = Attendance(
         name=request.json["name"],
         position=request.json["position"],
@@ -172,7 +176,7 @@ def add_attendance():
         time_in = datetime.now().strftime('%H:%M'),
         time_out = "-",
     
-        created_by_id = flask_praetorian.current_user().id
+        created_by_id = flask_praetorian.current_user().id,company_name=us.company_name
            
 
        )
@@ -202,7 +206,8 @@ def update_attendance():
 @employee.route("/get_todo_list",methods=["GET"])
 @flask_praetorian.auth_required
 def get_todo():
-     todoList = Todo.query.all()
+     us = User.query.filter_by(id = flask_praetorian.current_user().id).first()
+     todoList = Todo.query.filter_by(company_name=us.company_name)
      result = todo_schema.dump(todoList)
      return jsonify(result)
 
@@ -231,6 +236,7 @@ def delete_todo(id):
 @employee.route("/add_todo",methods=["POST"])
 @flask_praetorian.auth_required
 def add_todo():
+     
      name = request.json["name"]
      user = User.query.filter_by(id = flask_praetorian.current_user().id).first()
      todoList = Todo(
@@ -239,7 +245,7 @@ def add_todo():
           position = request.json["position"],
           created_by = user.firstname,
           created_for = name,
-          created_date=datetime.now().strftime('%Y-%m-%d %H:%M')
+          created_date=datetime.now().strftime('%Y-%m-%d %H:%M'),company_name=user.company_name
           
 
      )
@@ -283,7 +289,7 @@ def update_todo():
 @employee.route("/add_item",methods=["POST"])
 @flask_praetorian.auth_required
 def add_item():
-     
+      us = User.query.filter_by(id = flask_praetorian.current_user().id).first()
 
       item_name=request.json["item_name"]
       item_type =request.json["item_type"]
@@ -310,7 +316,7 @@ def add_item():
                  last_price=last_price,last_quantity=last_quantity,open=open_item,voided=voided,
                  expire_date=expire_date,store_unit=store_unit,recipe=recipe,open_price=open_price,sales_price=sales_price,
                  base_unit=base_unit,description=description,item_number=item_number,evaluation_price=evaluation_price,
-                 auth_levl=auth_level,item_type=item_type,item_name=item_name)
+                 auth_levl=auth_level,item_type=item_type,item_name=item_name,company_name=us.company_name)
       
       
       db.session.add(itm)
@@ -322,7 +328,8 @@ def add_item():
 @employee.route("/get_item",methods=["GET"])
 @flask_praetorian.auth_required
 def get_item():
-      itm = Item.query.all()
+      us = User.query.filter_by(id = flask_praetorian.current_user().id).first()
+      itm = Item.query.filyter_by(company_name=us.company_name)
       result = item_schema.dump(itm)
       return jsonify(result)
     

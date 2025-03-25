@@ -5,7 +5,7 @@ from  application.extensions.extensions import *
 from  application.settings.settings import *
 from  application.settings.setup import app
 # from application.forms import LoginForm
-from application.database.user.user_db import db,RoomType,Rooms,Booking,RoomReport,Task,Payment
+from application.database.user.user_db import db,RoomType,Rooms,Booking,RoomReport,Task,Payment,User
 from sqlalchemy import or_,desc,and_
 from datetime import datetime
 from datetime import date
@@ -67,7 +67,8 @@ report_schema = ReportSchema(many=True)
 @room.route("/get_all_rooms",methods=['GET'])
 @flask_praetorian.auth_required
 def get_all_rooms():
-    info = db.session.query(Rooms).all()
+    us = User.query.filter_by(id = flask_praetorian.current_user().id).first()
+    info = db.session.query(Rooms).filter_by(company_name=us.company_name)
     results =room_schema.dump(info)
     return jsonify(results)
 
@@ -79,6 +80,7 @@ def get_all_rooms():
 @flask_praetorian.auth_required
 def add_room_type():
     # id =db.Column(db.Integer,primary_key=True)
+    us = User.query.filter_by(id = flask_praetorian.current_user().id).first()
 
     type= request.json["type"]
     base_occupancy = request.json["base_occupancy"]
@@ -96,7 +98,7 @@ def add_room_type():
     created_by_id = flask_praetorian.current_user().id
     
     owner = RoomType( room_type=type,base_occupancy=base_occupancy,extral_bed_price=extral_bed_price,
-           kids_occupancy=kids_occupancy ,amenities=amenities,
+           kids_occupancy=kids_occupancy ,amenities=amenities,company_name=us.company_name,
               description=description ,
               created_by_id= created_by_id,base_price=base_price
               ) 
@@ -111,8 +113,9 @@ def add_room_type():
 @room.route("/add_task",methods=["POST"])
 @flask_praetorian.auth_required
 def add_task():
+    us = User.query.filter_by(id = flask_praetorian.current_user().id).first()
     name = request.json["name"]
-    tsk = Task(name=name)
+    tsk = Task(name=name,company_name=us.company_name)
     db.session.add(tsk)
     db.session.commit()
     db.session.close()
@@ -124,7 +127,8 @@ def add_task():
 @room.route("/get_task",methods=["GET"])
 @flask_praetorian.auth_required
 def get_task():
-    tsk= Task.query.all()
+    us = User.query.filter_by(id = flask_praetorian.current_user().id).first()
+    tsk= Task.query.filter_by(company_name=us.company_name)
     result = task_schema.dump(tsk)
     return jsonify(result)
 
@@ -204,8 +208,9 @@ def update_room():
 @flask_praetorian.auth_required
 
 def add_room():
+        us = User.query.filter_by(id = flask_praetorian.current_user().id).first()
         owner =Rooms( room_number=request.json["room_number"],  room_type=request.json["room_type"], 
-                     floor=request.json["room_type"],
+                     floor=request.json["room_type"],company_name=us.company_name,
                       duration=request.json["duration"],
                       reserved=request.json["reserved"],
                       description=request.json["description"],
@@ -229,7 +234,8 @@ def add_room():
 @room.route("/get_rooms",methods=["GET"])
 @flask_praetorian.auth_required
 def get_rooms():
-    rooms = db.session.query(Rooms).all()
+    us = User.query.filter_by(id = flask_praetorian.current_user().id).first()
+    rooms = db.session.query(Rooms).filter_by(company_name=us.company_name)
     results = room_schema.dump(rooms)
 
     return jsonify(results)
@@ -238,7 +244,8 @@ def get_rooms():
 @room.route("/get_room_type",methods=["GET"])
 @flask_praetorian.auth_required
 def get_room_type():
-    rooms = RoomType.query.all()
+    us = User.query.filter_by(id = flask_praetorian.current_user().id).first()
+    rooms = RoomType.query.filter_by(company_name=us.company_name)
     results = room_schema.dump(rooms)
 
     return jsonify(results)
@@ -306,7 +313,8 @@ def delete_room(id):
 @flask_praetorian.auth_required
 def get_all_bookings():
     # Fetch all bookings ordered by creation date in descending order
-    bookings = Booking.query.order_by(Booking.create_date.desc()).all()
+    us = User.query.filter_by(id = flask_praetorian.current_user().id).first()
+    bookings = Booking.query.filter_by(company_name=us.company_name).order_by(Booking.create_date.desc()).all()
     
     # Serialize the results
     results = booking_schema.dump(bookings)
@@ -319,7 +327,8 @@ def get_all_bookings():
 @flask_praetorian.auth_required
 def get_new_bookings():
     # Fetch all bookings where has_checkout is False, ordered by creation date in descending order
-    bookings = Booking.query.filter_by(has_checkout=False).order_by(Booking.create_date.desc()).all()
+    us = User.query.filter_by(id = flask_praetorian.current_user().id).first()
+    bookings = Booking.query.filter_by(has_checkout=False,company_name=us.company_name).order_by(Booking.create_date.desc()).all()
     
     # Serialize the results using the booking schema
     results = booking_schema.dump(bookings)
@@ -398,8 +407,9 @@ def update_booking():
 @room.route("/add_room_report",methods=["POST"])
 @flask_praetorian.auth_required
 def add_room_report():
+          us = User.query.filter_by(id = flask_praetorian.current_user().id).first()
           rpt = RoomReport(
-                    description =request.json["description"],
+                    description =request.json["description"],company_name=us.company_name,
                     room_number =request.json["room_number"],
                     room_type =request.json["room_type"],
                     employee =flask_praetorian.current_user().firstname+" "+flask_praetorian.current_user().firstname ,
@@ -418,7 +428,8 @@ def add_room_report():
 @room.route("/get_room_report",methods=["GET"])
 @flask_praetorian.auth_required
 def get_room_report():
-    rpt = RoomReport.query.all()
+    us = User.query.filter_by(id = flask_praetorian.current_user().id).first()
+    rpt = RoomReport.query.filter_by(company_name=us.company_name)
     results = report_schema.dump(rpt)
     return jsonify(results)
 
@@ -505,12 +516,13 @@ def update_house():
 @room.route("/search_house",methods=["POST"])
 @flask_praetorian.auth_required
 def search_house():
+    us = User.query.filter_by(id = flask_praetorian.current_user().id).first()
     room_type = request.json["room_type"]
     room_number = request.json["room_number"]
     status = request.json["status"]
     occupancy_state =request.json["occupancy_state"]
     
-    room = Rooms.query.filter(Rooms.room_number.contains(room_number ) ,Rooms.status.contains(status ))
+    room = Rooms.query.filter(Rooms.room_number.contains(room_number ) ,Rooms.status.contains(status ),Rooms.company_name.contains(us.company_name))
 
     result = room_schema.dump(room)
     return jsonify(result)
@@ -520,8 +532,9 @@ def search_house():
 @room.route("/search_room_date",methods=["POST"])
 @flask_praetorian.auth_required
 def search_room_date():
+        us = User.query.filter_by(id = flask_praetorian.current_user().id).first()
         date = request.json["date"]
-        room = Rooms.query.filter(Rooms.date_booked.contains(date ) )
+        room = Rooms.query.filter(Rooms.date_booked.contains(date ) ,Rooms.company_name.contains(us.company_name))
 
         result = room_schema.dump(room)
         return jsonify(result)
@@ -530,8 +543,9 @@ def search_room_date():
 @room.route("/search_yesterday_date",methods=["POST"])
 @flask_praetorian.auth_required
 def search_yesterday_date():
+        us = User.query.filter_by(id = flask_praetorian.current_user().id).first()
         date = request.json["date"]
-        pay = Payment.query.filter(Payment.payment_date.contains(date ) )
+        pay = Payment.query.filter(Payment.payment_date.contains(date ),Payment.company_name.contains(us.company_name) )
 
         result = pay_schema.dump(pay)
         return jsonify(result)
