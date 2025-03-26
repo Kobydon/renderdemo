@@ -3118,7 +3118,7 @@ def hold_order():
     if not data or 'id' not in data or 'cartItems' not in data or 'total' not in data:
         return jsonify({"error": "Invalid request"}), 400
 
-    hold_id = data['id']  # Get hold ID
+    hold_id = int(data['id'])  # Get hold ID
 
     try:
         existing_hold = HeldCart.query.filter_by(user_id=user.id, status="Pending", id=hold_id).first()
