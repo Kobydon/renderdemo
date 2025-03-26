@@ -80,18 +80,15 @@ def register_quick():
 
 
 
-@user.route("/find_cashier",methods=["POST"])
+@user.route("/find_cashier", methods=["POST"])
 def find_cashier():
     user = User.query.filter_by(password=request.json["password"]).first()
-    resp =jsonify("success")
-    if user:
-        
-         return 200
-
-    else:
-         
-        return 401
     
+    if user:
+        return jsonify({"message": "success"}), 200  # ✅ Return JSON with status code
+    
+    return jsonify({"message": "unauthorized"}), 401  # ✅ Return JSON with status code
+
 
  
 
