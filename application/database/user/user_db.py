@@ -123,13 +123,13 @@ class Insurance(db.Model):
 
 class Task(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    company_name= db.Column(db.String(200))
+    company_name= db.Column(db.String(500))
     name = db.Column(db.String(255))  # Adjusted column size
 
 
 class RoomReport(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    company_name= db.Column(db.String(200))
+    company_name= db.Column(db.String(500))
     room_number = db.Column(db.String(100))  # Adjusted column size
     room_type = db.Column(db.String(100))  # Adjusted column size
     employee = db.Column(db.String(255))  # Adjusted column size
@@ -218,12 +218,12 @@ class Guests(db.Model):
     password = db.Column(db.String(255))  # Adjusted column size
     dob = db.Column(db.String(100))  # Adjusted column size
     country = db.Column(db.String(100))  # Adjusted column size
-    arrival_date = db.Column(db.String(200))  # Changed to DateTime
+    arrival_date = db.Column(db.String(500))  # Changed to DateTime
     photo = db.Column(db.String(500))  # Adjusted column size for image paths
     id_type = db.Column(db.String(50))  # Adjusted column size
     id_upload = db.Column(db.String(500))  # Adjusted column size for file paths
     id_number = db.Column(db.String(100))  # Adjusted column size
-    checkout_date = db.Column(db.String(200))  # Changed to DateTime
+    checkout_date = db.Column(db.String(500))  # Changed to DateTime
     remark = db.Column(db.String(255))  # Adjusted column size
     work = db.Column(db.String(255))  # Adjusted column size
     city = db.Column(db.String(100))  # Adjusted column size
@@ -246,8 +246,8 @@ class Booking(db.Model):
     room_type = db.Column(db.String(100))  # Adjusted column size
     country = db.Column(db.String(100))  # Adjusted column size
     purpose = db.Column(db.String(255))  # Adjusted column size
-    departure_date = db.Column(db.String(200))  # Changed to DateTime
-    arrival_date = db.Column(db.String(200))  # Changed to DateTime
+    departure_date = db.Column(db.String(500))  # Changed to DateTime
+    arrival_date = db.Column(db.String(500))  # Changed to DateTime
     adult = db.Column(db.String(10))  # Adjusted column size
     children = db.Column(db.String(10))  # Adjusted column size
     guest_id = db.Column(db.Integer, db.ForeignKey('guests.id'))
@@ -292,13 +292,13 @@ class Session(db.Model):
 
 class Order(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    items = db.Column(db.String(200))  # JSON string of order items
+    items = db.Column(db.String(500))  # JSON string of order items
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     total = db.Column(db.Float, nullable=False)
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
-    company_name = db.Column(db.String(200))
-    order_status = db.Column(db.String(200), default="Pending")  # Pending, Confirmed, Completed
-    waiter = db.Column(db.String(200))
+    company_name = db.Column(db.String(500))
+    order_status = db.Column(db.String(500), default="Pending")  # Pending, Confirmed, Completed
+    waiter = db.Column(db.String(500))
     status = db.Column(db.String(20), default="paid")  # Status: paid, pending
 
     # Relationship to OrderItem
@@ -311,13 +311,13 @@ class OrderItem(db.Model):
     order_id = db.Column(db.Integer, db.ForeignKey('order.id'), nullable=False)
     item_id = db.Column(db.Integer, db.ForeignKey('iteman.id'), nullable=False)  # Link to inventory
     quantity = db.Column(db.Integer, nullable=False)
-    category = db.Column(db.String(200))
+    category = db.Column(db.String(500))
     waiter = db.Column(db.String(400))
-    status = db.Column(db.String(200), default="Pending")  # Pending, In Progress, Completed
-    item_name = db.Column(db.String(200))
+    status = db.Column(db.String(500), default="Pending")  # Pending, In Progress, Completed
+    item_name = db.Column(db.String(500))
     company_name = db.Column(db.String(400))
     created_date = db.Column(db.String(400))
-    family =db.Column(db.String(200))
+    family =db.Column(db.String(500))
     item = db.relationship('Iteman', backref=db.backref('order_items', lazy=True))
 
 
@@ -328,9 +328,9 @@ class HeldCart(db.Model):
     items = db.Column(db.String(500))  # JSON string of cart items
     total = db.Column(db.Float, nullable=False)
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
-    company_name = db.Column(db.String(200))
-    status = db.Column(db.String(200))
-    waiter = db.Column(db.String(200))
+    company_name = db.Column(db.String(500))
+    status = db.Column(db.String(500))
+    waiter = db.Column(db.String(500))
 
 
 class Payment(db.Model):
@@ -342,16 +342,16 @@ class Payment(db.Model):
     method = db.Column(db.String(50))  # Adjusted column size
     room_type = db.Column(db.String(100))  # Adjusted column size
     discount = db.Column(db.String(50))  # Adjusted column size
-    payment_date = db.Column(db.String(200))  # Changed to DateTime
+    payment_date = db.Column(db.String(500))  # Changed to DateTime
     balance = db.Column(db.String(100))  # Adjusted column size
     booking_id = db.Column(db.String(100))  # Adjusted column size
-    checkin_date = db.Column(db.String(200))  # Changed to DateTime
+    checkin_date = db.Column(db.String(500))  # Changed to DateTime
     children = db.Column(db.String(10))  # Adjusted column size
     adult = db.Column(db.String(10))  # Adjusted column size
-    checkout_date = db.Column(db.String(200))  # Changed to DateTime
+    checkout_date = db.Column(db.String(500))  # Changed to DateTime
     status = db.Column(db.String(50))  # Adjusted column size
     session = db.Column(db.String(50))  # Adjusted column size
-    wifi_code = db.Column(db.String(200)) 
+    wifi_code = db.Column(db.String(500)) 
     guest_id = db.Column(db.Integer, db.ForeignKey('guests.id'))
     created_by_id = db.Column(db.Integer, db.ForeignKey('user.id'))
 
@@ -363,7 +363,7 @@ class PosPayment(db.Model):
     company_name= db.Column(db.String(500))  
     name = db.Column(db.String(255))  # Adjusted column size
     amount = db.Column(db.String(100))  # Adjusted column size
-    payment_date = db.Column(db.String(200))  # Changed to DateTime
+    payment_date = db.Column(db.String(500))  # Changed to DateTime
     attendant= db.Column(db.String(100)) 
     quantity= db.Column(db.String(100)) 
     created_by_id = db.Column(db.Integer, db.ForeignKey('user.id'))
@@ -554,7 +554,7 @@ class Iteman(db.Model):
     unit = db.Column(db.String(400))
     voided = db.Column(db.String(400))
   
-    quantity= db.Column(db.String(200))
+    quantity= db.Column(db.String(500))
     company_name= db.Column(db.String(500))  
 
     def __repr__(self):
