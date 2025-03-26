@@ -3167,31 +3167,56 @@ def get_held_orders(id):
     held_orders = HeldCart.query.filter_by(user_id=user_id).all()
     return jsonify(orders_schema.dump(held_orders))
 
-
-
 @guest.route('/get_helding_orders', methods=['GET'])
 @flask_praetorian.auth_required
 def get_helding_orders():
     user = flask_praetorian.current_user()
     us = User.query.filter_by(id=user.id).first()
     
-    held_orders = HeldCart.query.filter_by(status="Pending",company_name=us.company_name).all()
-    orders_list = [
-        {
-            "id": order.id,
-            "items": json.loads(order.items),  # Convert JSON string back to list
-            "total": order.total,
-            "waiter":order.waiter,
-            "company_name": order.company_name,
-            "status": order.status
-        }
-        for order in held_orders
-    ]
+    held_orders = HeldCart.query.filter_by(status="Pending", company_name=us.company_name).all()
+    orders_list = []
+
+    for order in held_orders:
+        items = json.loads(order.items)  # Convert JSON string to list
+        filtered_items = [item for item in items if item.get("family") == "food"]  # Filter items by family
+        
+        if filtered_items:  # Only include orders that have food items
+            orders_list.append({
+                "id": order.id,
+                "items": filtered_items,
+                "total": order.total,
+                "waiter": order.waiter,
+                "company_name": order.company_name,
+                "status": order.status
+            })
 
     return jsonify(orders_list)
 
 
+@guest.route('/get_helding_orders_drinks', methods=['GET'])
+@flask_praetorian.auth_required
+def get_helding_orders_drinks():
+    user = flask_praetorian.current_user()
+    us = User.query.filter_by(id=user.id).first()
+    
+    held_orders = HeldCart.query.filter_by(status="Pending", company_name=us.company_name).all()
+    orders_list = []
 
+    for order in held_orders:
+        items = json.loads(order.items)  # Convert JSON string to list
+        filtered_items = [item for item in items if item.get("family") == "drink"]  # Filter items by family
+        
+        if filtered_items:  # Only include orders that have drink items
+            orders_list.append({
+                "id": order.id,
+                "items": filtered_items,
+                "total": order.total,
+                "waiter": order.waiter,
+                "company_name": order.company_name,
+                "status": order.status
+            })
+
+    return jsonify(orders_list)
 
 
 
