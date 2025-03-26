@@ -80,7 +80,7 @@ def register_quick():
 
 @user.route("/find_cashier", methods=["POST"])
 def find_cashier():
-    password = request.json["password"]
+    # password = request.json["password"]
     user = User.query.filter_by(username=request.json["username"],roles="cashier").first()  # Use username or email
 
     if user and guard.verify_password(password, user.password):
