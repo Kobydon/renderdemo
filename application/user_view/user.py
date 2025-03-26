@@ -84,8 +84,9 @@ def register_quick():
 def find_cashier():
     req = request.get_json(force=True)
     password = req.get("password", None)
-    user = guard.authenticate(password)
-    # user = User.query.filter_by(password=password,roles="cashier").first()
+    users = User.query.filter_by(password=password,roles="cashier").first()
+    user = guard.authenticate(users.username,password)
+  
     
     if user:
         return jsonify({"message": "success"}), 200  # ✅ Return JSON with status code
