@@ -647,6 +647,20 @@ def searchdates():
 
 
 
+@guest.route("/get_chef_dates",methods=["POST"])
+@flask_praetorian.auth_required
+def get_chef_dates():
+    us = User.query.filter_by(id = flask_praetorian.current_user().id).first()
+    date = request.json["date"]
+    print(date)
+    pay = FoodChef.query.filter(FoodChef.created_date.contains(date),FoodChef.company_name.contains(us.company_name) )
+    lst = pay.order_by(desc(FoodChef.created_date))
+    result = pay_schema.dump(lst)
+    return jsonify(result)
+
+
+
+
 @guest.route("/search_held_order_dates", methods=["POST"])
 @flask_praetorian.auth_required
 def search_held_order_dates():
@@ -3372,7 +3386,7 @@ def add_chef():
     # date =request.json["date"]
     # usr = user.firstname +" " + user.lastname
     created_date=datetime.now().strftime('%Y-%m-%d %H:%M')
-    inc = FoodChef(name=name,food=food,date=date,
+    inc = FoodChef(name=name,food=food,
                    created_by_id=flask_praetorian.current_user().id ,
                    created_date=created_date,company_name=user.company_name)
   
