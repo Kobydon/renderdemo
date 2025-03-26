@@ -83,7 +83,7 @@ def find_cashier():
     # password = request.json["password"]
     user = User.query.filter_by(username=request.json["username"],roles="cashier").first()  # Use username or email
 
-    if user and guard.verify_password(password, user.password):
+    if user:
         return jsonify({"message": "success"}), 200  # ✅ Password is correct
     
     return jsonify({"message": "unauthorized"}), 401  # ❌ Wrong password
