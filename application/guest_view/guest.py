@@ -7,7 +7,7 @@ from  application.settings.setup import app
 from sqlalchemy import Float
 import json
 # from application.forms import LoginForm
-from application.database.user.user_db import db,Guests,User,Booking,Rooms,Payment,Reservation,Refund,Budget,Income,Expenses,Attendance,Iteman,Family,Category,Unit,Stock,Store,StockTransfer,Department,Vendor,PurchaseOrder,PurchaseRequest,ReceivedItem,returnRequest,GOP,RoomType,Session,Wifi,Order,StockUsage,PosPayment,OrderItem,HeldCart
+from application.database.user.user_db import db,Guests,User,Booking,Rooms,Payment,Reservation,Refund,Budget,Income,Expenses,Attendance,Iteman,Family,Category,Unit,Stock,Store,StockTransfer,Department,Vendor,PurchaseOrder,PurchaseRequest,ReceivedItem,returnRequest,GOP,RoomType,Session,Wifi,Order,StockUsage,PosPayment,OrderItem,HeldCart,FoodChef
 from sqlalchemy import or_,desc,and_
 from datetime import datetime
 from datetime import date
@@ -37,7 +37,7 @@ class Guest_schema(ma.Schema):
         fields=("id","first_name","last_name","operation","unit","category","family","open_by","department","price","address","has_checkout","checkout_date","arrival","city","country","id_type","id_number","id_upload","dob","gender","work","remark","phone",
                 "region","email","username","arrival_date","checkout_date","guest_id","note","amount","created_date","date","type","attendace","name","description","store","quantity","hod","requested_by","item","approved_by",
                 "total_cost","unit_price","store","status","Department","attendance","time_in","time_out","position","reason","voided","item_id","request_by","user",
-                    "close_by","open_date","close_date","wifi_code","order_id","waiter")
+                    "close_by","open_date","close_date","wifi_code","order_id","waiter","food")
 
 
 
@@ -3337,3 +3337,60 @@ def search_most_attendant():
     result = [{"waiter": waiter, "count": count} for waiter, count in attendant_counts.most_common()]
 
     return jsonify(result), 200
+
+
+
+
+
+@guest.route("/add_chef",methods=['POST'])
+@flask_praetorian.auth_required
+def add_chef():
+
+    user = User.query.filter_by(id = flask_praetorian.current_user().id).first()
+    name= request.json["name"]
+    food =request.json["food"]
+    
+    date =request.json["date"]
+    # usr = user.firstname +" " + user.lastname
+    created_date=datetime.now().strftime('%Y-%m-%d %H:%M')
+    inc = FoodChef(name=name,food=food,date=date,
+                   created_by_id=flask_praetorian.current_user().id ,
+                   created_date=created_date,company_name=user.company_name)
+  
+    db.session.add(inc)
+    db.session.commit()
+    db.session.close()
+    resp = jsonify("success")
+    resp.status_code =200
+    return resp
+
+
+
+@guest.route("/get_chef_list",methods=['GET'])
+@flask_praetorian.auth_required
+def get_chef_list():
+    # user = User.query.filter_by(id = flask_praetorian.current_user().id).first()
+    us = User.query.filter_by(id = flask_praetorian.current_user().id).first()
+    inc = FoodChef.query.filter_by(company_name=us.company_name)
+    result = guest_schema.dump(inc)
+    return jsonify(result)
+
+
+
+
+
+
+
+@guest.route("/delete_chef/<id>",methods=['DELETE'])
+@flask_praetorian.auth_required
+def delete_chef(id):
+      sub_data = FoodChef.query.filter_by(id=id).first()
+      
+      db.session.delete(sub_data)
+      db.session.commit()
+      db.session.close()
+      resp = jsonify("success")
+      resp.status_code =201
+      return resp
+
+

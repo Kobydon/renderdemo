@@ -509,6 +509,16 @@ class Income(db.Model):
 
     def __repr__(self):
         return f"<Income(id={self.id}, name={self.name}, amount={self.amount}, date={self.date})>"
+    
+
+class FoodChef(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.Text)
+    food = db.Column(db.Text)
+    date = db.Column(db.Text)
+    company_name= db.Column(db.String(500))  
+    created_date = db.Column(db.String(400))
+    created_by_id = db.Column(db.String(400))
 
 class Budget(db.Model):
     id = db.Column(db.Integer, primary_key=True)
