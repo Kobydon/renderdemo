@@ -82,7 +82,7 @@ def register_quick():
 
 @user.route("/find_cashier", methods=["POST"])
 def find_cashier():
-    user = User.query.filter_by(password=request.json["password"]).first()
+    user = User.query.filter_by(password=request.json["password"],roles="cashier").first()
     
     if user:
         return jsonify({"message": "success"}), 200  # ✅ Return JSON with status code
