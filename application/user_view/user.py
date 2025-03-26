@@ -78,17 +78,15 @@ def register_quick():
     return resp
 
 
-
-
 @user.route("/find_cashier", methods=["POST"])
 def find_cashier():
-    user = User.query.filter_by(password=request.json["password"]).first()
-    
-    if user:
-        return jsonify({"message": "success"}), 200  # ✅ Return JSON with status code
-    
-    return jsonify({"message": "unauthorized"}), 401  # ✅ Return JSON with status code
+    password = request.json["password"]
+    user = User.query.filter_by(username=request.json["username"],roles="cashier").first()  # Use username or email
 
+    if user and guard.verify_password(password, user.password):
+        return jsonify({"message": "success"}), 200  # ✅ Password is correct
+    
+    return jsonify({"message": "unauthorized"}), 401  # ❌ Wrong password
 @user.route("/register", methods=["POST"])
 def register():
     try:
