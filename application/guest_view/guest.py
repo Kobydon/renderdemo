@@ -3120,43 +3120,47 @@ def hold_order():
 
     hold_id = data['id']  # Get hold ID
 
-    existing_hold = HeldCart.query.filter_by(user_id=user.id, status="Pending", id=hold_id).first()
+    try:
+        existing_hold = HeldCart.query.filter_by(user_id=user.id, status="Pending", id=hold_id).first()
 
-    if existing_hold:
-        existing_items = json.loads(existing_hold.items)
-        new_items = data['cartItems']
+        if existing_hold:
+            existing_items = json.loads(existing_hold.items)
+            new_items = data['cartItems']
 
-        item_dict = {item['id']: item for item in existing_items}
+            item_dict = {item['id']: item for item in existing_items}
 
-        for new_item in new_items:
-            new_item_id = new_item['id']
-            new_item_qty = int(new_item['qty']) 
+            for new_item in new_items:
+                new_item_id = new_item['id']
+                new_item_qty = int(new_item['qty'])
 
-            if new_item_id in item_dict:
-                item_dict[new_item_id]['qty'] = new_item_qty
-            else:
-                new_item['qty'] = new_item_qty
-                item_dict[new_item_id] = new_item
+                if new_item_id in item_dict:
+                    item_dict[new_item_id]['qty'] = new_item_qty
+                else:
+                    new_item['qty'] = new_item_qty
+                    item_dict[new_item_id] = new_item
 
-        existing_hold.items = json.dumps(list(item_dict.values()))
-        existing_hold.total = data['total']
-    else:
-        for item in data['cartItems']:
-            item['qty'] = int(item['qty'])
+            existing_hold.items = json.dumps(list(item_dict.values()))
+            existing_hold.total = data['total']
+        else:
+            for item in data['cartItems']:
+                item['qty'] = int(item['qty'])
 
-        existing_hold = HeldCart(
-            user_id=user.id,
-            items=json.dumps(data['cartItems']),
-            total=float(data['total']),
-            company_name=user.company_name,
-            status="Pending",
-            waiter=f"{user.firstname} {user.lastname}"
-        )
-        db.session.add(existing_hold)
+            existing_hold = HeldCart(
+                user_id=user.id,
+                items=json.dumps(data['cartItems']),
+                total=float(data['total']),
+                company_name=user.company_name,
+                status="Pending",
+                waiter=f"{user.firstname} {user.lastname}"
+            )
+            db.session.add(existing_hold)
 
-    db.session.commit()
+        db.session.commit()
+        return jsonify({"message": "Order held successfully", "id": existing_hold.id}), 201
 
-    return jsonify({"message": "Order held successfully", "id": existing_hold.id}), 201
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": "An error occurred while holding the order", "details": str(e)}), 500
 
 
 
