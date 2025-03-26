@@ -3107,7 +3107,6 @@ def update_order_status(order_id):
     db.session.commit()
 
     return jsonify({"message": f"Order {order_id} updated to {new_status}"}), 200
-
 @guest.route('/hold_order', methods=['POST'])
 @flask_praetorian.auth_required
 def hold_order():
@@ -3115,18 +3114,33 @@ def hold_order():
     data = request.json
 
     # Validate request body
-    if not data or 'id' not in data or 'cartItems' not in data or 'total' not in data:
+    if not data or 'cartItems' not in data or 'total' not in data:
         return jsonify({"error": "Invalid request"}), 400
 
-    hold_id = int(data['id'])  # Get hold ID
+    hold_id = data.get('id', None)  # Get hold ID safely
+
+    # Ensure hold_id is a valid integer or None
+    if isinstance(hold_id, str) and hold_id.strip() == "":
+        hold_id = None
+    elif hold_id is not None:
+        try:
+            hold_id = int(hold_id)
+        except ValueError:
+            return jsonify({"error": "Invalid hold ID"}), 400
 
     try:
-        existing_hold = HeldCart.query.filter_by(user_id=user.id, status="Pending", id=hold_id).first()
+        # Query for an existing held order
+        existing_hold_query = HeldCart.query.filter_by(user_id=user.id, status="Pending")
+        
+        if hold_id is not None:
+            existing_hold_query = existing_hold_query.filter(HeldCart.id == hold_id)
+
+        existing_hold = existing_hold_query.first()
 
         if existing_hold:
+            # Update existing held order
             existing_items = json.loads(existing_hold.items)
             new_items = data['cartItems']
-
             item_dict = {item['id']: item for item in existing_items}
 
             for new_item in new_items:
@@ -3140,8 +3154,9 @@ def hold_order():
                     item_dict[new_item_id] = new_item
 
             existing_hold.items = json.dumps(list(item_dict.values()))
-            existing_hold.total = data['total']
+            existing_hold.total = float(data['total'])
         else:
+            # Create a new held order
             for item in data['cartItems']:
                 item['qty'] = int(item['qty'])
 
