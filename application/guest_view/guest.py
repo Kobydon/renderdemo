@@ -2483,7 +2483,7 @@ def add_purchase():
     created_date=datetime.now().strftime('%Y-%m-%d %H:%M')
 
     inc = PurchaseRequest(item=item,quantity=quantity,unit_price=unit_price,total_cost=total_cost,status=status,company_name=user.company_name,
-                          Department=department, requested_by=requested_by,store=store,created_date=created_date)
+                          department=department, requested_by=requested_by,store=store,created_date=created_date)
     
     # usr = user.firstname +" " + user.lastname
 
