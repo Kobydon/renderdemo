@@ -3369,7 +3369,7 @@ def add_chef():
     name= request.json["name"]
     food =request.json["food"]
     
-    date =request.json["date"]
+    # date =request.json["date"]
     # usr = user.firstname +" " + user.lastname
     created_date=datetime.now().strftime('%Y-%m-%d %H:%M')
     inc = FoodChef(name=name,food=food,date=date,
