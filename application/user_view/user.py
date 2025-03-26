@@ -87,6 +87,10 @@ def find_cashier():
     if user:
         
          resp.status_code=200
+
+    else:
+         resp="user not found"
+         resp.status_code=401
     return resp
     
 
