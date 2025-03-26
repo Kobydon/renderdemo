@@ -89,57 +89,40 @@ def find_cashier():
     
     return jsonify({"message": "unauthorized"}), 401  # ✅ Return JSON with status code
 
-
- 
-
-@user.route("/register",methods=["POST"])
+@user.route("/register", methods=["POST"])
 def register():
-    
-    firstname =request.json["firstname"]
-    username = request.json["username"]
-    password = request.json["password"]
-    lastname =request.json["lastname"]
-    company_name=request.json["company_name"]
-    # country = request.json["country"]
-    # city = request.json["city"]
+    try:
+        firstname = request.json["firstname"]
+        username = request.json["username"]
+        password = request.json["password"]
+        lastname = request.json["lastname"]
+        company_name = request.json["company_name"]
+        email = request.json["email"]
+        role = request.json["role"]
 
-    email = request.json["email"]
-    # address = request.json["address"]
+        hashed_password = guard.hash_password(password)
 
-    
-    # city=request.json["city"]
-     
-    # state=request.json["state"]
-     
- 
-    # gender=request.json["gender"]
-    # photo=request.json["photo"]
-    
+        owner = User(
+            firstname=firstname,
+            lastname=lastname,
+            username=username,
+            hashed_password=hashed_password,
+            roles=role,
+            company_name=company_name,
+            email=email,
+            created_date=datetime.now().strftime('%Y-%m-%d %H:%M')
+        )
 
+        db.session.add(owner)
+        db.session.commit()
+        return jsonify({"message": "User registered successfully"}), 200
 
-    role = request.json["role"]
-    # phone = request.json["phone"]
-    # confirm_password= request.json["confirm_password"]
-    hashed_password= guard.hash_password(password)
-    # if password == confirm_password:
-    owner = User(firstname=firstname,lastname=lastname,username=username,hashed_password=hashed_password,roles=role,company_name=company_name,
-                    email=email,created_date=datetime.now().strftime('%Y-%m-%d %H:%M')
-                 \
-               
-                    )
-    
-    
-    # gsts = Guests(first_name =firstname,last_name=lastname,email=email,address=address,city=city,username=username)
-    db.session.add(owner)
-    # db.session.add(gsts)
-    db.session.commit()
-    db.session.close()
-    resp = jsonify ("success")
-    resp.status_code =200
+    except Exception as e:
+        db.session.rollback()  # Rollback in case of an error
+        return jsonify({"error": str(e)}), 500
 
-    return resp
-
-
+    finally:
+        db.session.close()  # Ensure the session is closed
 
 @user.route('/get_signin_client',methods=['GET','POST'] )
 #@login_required
