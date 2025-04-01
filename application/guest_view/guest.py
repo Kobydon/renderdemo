@@ -2618,7 +2618,7 @@ def approve_purchase():
         quantity = sub_data.quantity
         created_date = datetime.now()
 
-        new_order = PurchaseOrder(item=item, store=store, created_date=created_date, quantity=quantity)
+        new_order = PurchaseOrder(item=item, store=store, created_date=created_date, quantity=quantity,company_name=user.company_name)
 
         # Add the new order to the session
         db.session.add(new_order)
@@ -3070,7 +3070,7 @@ def create_orders():
         company_name=us.company_name,
         waiter=us.firstname,
         order_status="Pending",
-        method = request.json["method"],
+      
         status="paid",
      
     )
@@ -3107,7 +3107,7 @@ def create_orders():
             family =family
         )
 
-        pos_payment = PosPayment(company_name=us.company_name,name=item_name,amount=total_price,
+        pos_payment = PosPayment(company_name=us.company_name,name=item_name,amount=total_price,  method = request.json["method"],
                                  quantity=item_quantity,attendant=us.firstname +" "+us.lastname,created_by_id=us.id,
                                  payment_date=datetime.now().strftime('%Y-%m-%d %H:%M'))
         
@@ -3205,6 +3205,7 @@ def create_orders_two():
 
         pos_payment = PosPayment(company_name=us.company_name,name=item_name,amount=total_price,
                                  quantity=item_quantity,attendant=us.firstname +" "+us.lastname,created_by_id=us.id,
+                                 method=request.json["method"],
                                  payment_date=datetime.now().strftime('%Y-%m-%d %H:%M'))
         
 
