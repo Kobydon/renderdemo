@@ -331,6 +331,8 @@ class HeldCart(db.Model):
     company_name = db.Column(db.String(500))
     status = db.Column(db.String(500))
     waiter = db.Column(db.String(500))
+    paid_status= db.Column(db.String(500))
+    onetime =db.Column(db.String(200))
 
 
 class Payment(db.Model):
@@ -366,6 +368,7 @@ class PosPayment(db.Model):
     payment_date = db.Column(db.String(500))  # Changed to DateTime
     attendant= db.Column(db.String(100)) 
     quantity= db.Column(db.String(100)) 
+    method= db.Column(db.String(100)) 
     created_by_id = db.Column(db.Integer, db.ForeignKey('user.id'))
 
 
@@ -553,7 +556,7 @@ class Iteman(db.Model):
     price = db.Column(db.String(400))
     unit = db.Column(db.String(400))
     voided = db.Column(db.String(400))
-  
+    is_vip = db.Column(db.String(400))
     quantity= db.Column(db.String(500))
     company_name= db.Column(db.String(500))  
 
