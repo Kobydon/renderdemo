@@ -12,6 +12,10 @@ from sqlalchemy import or_,desc,and_
 from datetime import datetime
 from datetime import date
 from flask import session
+from flask import jsonify, request
+import json
+from flask_praetorian import auth_required, current_user
+
 
 from collections import Counter
 
@@ -53,7 +57,7 @@ class Refund_Schema(ma.Schema):
         
 class PaySchema(ma.Schema):
     class Meta:
-        fields=("id","name","amount","food","name","balance","method","children","adult","wifi_code","payment","checkin_date","checkout_date","room_type","discount","status","payment_date","guest_id","booking_id","session","code","attendant")
+        fields=("id","name","amount","food","name","balance","method","children","adult","wifi_code","payment","checkin_date","checkout_date","room_type","discount","status","payment_date","guest_id","booking_id","session","code","attendant","cashier")
 
 class ReserveSchema(ma.Schema):
     class Meta:
@@ -3053,7 +3057,11 @@ import json
 def create_orders():
     us = User.query.filter_by(id=flask_praetorian.current_user().id).first()
     data = request.json
-    
+    cash=""
+    cashier = User.query.filter_by(username=data['cashier'],roles="cashier").first()
+    if cashier:
+        cash= cashier.firstname +" "+ cashier.lastname
+
 
     print("Incoming data:", data)  # ✅ Debug incoming request
 
@@ -3108,7 +3116,7 @@ def create_orders():
         )
 
         pos_payment = PosPayment(company_name=us.company_name,name=item_name,amount=total_price,  method = request.json["method"],
-                                 quantity=item_quantity,attendant=us.firstname +" "+us.lastname,created_by_id=us.id,
+                                 quantity=item_quantity,attendant=us.firstname +" "+us.lastname,created_by_id=us.id,cashier=cash,
                                  payment_date=datetime.now().strftime('%Y-%m-%d %H:%M'))
         
 
@@ -3259,17 +3267,19 @@ def update_order_status(order_id):
     db.session.commit()
 
     return jsonify({"message": f"Order {order_id} updated to {new_status}"}), 200
+
+
 @guest.route('/hold_order', methods=['POST'])
-@flask_praetorian.auth_required
+@auth_required
 def hold_order():
-    user = flask_praetorian.current_user()
-    data = request.json
+    user = current_user()
+    data = request.get_json()
 
-    # Validate request body
+    # Validate required fields
     if not data or 'cartItems' not in data or 'total' not in data:
-        return jsonify({"error": "Invalid request"}), 400
+        return jsonify({"error": "Invalid request. 'cartItems' and 'total' are required."}), 400
 
-    hold_id = data.get('id', None)  # Get hold ID safely
+    hold_id = data.get('id')
 
     # Ensure hold_id is a valid integer or None
     if isinstance(hold_id, str) and hold_id.strip() == "":
@@ -3281,9 +3291,8 @@ def hold_order():
             return jsonify({"error": "Invalid hold ID"}), 400
 
     try:
-        # Query for an existing held order
-        existing_hold_query = HeldCart.query.filter_by(user_id=user.id, status="Pending")
-        
+        # Query for an existing pending held order for the user
+        existing_hold_query = HeldCart.query.filter_by(id=hold_id, status="Pending")
         if hold_id is not None:
             existing_hold_query = existing_hold_query.filter(HeldCart.id == hold_id)
 
@@ -3291,30 +3300,39 @@ def hold_order():
 
         if existing_hold:
             # Update existing held order
-            existing_items = json.loads(existing_hold.items)
+            try:
+                existing_items = json.loads(existing_hold.items)
+            except json.JSONDecodeError:
+                existing_items = []  # If parsing fails, reset to an empty list
+
             new_items = data['cartItems']
-            item_dict = {item['id']: item for item in existing_items}
+            item_dict = {item['id']: item for item in existing_items}  # Convert existing items to a dictionary
 
             for new_item in new_items:
-                new_item_id = new_item['id']
-                new_item_qty = int(new_item['qty'])
+                try:
+                    new_item_id = int(new_item['id'])
+                    new_item_qty = int(new_item['qty'])
+                except (ValueError, TypeError):
+                    return jsonify({"error": f"Invalid item ID or quantity: {new_item}"}), 400
 
                 if new_item_id in item_dict:
-                    item_dict[new_item_id]['qty'] = new_item_qty
+                    item_dict[new_item_id]['qty'] = new_item_qty  # Update quantity
                 else:
                     new_item['qty'] = new_item_qty
-                    item_dict[new_item_id] = new_item
+                    item_dict[new_item_id] = new_item  # Add new item
 
             existing_hold.items = json.dumps(list(item_dict.values()))
             existing_hold.total = float(data['total'])
         else:
             # Create a new held order
-            for item in data['cartItems']:
-                item['qty'] = int(item['qty'])
+            try:
+                cart_items = [{"id": int(item["id"]), "qty": int(item["qty"]),"name": item["name"], "price": item["price"],"family":item["family"]} for item in data["cartItems"]]
+            except (ValueError, TypeError, KeyError):
+                return jsonify({"error": "Invalid cart items format"}), 400
 
             existing_hold = HeldCart(
                 user_id=user.id,
-                items=json.dumps(data['cartItems']),
+                items=json.dumps(cart_items),
                 total=float(data['total']),
                 company_name=user.company_name,
                 status="Pending",
@@ -3328,8 +3346,9 @@ def hold_order():
         return jsonify({"message": "Order held successfully", "id": existing_hold.id}), 201
 
     except Exception as e:
-        db.session.rollback()
+        db.session.rollback()  # Rollback on error
         return jsonify({"error": "An error occurred while holding the order", "details": str(e)}), 500
+
 
 
 
@@ -3339,31 +3358,46 @@ def get_held_orders():
     user_id = flask_praetorian.current_user().id
     held_orders = HeldCart.query.filter_by(user_id=user_id,paid_status="Pending").all()
     return jsonify(orders_schema.dump(held_orders))
+from flask import jsonify, request
+import json
+from flask_praetorian import auth_required, current_user
+
 
 @guest.route('/get_helding_orders', methods=['GET'])
 @flask_praetorian.auth_required
 def get_helding_orders():
     user = flask_praetorian.current_user()
     us = User.query.filter_by(id=user.id).first()
-    
+
+    if not us:
+        return jsonify({"error": "User not found"}), 404
+
     held_orders = HeldCart.query.filter_by(status="Pending", company_name=us.company_name).all()
     orders_list = []
 
     for order in held_orders:
-        items = json.loads(order.items)  # Convert JSON string to list
-        filtered_items = [item for item in items if item.get("family") == "food"]  # Filter items by family
-        
-        if filtered_items:  # Only include orders that have food items
-            orders_list.append({
-                "id": order.id,
-                "items": filtered_items,
-                "total": order.total,
-                "waiter": order.waiter,
-                "company_name": order.company_name,
-                "status": order.status
-            })
+        try:
+            items = json.loads(order.items)  # Convert JSON string to list
+            print(f"Order {order.id} items:", items)  # Debugging
 
-    return jsonify(orders_list)
+            filtered_items = [item for item in items if item.get("family") == "food"]  # Filter items by "drink"
+            print(f"Filtered items for order {order.id}:", filtered_items)  # Debugging
+
+            if filtered_items:  # Only include orders that have drink items
+                orders_list.append({
+                    "id": order.id,
+                    "items": filtered_items,
+                    "total": order.total,
+                    "waiter": order.waiter,
+                    "company_name": order.company_name,
+                    "status": order.status
+                })
+
+        except (json.JSONDecodeError, TypeError) as e:
+            print(f"Error decoding JSON for order {order.id}: {e}")  # Debugging
+
+    return jsonify(orders_list), 200
+
 
 
 @guest.route('/get_helding_orders_drinks', methods=['GET'])
@@ -3371,25 +3405,36 @@ def get_helding_orders():
 def get_helding_orders_drinks():
     user = flask_praetorian.current_user()
     us = User.query.filter_by(id=user.id).first()
-    
+
+    if not us:
+        return jsonify({"error": "User not found"}), 404
+
     held_orders = HeldCart.query.filter_by(status="Pending", company_name=us.company_name).all()
     orders_list = []
 
     for order in held_orders:
-        items = json.loads(order.items)  # Convert JSON string to list
-        filtered_items = [item for item in items if item.get("family") == "drink"]  # Filter items by family
-        
-        if filtered_items:  # Only include orders that have drink items
-            orders_list.append({
-                "id": order.id,
-                "items": filtered_items,
-                "total": order.total,
-                "waiter": order.waiter,
-                "company_name": order.company_name,
-                "status": order.status
-            })
+        try:
+            items = json.loads(order.items)  # Convert JSON string to list
+            print(f"Order {order.id} items:", items)  # Debugging
 
-    return jsonify(orders_list)
+            filtered_items = [item for item in items if item.get("family") == "drink"]  # Filter items by "drink"
+            print(f"Filtered items for order {order.id}:", filtered_items)  # Debugging
+
+            if filtered_items:  # Only include orders that have drink items
+                orders_list.append({
+                    "id": order.id,
+                    "items": filtered_items,
+                    "total": order.total,
+                    "waiter": order.waiter,
+                    "company_name": order.company_name,
+                    "status": order.status
+                })
+
+        except (json.JSONDecodeError, TypeError) as e:
+            print(f"Error decoding JSON for order {order.id}: {e}")  # Debugging
+
+    return jsonify(orders_list), 200
+
 
 
 

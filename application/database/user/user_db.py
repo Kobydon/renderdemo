@@ -369,6 +369,7 @@ class PosPayment(db.Model):
     attendant= db.Column(db.String(100)) 
     quantity= db.Column(db.String(100)) 
     method= db.Column(db.String(100)) 
+    cashier= db.Column(db.String(100)) 
     created_by_id = db.Column(db.Integer, db.ForeignKey('user.id'))
 
 
