@@ -539,6 +539,34 @@ def search_room_date():
         result = room_schema.dump(room)
         return jsonify(result)
     
+
+
+
+@room.route("/search_room_dates_two", methods=["POST"])
+@flask_praetorian.auth_required
+def search_room_dates_two():
+    current_user = flask_praetorian.current_user()
+    us = User.query.filter_by(id=current_user.id).first()
+
+    date = request.json.get("date")
+    datetwo = request.json.get("datetwo")
+
+    if not date or not datetwo:
+        return jsonify({"error": "Both 'date' and 'datetwo' must be provided"}), 400
+
+    try:
+        room_query = Rooms.query.filter(
+            func.date(Rooms.date_booked).between(date, datetwo),
+            Rooms.company_name == us.company_name
+        ).order_by(Rooms.date_booked.desc())
+
+        result = room_schema.dump(room_query)
+        return jsonify(result), 200
+
+    except Exception as e:
+        print(f"Error occurred: {e}")
+        return jsonify({"error": "An error occurred while fetching data"}), 500
+
    
 @room.route("/search_yesterday_date",methods=["POST"])
 @flask_praetorian.auth_required

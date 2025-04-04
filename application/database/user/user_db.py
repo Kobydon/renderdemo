@@ -325,7 +325,7 @@ class OrderItem(db.Model):
 class HeldCart(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
-    items = db.Column(db.String(500))  # JSON string of cart items
+    items = db.Column(db.String(1000))  # JSON string of cart items
     total = db.Column(db.Float, nullable=False)
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
     company_name = db.Column(db.String(500))
@@ -333,7 +333,10 @@ class HeldCart(db.Model):
     waiter = db.Column(db.String(500))
     paid_status= db.Column(db.String(500))
     onetime =db.Column(db.String(200))
-
+    contain_food =db.Column(db.String(200))
+    contain_drink =db.Column(db.String(200))
+    food_confirm =db.Column(db.String(200))
+    drink_confirm =db.Column(db.String(200))
 
 class Payment(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -508,6 +511,7 @@ class Income(db.Model):
     date = db.Column(db.Text)
     note = db.Column(db.String(400))
     company_name= db.Column(db.String(500))  
+    cashier= db.Column(db.String(300))  
     created_date = db.Column(db.String(400))
     created_by_id = db.Column(db.Integer, db.ForeignKey('user.id'))
 
