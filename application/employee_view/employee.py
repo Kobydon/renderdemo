@@ -5,7 +5,7 @@ from  application.extensions.extensions import *
 from  application.settings.settings import *
 from  application.settings.setup import app
 # from application.forms import LoginForm
-from application.database.user.user_db import db,Guests,User,Booking,Rooms,Payment,Employee,Attendance,Todo,Item
+from application.database.user.user_db import db,Guests,User,Booking,Rooms,Payment,Employee,Attendance,Todo,Item,Session
 from sqlalchemy import or_,desc,and_
 from datetime import datetime
 from datetime import date
@@ -168,6 +168,7 @@ def get_attendance_list():
 @flask_praetorian.auth_required
 def add_attendance():
        us = User.query.filter_by(id = flask_praetorian.current_user().id).first()
+       session = Session.query.filter_by(status="current").first()
        attd = Attendance(
         name=request.json["name"],
         position=request.json["position"],
@@ -176,7 +177,7 @@ def add_attendance():
         time_in = datetime.now().strftime('%H:%M'),
         time_out = "-",
     
-        created_by_id = flask_praetorian.current_user().id,company_name=us.company_name
+        created_by_id = flask_praetorian.current_user().id,company_name=us.company_name,session=session.open_date
            
 
        )

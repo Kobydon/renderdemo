@@ -300,6 +300,7 @@ class Order(db.Model):
     order_status = db.Column(db.String(500), default="Pending")  # Pending, Confirmed, Completed
     waiter = db.Column(db.String(500))
     status = db.Column(db.String(20), default="paid")  # Status: paid, pending
+    session  =db.Column(db.String(200))
 
     # Relationship to OrderItem
     order_items = db.relationship('OrderItem', backref='order', lazy=True, cascade="all, delete-orphan")
@@ -318,6 +319,7 @@ class OrderItem(db.Model):
     company_name = db.Column(db.String(400))
     created_date = db.Column(db.String(400))
     family =db.Column(db.String(500))
+    session  =db.Column(db.String(200))
     item = db.relationship('Iteman', backref=db.backref('order_items', lazy=True))
 
 
@@ -337,6 +339,7 @@ class HeldCart(db.Model):
     contain_drink =db.Column(db.String(200))
     food_confirm =db.Column(db.String(200))
     drink_confirm =db.Column(db.String(200))
+    session  =db.Column(db.String(200))
 
 class Payment(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -374,6 +377,7 @@ class PosPayment(db.Model):
     method= db.Column(db.String(100)) 
     cashier= db.Column(db.String(100)) 
     created_by_id = db.Column(db.Integer, db.ForeignKey('user.id'))
+    session=db.Column(db.String(200))
 
 
 
@@ -485,6 +489,7 @@ class Expenses(db.Model):
     user = db.Column(db.String(400))
     created_date = db.Column(db.String(400))
     company_name= db.Column(db.String(500))  
+    session = db.Column(db.String(200))
     created_by_id = db.Column(db.Integer, db.ForeignKey('user.id'))
 
     def __repr__(self):
@@ -514,7 +519,8 @@ class Income(db.Model):
     cashier= db.Column(db.String(300))  
     created_date = db.Column(db.String(400))
     created_by_id = db.Column(db.Integer, db.ForeignKey('user.id'))
-
+    session  =db.Column(db.String(200))
+    method=db.Column(db.String(200))
     def __repr__(self):
         return f"<Income(id={self.id}, name={self.name}, amount={self.amount}, date={self.date})>"
     
@@ -527,6 +533,7 @@ class FoodChef(db.Model):
     company_name= db.Column(db.String(500))  
     created_date = db.Column(db.String(400))
     created_by_id = db.Column(db.String(400))
+    session = db.Column(db.String(200))
 
 class Budget(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -594,7 +601,8 @@ class Stock(db.Model):
     store = db.Column(db.Text)
     quantity = db.Column(db.Text)
     company_name= db.Column(db.String(500))  
-    created_date = db.Column(db.String(400))\
+    created_date = db.Column(db.String(400))
+    session = db.Column(db.String(100))
 
     def __repr__(self):
         return f"<Stock(id={self.id}, name={self.name}, store={self.store}, quantity={self.quantity})>"
@@ -608,6 +616,7 @@ class StockUsage(db.Model):
     quantity = db.Column(db.Text)
     company_name= db.Column(db.String(500))  
     created_date = db.Column(db.String(400))
+    session = db.Column(db.String(100))
 
 
 
@@ -621,6 +630,7 @@ class returnRequest(db.Model):
     reason = db.Column(db.Text)
     status = db.Column(db.String(400))
     company_name= db.Column(db.String(500))  
+    
     created_date = db.Column(db.String(400))
 
     def __repr__(self):

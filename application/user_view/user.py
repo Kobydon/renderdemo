@@ -170,6 +170,14 @@ def get_users_waiter():
     return jsonify(results)
 
 
+@user.route("/get_users_cashier",methods=['GET'])
+@flask_praetorian.auth_required
+def get_users_cashier():
+    us = User.query.filter_by(id = flask_praetorian.current_user().id).first()
+    info = db.session.query(User).filter_by(roles="cashier")
+    results =user_schema.dump(info)
+    return jsonify(results)
+
 @user.route("/delete_user/<id>",methods=['DELETE'])
 @flask_praetorian.auth_required
 def delete_user(id):
