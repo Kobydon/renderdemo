@@ -22,6 +22,8 @@ class User(db.Model):
     lastname = db.Column(db.String(255))
     city = db.Column(db.String(300))  # Changed to 300 if needed
     country = db.Column(db.String(255))
+    last_login = db.Column(db.String(255))
+    last_logout = db.Column(db.String(255))
     about = db.Column(db.Text)  # Changed to Text for larger content
     phone = db.Column(db.String(20))  # Adjusted for phone length
     email = db.Column(db.String(255), unique=True)
@@ -319,6 +321,7 @@ class OrderItem(db.Model):
     company_name = db.Column(db.String(400))
     created_date = db.Column(db.String(400))
     family =db.Column(db.String(500))
+    table = db.Column(db.String(100))
     session  =db.Column(db.String(200))
     item = db.relationship('Iteman', backref=db.backref('order_items', lazy=True))
 
@@ -333,12 +336,15 @@ class HeldCart(db.Model):
     company_name = db.Column(db.String(500))
     status = db.Column(db.String(500))
     waiter = db.Column(db.String(500))
+    table = db.Column(db.String(100))
     paid_status= db.Column(db.String(500))
     onetime =db.Column(db.String(200))
     contain_food =db.Column(db.String(200))
     contain_drink =db.Column(db.String(200))
     food_confirm =db.Column(db.String(200))
     drink_confirm =db.Column(db.String(200))
+    food_confirm_at= db.Column(db.String(200))
+    drink_confirm_at =db.Column(db.String(200))
     session  =db.Column(db.String(200))
 
 class Payment(db.Model):
@@ -517,6 +523,29 @@ class Income(db.Model):
     note = db.Column(db.String(400))
     company_name= db.Column(db.String(500))  
     cashier= db.Column(db.String(300))  
+    created_date = db.Column(db.String(400))
+    created_by_id = db.Column(db.Integer, db.ForeignKey('user.id'))
+    session  =db.Column(db.String(200))
+    method=db.Column(db.String(200))
+    def __repr__(self):
+        return f"<Income(id={self.id}, name={self.name}, amount={self.amount}, date={self.date})>"
+    
+
+
+class EventPayment(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.Text)
+    amount = db.Column(db.Text)
+    date = db.Column(db.Text)
+    note = db.Column(db.String(400))
+    balance = db.Column(db.String(400))
+    customer_name = db.Column(db.Text)
+    customer_phone = db.Column(db.String(400))
+    start_time = db.Column(db.Text)
+    end_time = db.Column(db.String(400))
+    company_name= db.Column(db.String(500))  
+    received_by= db.Column(db.String(300))  
+    status= db.Column(db.String(300))  
     created_date = db.Column(db.String(400))
     created_by_id = db.Column(db.Integer, db.ForeignKey('user.id'))
     session  =db.Column(db.String(200))

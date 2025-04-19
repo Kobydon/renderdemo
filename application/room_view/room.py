@@ -277,6 +277,16 @@ def get_by_type(type):
     return jsonify(results)
 
 
+@room.route("/get_by_type_two/<type>",methods=["GET"])
+@flask_praetorian.auth_required
+def get_by_type_two(type):
+    rooms = db.session.query(RoomType).filter_by(room_type =type).all()
+    results = room_schema.dump(rooms)
+
+    return jsonify(results)
+
+
+
 
 
 @room.route("/delete_room_type/<id>",methods=["DELETE"])
@@ -385,14 +395,14 @@ def update_booking():
     room.occupied_by = name
     room.occupied_state =  "occupied"
     
-    payie = Payment.query.filter_by(name=name).first()
-    base_p = RoomType.query.filter_by(room_type=payie.room_type).first()
-    to_pay = int(base_p.base_price) * int(day)
-    if int(payie.amount) >  to_pay:
-        payie.balance = int(payie.amount) - to_pay
+    # payie = Payment.query.filter_by(name=name).first()
+    # base_p = RoomType.query.filter_by(room_type=payie.room_type).first()
+    # to_pay = int(base_p.base_price) * int(day)
+    # if int(payie.amount) >  to_pay:
+    #     payie.balance = int(payie.amount) - to_pay
         
-    else:
-        payie.balance = to_pay - int(payie.amount)
+    # else:
+    #     payie.balance = to_pay - int(payie.amount)
  
     db.session.commit()
     db.session.close()

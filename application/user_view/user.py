@@ -125,21 +125,41 @@ def register():
 @user.route('/get_signin_client',methods=['GET','POST'] )
 #@login_required
 
+
 def get_signin_client(): 
+    req = request.get_json(force=True)
+    username = req.get("username", None)
+    password = req.get("password", None)
     
-        req = request.get_json(force=True)
-        username = req.get("username", None)
-        password = req.get("password", None)
-        # owner= User.query.filter_by(username=username).first()
-       
-        
-        user = guard.authenticate(username,password)
-        
-        ret = {"id_token": guard.encode_jwt_token(user)}
+    user = guard.authenticate(username, password)
+    
+    # Update last_login timestamp
+    user.last_login = datetime.utcnow()
+    db.session.commit()
+    
+    ret = {"id_token": guard.encode_jwt_token(user)}
+    
+    return (ret, 200)
 
 
-     
-        return ( ret,200)
+
+
+@user.route("/update_logout", methods=['PUT'])
+@flask_praetorian.auth_required
+def update_logout():
+    user = flask_praetorian.current_user()
+    
+    # Update the last logout time
+    user.last_logout = datetime.utcnow()  # Use UTC for consistency
+    
+    # Commit the changes
+    db.session.commit()
+    
+    # Optional: no need to call db.session.close manually here
+    return jsonify({"message": "Logout time updated successfully"}), 200
+
+
+
 
 
 @user.route("/get_info",methods=['GET'])
