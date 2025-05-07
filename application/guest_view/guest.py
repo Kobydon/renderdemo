@@ -7,7 +7,8 @@ from  application.settings.setup import app
 from sqlalchemy import Float
 import json
 # from application.forms import LoginForm
-from application.database.user.user_db import db,Guests,User,Booking,Rooms,Payment,Reservation,Refund,Budget,Income,Expenses,Attendance,Iteman,Family,Category,Unit,Stock,Store,StockTransfer,Department,Vendor,PurchaseOrder,PurchaseRequest,ReceivedItem,returnRequest,GOP,RoomType,Session,Wifi,Order,StockUsage,PosPayment,OrderItem,HeldCart,FoodChef,EventPayment
+from application.database.user.user_db import db,Guests,User,Booking,Rooms,Payment,Reservation,Refund,Budget,Income,Expenses,Attendance,Iteman,Family,Category,Unit,Stock,Store,StockTransfer,Department,Vendor,PurchaseOrder,PurchaseRequest,ReceivedItem,returnRequest,GOP,RoomType,Session,Wifi,Order,StockUsage,PosPayment,OrderItem,HeldCart,FoodChef,EventPayment,StockTransferOut
+
 from sqlalchemy import or_,desc,and_
 from datetime import datetime
 from datetime import date
@@ -492,8 +493,8 @@ def add_payment():
     booking_id = request.json.get("booking_id")
     days = request.json["days"]  # Use .get() to avoid KeyError
     
-    if not days:
-        return jsonify({"error": "Missing 'days' in request"}), 400  # Return error if days is missing
+    # if not days:
+    #     return jsonify({"error": "Missing 'days' in request"}), 400  # Return error if days is missing
 
     print("Days:", days)  # Confirm 'days' value is received
 
@@ -1195,6 +1196,21 @@ def search_method_dates():
     result = pay_schema.dump(lst)
     return jsonify(result)
 
+@guest.route("/search_department_dates",methods=["POST"])
+@flask_praetorian.auth_required
+def search_department_dates():
+    us = User.query.filter_by(id = flask_praetorian.current_user().id).first()
+    date = request.json["date"]
+    category =request.json["waiter"]
+    
+    # print(date)
+    pay = PosPayment.query.filter(PosPayment.session.contains(date),PosPayment.category.contains(category),
+                                  )
+    lst = pay.order_by(desc(PosPayment.payment_date))
+    result = pay_schema.dump(lst)
+    return jsonify(result)
+
+
 
 
 
@@ -1278,6 +1294,34 @@ def search_method_dates_two():
 
 
 
+
+
+@guest.route("/search_department_dates_two", methods=["POST"])
+@flask_praetorian.auth_required
+def search_department_dates_two():
+    us = User.query.filter_by(id=flask_praetorian.current_user().id).first()
+    date = request.json["date"]
+    datetwo = request.json["datetwo"]
+    category = request.json["waiter"]
+
+    try:
+        # Convert to full datetime range
+        start_date = datetime.combine(datetime.strptime(date, "%Y-%m-%d"), time.min)
+        end_date = datetime.combine(datetime.strptime(datetwo, "%Y-%m-%d"), time.max)
+
+        pay = PosPayment.query.filter(
+            PosPayment.session >= start_date,
+            PosPayment.session <= end_date,
+            PosPayment.company_name.contains(us.company_name),
+            PosPayment.category.contains(category)
+        ).order_by(desc(PosPayment.payment_date))
+
+        result = pay_schema.dump(pay)
+        return jsonify(result), 200
+
+    except Exception as e:
+        print(f"Error occurred: {e}")
+        return jsonify({"error": "An error occurred while fetching data"}), 500
 
 from datetime import datetime, time
 
@@ -3117,6 +3161,48 @@ def add_stock_transfer():
 
 
 
+
+
+
+
+
+@guest.route("/add_stock_transfer_outside",methods=['POST'])
+@flask_praetorian.auth_required
+def add_stock_transfer_outside():
+    user = User.query.filter_by(id = flask_praetorian.current_user().id).first()
+    session = Session.query.filter_by(status="current").first()
+    name= request.json["name"]
+    department =request.json["department"]
+    quantity= request.json["quantity"]
+    
+    
+    # usr = user.firstname +" " + user.lastname
+    created_date=datetime.now().strftime('%Y-%m-%d %H:%M')
+    inc = StockTransferOut(name=name,quantity=quantity,department=department,
+                   created_date=created_date,company_name=user.company_name)
+    
+    stu = StockUsage(name=name,operation="Transfer",store=department,quantity=quantity,created_date=created_date,company_name=user.company_name,
+                     session=session.open_date
+                      )
+    
+    store = Stock.query.filter_by(name=name).first()
+    store.quantity = int(store.quantity) - int(quantity)
+
+    item =Iteman.query.filter_by(name=name).first()
+    item.quantity = int(item.quantity) + int(quantity)
+  
+    db.session.add(inc)
+    db.session.add(stu)
+ 
+    db.session.commit()
+    db.session.close()
+    resp = jsonify("success")
+    resp.status_code =200
+    return resp
+
+
+
+
 @guest.route("/get_stock_transfer",methods=['GET'])
 @flask_praetorian.auth_required
 def get_stock_transfer():
@@ -3126,6 +3212,13 @@ def get_stock_transfer():
     return jsonify(result)
 
 
+@guest.route("/get_stock_transfer_outside",methods=['GET'])
+@flask_praetorian.auth_required
+def get_stock_transfer_outside():
+    user = User.query.filter_by(id = flask_praetorian.current_user().id).first()
+    inc = StockTransferOut.query.filter_by(company_name=user.company_name)
+    result = guest_schema.dump(inc)
+    return jsonify(result)
 
 
 @guest.route("/update_stock_transfer",methods=['PUT'])
@@ -3133,6 +3226,23 @@ def get_stock_transfer():
 def update_stock_transfer():
     id = request.json["id"]
     sub_data = StockTransfer.query.filter_by(id=id).first()
+    sub_data.name = request.json["name"]
+    sub_data.description =request.json["description"]
+    sub_data.quantity =request.json["quantity"]
+
+    db.session.commit()
+    db.session.close()
+    resp = jsonify("success")
+    resp.status_code =201
+    return resp
+
+
+
+@guest.route("/update_stock_transfer_outside",methods=['PUT'])
+@flask_praetorian.auth_required
+def update_stock_transfer_outside():
+    id = request.json["id"]
+    sub_data = StockTransferOut.query.filter_by(id=id).first()
     sub_data.name = request.json["name"]
     sub_data.description =request.json["description"]
     sub_data.quantity =request.json["quantity"]
@@ -3829,12 +3939,12 @@ def create_orders():
 
         pos_payment = PosPayment(company_name=us.company_name,name=item_name,amount=total_price,  method = request.json["method"],
                                  quantity=item_quantity,attendant=us.firstname +" "+us.lastname,created_by_id=us.id,cashier=cashier.firstname+" "+cashier.lastname,
-                                 payment_date=datetime.now().strftime('%Y-%m-%d %H:%M'),session=session.open_date)
+                                 payment_date=datetime.now().strftime('%Y-%m-%d %H:%M'),session=session.open_date, category = cart_item.get('family'))
         
 
         income = Income(name=item_name + "-"+ us.firstname +" "+us.lastname,amount =total_price,date =datetime.now().strftime('%Y-%m-%d %H:%M'),
                         note="Pos Payment",company_name=us.company_name,created_date=datetime.now().strftime('%Y-%m-%d %H:%M'),
-                        created_by_id=us.id,cashier=cashier.firstname+" "+cashier.lastname,session=session.open_date,  method=request.json["method"])
+                        created_by_id=us.id,cashier=cashier.firstname+" "+cashier.lastname,session=session.open_date,  method=request.json["method"], category = cart_item.get('category'))
 
     
         held_cart = HeldCart.query.filter_by(id=request.json["id"]).first()
@@ -3938,7 +4048,7 @@ def create_orders_all():
             created_by_id=us.id,
             cashier=cashier.firstname + " " + cashier.lastname,
             payment_date=datetime.now().strftime('%Y-%m-%d %H:%M'),
-            session=session.open_date
+            session=session.open_date, category = cart_item.get('family')
         )
 
         income = Income(
@@ -3951,7 +4061,7 @@ def create_orders_all():
             created_by_id=us.id,
             cashier=cashier.firstname + " " + cashier.lastname,
             session=session.open_date,
-            method=request.json["method"]
+            method=request.json["method"], category = cart_item.get('category')
         )
 
         # Query all held carts for the current user and update their paid_status

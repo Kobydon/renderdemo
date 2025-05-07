@@ -384,7 +384,7 @@ class PosPayment(db.Model):
     cashier= db.Column(db.String(100)) 
     created_by_id = db.Column(db.Integer, db.ForeignKey('user.id'))
     session=db.Column(db.String(200))
-
+    category = db.Column(db.String(200))
 
 
 class Item(db.Model):
@@ -527,6 +527,7 @@ class Income(db.Model):
     created_by_id = db.Column(db.Integer, db.ForeignKey('user.id'))
     session  =db.Column(db.String(200))
     method=db.Column(db.String(200))
+    category = db.Column(db.String(200))
     def __repr__(self):
         return f"<Income(id={self.id}, name={self.name}, amount={self.amount}, date={self.date})>"
     
@@ -686,6 +687,18 @@ class StockTransfer(db.Model):
 
     def __repr__(self):
         return f"<StockTransfer(id={self.id}, name={self.name}, quantity={self.quantity})>"
+    
+
+class StockTransferOut(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.Text)
+    department = db.Column(db.Text)
+    company_name= db.Column(db.String(500))  
+    quantity = db.Column(db.Text)
+    created_date = db.Column(db.String(400))
+
+    def __repr__(self):
+        return f"<StockTransferOut(id={self.id}, name={self.name}, quantity={self.quantity})>"
 
 class Department(db.Model):
     id = db.Column(db.Integer, primary_key=True)

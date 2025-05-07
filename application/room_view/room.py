@@ -140,17 +140,17 @@ def update_room_type():
     id = request.json["id"]
     room = RoomType.query.filter_by(id=id).first()
     room.room_type= request.json["type"]
-    room.base_occupancy = request.json["base_occupancy"]
-    room.extral_bed_price=request.json["extral_bed_price"]
-    room.kids_occupancy = request.json["kids_occupancy"]
+    # room.base_occupancy = request.json["base_occupancy"]
+    # room.extral_bed_price=request.json["extral_bed_price"]
+    # room.kids_occupancy = request.json["kids_occupancy"]
 
     room.base_price=request.json["base_price"]
     room.amenities =request.json["amenities"]
-    room.description =request.json["description"]
+    # room.description =request.json["description"]
 
-    room.image_one =request.json["image_one"]
-    room.image_two =request.json["image_two"]
-    room.image_three = request.json["image_three"]
+    # room.image_one =request.json["image_one"]
+    # room.image_two =request.json["image_two"]
+    # room.image_three = request.json["image_three"]
 
     room.created_by_id = flask_praetorian.current_user().id
     
