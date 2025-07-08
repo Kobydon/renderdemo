@@ -330,7 +330,7 @@ class OrderItem(db.Model):
 class HeldCart(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
-    items = db.Column(db.String(1000))  # JSON string of cart items
+    items = db.Column(db.String(2000000))  # JSON string of cart items
     total = db.Column(db.Float, nullable=False)
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
     company_name = db.Column(db.String(500))
@@ -382,9 +382,11 @@ class PosPayment(db.Model):
     quantity= db.Column(db.String(100)) 
     method= db.Column(db.String(100)) 
     cashier= db.Column(db.String(100)) 
+    
     created_by_id = db.Column(db.Integer, db.ForeignKey('user.id'))
     session=db.Column(db.String(200))
     category = db.Column(db.String(200))
+    cat  =db.Column(db.String(200))
 
 
 class Item(db.Model):
@@ -521,11 +523,13 @@ class Income(db.Model):
     amount = db.Column(db.Text)
     date = db.Column(db.Text)
     note = db.Column(db.String(400))
+    attendant= db.Column(db.String(400))
     company_name= db.Column(db.String(500))  
     cashier= db.Column(db.String(300))  
     created_date = db.Column(db.String(400))
     created_by_id = db.Column(db.Integer, db.ForeignKey('user.id'))
     session  =db.Column(db.String(200))
+    cat  =db.Column(db.String(200))
     method=db.Column(db.String(200))
     category = db.Column(db.String(200))
     def __repr__(self):
@@ -747,6 +751,7 @@ class PurchaseRequest(db.Model):
     store = db.Column(db.String(400))
     approved_by = db.Column(db.Text)
     approved_date = db.Column(db.Text)
+    cart_id = db.Column(db.Integer, db.ForeignKey('cart.id'))
 
     def __repr__(self):
         return f"<PurchaseRequest(id={self.id}, item={self.item}, requested_by={self.requested_by}, status={self.status})>"
@@ -762,6 +767,18 @@ class PurchaseOrder(db.Model):
 
     def __repr__(self):
         return f"<PurchaseOrder(id={self.id}, item={self.item}, quantity={self.quantity})>"
+    
+
+class Cart(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    requested_by = db.Column(db.String(255))
+    company_name = db.Column(db.String(255))
+    created_date = db.Column(db.String(100))
+    status = db.Column(db.String(100), default='Pending')
+
+    # Relationship to link to PurchaseRequest
+    requests = db.relationship('PurchaseRequest', backref='cart', lazy=True)
+
 
     
 

@@ -4,10 +4,10 @@ from sqlalchemy.sql.functions import current_time
 from  application.extensions.extensions import *
 from  application.settings.settings import *
 from  application.settings.setup import app
-from sqlalchemy import Float
+
 import json
 # from application.forms import LoginForm
-from application.database.user.user_db import db,Guests,User,Booking,Rooms,Payment,Reservation,Refund,Budget,Income,Expenses,Attendance,Iteman,Family,Category,Unit,Stock,Store,StockTransfer,Department,Vendor,PurchaseOrder,PurchaseRequest,ReceivedItem,returnRequest,GOP,RoomType,Session,Wifi,Order,StockUsage,PosPayment,OrderItem,HeldCart,FoodChef,EventPayment,StockTransferOut
+from application.database.user.user_db import db,Guests,User,Booking,Rooms,Payment,Reservation,Refund,Budget,Income,Expenses,Attendance,Iteman,Family,Category,Unit,Stock,Store,StockTransfer,Department,Vendor,PurchaseOrder,PurchaseRequest,ReceivedItem,returnRequest,GOP,RoomType,Session,Wifi,Order,StockUsage,PosPayment,OrderItem,HeldCart,FoodChef,EventPayment,StockTransferOut,Cart
 
 from sqlalchemy import or_,desc,and_
 from datetime import datetime
@@ -39,7 +39,7 @@ orders_schema = OrderSchema(many=True)
         
 class Guest_schema(ma.Schema):
     class Meta:
-        fields=("id","first_name","last_name","operation","unit","category","family","open_by","department","price","address","has_checkout","checkout_date","arrival","city","country","id_type","id_number","id_upload","dob","gender","work","remark","phone",
+        fields=("id","first_name","last_name","cart_id","amount","operation","unit","category","family","open_by","department","price","address","has_checkout","checkout_date","arrival","city","country","id_type","id_number","id_upload","dob","gender","work","remark","phone",
                 "region","email","username","arrival_date","checkout_date","guest_id","note","amount","created_date","date","type","attendace","name","description","store","quantity","hod","requested_by","item","approved_by",
                 "total_cost","unit_price","store","status","Department","attendance","time_in","time_out","position","reason","voided","item_id","request_by","user","method",
                     "close_by","open_date","close_date","wifi_code","order_id","waiter","food","cashier","is_vip","balance","customer_name","customer_phone","received_by","start_time","end_time")
@@ -947,7 +947,7 @@ def search_held_order_dates():
 
     # Query HeldCart with filtering
     held_orders = HeldCart.query.filter(
-        HeldCart.session.contains(date),
+        HeldCart.session.contains(date),HeldCart.paid_status=="pending",
         HeldCart.company_name == user.company_name
     ).order_by(desc(HeldCart.created_at)).all()
 
@@ -1001,7 +1001,7 @@ def search_held_order_dates_two():
         held_orders = HeldCart.query.filter(
             HeldCart.session >= start_date,
             HeldCart.session <= end_date,
-            HeldCart.company_name == user.company_name
+            HeldCart.company_name == user.company_name,HeldCart.paid_status=="pending"
         ).order_by(desc(HeldCart.created_at)).all()
 
         # Deserialize 'items' field before returning JSON response
@@ -1224,10 +1224,10 @@ def search_cashier_dates():
     cashier =request.json["waiter"]
     
     # print(date)
-    pay = PosPayment.query.filter(PosPayment.session.contains(date),PosPayment.cashier.contains(cashier),
+    pay = Income.query.filter(Income.session.contains(date),Income.cashier.contains(cashier),
                                   )
-    lst = pay.order_by(desc(PosPayment.payment_date))
-    result = pay_schema.dump(lst)
+    lst = pay.order_by(desc(Income.date))
+    result = guest_schema.dump(lst)
     return jsonify(result)
 
 
@@ -1246,14 +1246,14 @@ def search_waiter_dates_two():
         start_date = datetime.combine(datetime.strptime(date, "%Y-%m-%d"), time.min)
         end_date = datetime.combine(datetime.strptime(datetwo, "%Y-%m-%d"), time.max)
 
-        pay = PosPayment.query.filter(
-            PosPayment.session >= start_date,
-            PosPayment.session <= end_date,
-            PosPayment.company_name.contains(us.company_name),
-            PosPayment.attendant.contains(waiter)
-        ).order_by(desc(PosPayment.payment_date))
+        pay = Income.query.filter(
+            Income.session >= start_date,
+            Income.session <= end_date,
+            Income.company_name.contains(us.company_name),
+            Income.attendant.contains(waiter)
+        ).order_by(desc(Income.date))
 
-        result = pay_schema.dump(pay)
+        result = guest_schema.dump(pay)
         return jsonify(result), 200
 
     except Exception as e:
@@ -1278,14 +1278,14 @@ def search_method_dates_two():
         start_date = datetime.combine(datetime.strptime(date, "%Y-%m-%d"), time.min)
         end_date = datetime.combine(datetime.strptime(datetwo, "%Y-%m-%d"), time.max)
 
-        pay = PosPayment.query.filter(
-            PosPayment.session >= start_date,
-            PosPayment.session <= end_date,
-            PosPayment.company_name.contains(us.company_name),
-            PosPayment.method.contains(method)
-        ).order_by(desc(PosPayment.payment_date))
+        pay = Income.query.filter(
+            Income.session >= start_date,
+            Income.session <= end_date,
+            Income.company_name.contains(us.company_name),
+            Income.method.contains(method)
+        ).order_by(desc(Income.date))
 
-        result = pay_schema.dump(pay)
+        result = guest_schema.dump(pay)
         return jsonify(result), 200
 
     except Exception as e:
@@ -1310,20 +1310,56 @@ def search_department_dates_two():
         end_date = datetime.combine(datetime.strptime(datetwo, "%Y-%m-%d"), time.max)
 
         pay = PosPayment.query.filter(
-            PosPayment.session >= start_date,
-            PosPayment.session <= end_date,
-            PosPayment.company_name.contains(us.company_name),
-            PosPayment.category.contains(category)
-        ).order_by(desc(PosPayment.payment_date))
+            Income.session >= start_date,
+            Income.session <= end_date,
+            Income.company_name.contains(us.company_name),
+            Income.category.contains(category)
+        ).order_by(desc(Income.date))
 
-        result = pay_schema.dump(pay)
+        result = guest_schema.dump(pay)
         return jsonify(result), 200
 
     except Exception as e:
         print(f"Error occurred: {e}")
         return jsonify({"error": "An error occurred while fetching data"}), 500
 
+
+
+
+
+
+
+@guest.route("/search_category_dates_two", methods=["POST"])
+@flask_praetorian.auth_required
+def search_category_dates_two():
+    us = User.query.filter_by(id=flask_praetorian.current_user().id).first()
+    date = request.json["date"]
+    datetwo = request.json["datetwo"]
+    category = request.json["waiter"]
+
+    try:
+        # Convert to full datetime range
+        start_date = datetime.combine(datetime.strptime(date, "%Y-%m-%d"), time.min)
+        end_date = datetime.combine(datetime.strptime(datetwo, "%Y-%m-%d"), time.max)
+
+        pay = Income.query.filter(
+            Income.session >= start_date,
+            Income.session <= end_date,
+            Income.company_name.contains(us.company_name),
+            Income.cat.contains(category)
+        ).order_by(desc(Income.date))
+
+        result = guest_schema.dump(pay)
+        return jsonify(result), 200
+
+    except Exception as e:
+        print(f"Error occurred: {e}")
+        return jsonify({"error": "An error occurred while fetching data"}), 500
+
+
+
 from datetime import datetime, time
+
 
 @guest.route("/search_cashier_dates_two", methods=["POST"])
 @flask_praetorian.auth_required
@@ -1339,12 +1375,12 @@ def search_cashier_dates_two():
         end_date = datetime.combine(datetime.strptime(datetwo, "%Y-%m-%d"), time.max)
 
         # Perform the query
-        pay = PosPayment.query.filter(
-            PosPayment.session >= start_date,
-            PosPayment.session <= end_date,
-            PosPayment.company_name.contains(us.company_name),
-            PosPayment.cashier.contains(cashier)
-        ).order_by(desc(PosPayment.payment_date))
+        pay = Income.query.filter(
+            Income.session >= start_date,
+            Income.session <= end_date,
+            Income.company_name.contains(us.company_name),
+            Income.cashier.contains(cashier)
+        ).order_by(desc(Income.date))
 
         result = pay_schema.dump(pay)
         return jsonify(result), 200
@@ -1372,13 +1408,13 @@ def search_payment_date_two():
         return jsonify({"error": "Date is required"}), 400
     
     # Query to find payments with balance > 0 and payment date matching either 'date' or 'date_two'
-    payments = PosPayment.query.filter(
+    payments = Payment.query.filter(
         or_(
             Payment.session.contains(date),
             Payment.session.contains(date_two)
         )
     ).filter(
-        Payment.balance.cast(Float) > 0  # Ensure balance is greater than 0, casting to Float for proper comparison
+        Payment.balance.cast(int) > 0  # Ensure balance is greater than 0, casting to int for proper comparison
     ).filter(
         Payment.session != None  # Make sure payment_date is not None
     ).filter(Payment.company_name.conatins(us.company_name)).order_by(Payment.session.desc())  # Order by payment date in descending order
@@ -1404,7 +1440,7 @@ def search_payment_date():
     # Query to find payments with balance greater than 0, and payment date containing the given date
     payments = Payment.query.filter(
         Payment.session.contains(date),Payment.company_name.contains(us.company_name),
-        Payment.balance.cast(Float) > 0  # Cast balance to a float for comparison
+        Payment.balance.cast(int) > 0  # Cast balance to a int for comparison
     ).order_by(Payment.session.desc())
 
     # Serialize the payments data
@@ -1430,7 +1466,7 @@ def search_payment_held_date():
     # Query to find payments with balance greater than 0, and payment date containing the given date
     payments = HeldCart.query.filter(
         HeldCart.created_at.contains(date),HeldCart.company_name.contains(us.company_name),
-        HeldCart.total.cast(Float) > 0 ,HeldCart.status=="Pending"
+        HeldCart.total.cast(int) > 0 ,HeldCart.status=="Pending"
     ).order_by(Payment.session.desc())
 
     # Serialize the payments data
@@ -1564,7 +1600,7 @@ def update_payment_checkout():
     if not payments:
         return jsonify({"error": "No successful payments found for this guest"}), 404
     
-    total_balance = sum(float(payment.balance) for payment in payments if payment.balance and payment.balance.replace('.', '', 1).isdigit())
+    total_balance = sum(int(payment.balance) for payment in payments if payment.balance and payment.balance.replace('.', '', 1).isdigit())
     if total_balance<=0:
         book.has_checkout = True
         room.occupied_by = "none"
@@ -1613,7 +1649,7 @@ def checkout(id):
 
     # Calculate current balance
     total_balance = sum(
-        float(payment.balance)
+        int(payment.balance)
         for payment in payments
         if payment.balance and payment.balance.replace('.', '', 1).isdigit()
     )
@@ -1634,7 +1670,7 @@ def checkout(id):
     # Charge extra days ONLY IF guest already owes money
     if total_balance > 0 and current_time > departure_date:
         extra_days = (current_time - departure_date).days
-        extra_charge = extra_days * float(room_type.base_price)
+        extra_charge = extra_days * int(room_type.base_price)
 
         total_balance += extra_charge
         print(f"Guest stayed {extra_days} extra days. Extra charge: {extra_charge}")
@@ -2246,7 +2282,7 @@ def add_item():
     
     # usr = user.firstname +" " + user.lastname
     created_date=datetime.now().strftime('%Y-%m-%d %H:%M')
-    inc = Iteman(name=name,description=description,price=price,quantity="0",is_vip="yes",
+    inc = Iteman(name=name,description=description,price=price,quantity="0",is_vip="no",
                    created_date=created_date,family=family,category=category,unit=unit,company_name=us.company_name)
   
     db.session.add(inc)
@@ -2666,7 +2702,7 @@ def search_income_dates():
             return jsonify({"error": "Date is required"}), 400
 
         # Query the Income table for records containing the specified date
-        income_records = Income.query.filter(Income.session.contains(date),Income.company_name.contains(us.company_name))
+        income_records = Income.query.filter(Income.date.contains(date),Income.company_name.contains(us.company_name))
 
         # Order the results by date in descending order
         ordered_records = income_records.order_by(desc(Income.date))
@@ -2723,8 +2759,8 @@ def search_income_dates_two():
         end_date = datetime.combine(datetime.strptime(date_two, "%Y-%m-%d"), time.max)
 
         pay = Income.query.filter(
-            Income.session >= start_date,
-            Income.session <= end_date,
+            Income.date >= start_date,
+            Income.date <= end_date,
             Income.company_name.contains(us.company_name)
         ).order_by(desc(Income.date)).all()
 
@@ -3375,6 +3411,52 @@ def add_purchase():
 
 
 
+@guest.route('/add_purchase_bulk', methods=['POST'])
+@flask_praetorian.auth_required
+def add_purchase_bulk():
+    user = flask_praetorian.current_user()
+    data = request.get_json()
+
+    if not isinstance(data, list):
+        return jsonify({"error": "Expected a list of purchase items"}), 400
+
+    try:
+        # Step 1: Create a new Cart
+        new_cart = Cart(
+            requested_by=f"{user.firstname} {user.lastname}",
+            company_name=user.company_name,
+            created_date=datetime.now().strftime('%Y-%m-%d %H:%M'),
+            status='Pending'
+        )
+        db.session.add(new_cart)
+        db.session.flush()  # so new_cart.id is available
+
+        # Step 2: Add multiple PurchaseRequest items linked to the cart
+        for item in data:
+            new_request = PurchaseRequest(
+                item=item.get('item'),
+                quantity=item.get('quantity'),
+                unit_price=item.get('unit_price'),
+                total_cost=item.get('total_cost'),
+                department=item.get('department'),
+                store=item.get('store'),
+                requested_by=new_cart.requested_by,
+                created_date=new_cart.created_date,
+                status='Pending',
+                company_name=user.company_name,
+                cart_id=new_cart.id  # link to parent cart
+            )
+            db.session.add(new_request)
+
+        db.session.commit()
+        return jsonify({"message": "Cart and items saved successfully", "cart_id": new_cart.id}), 200
+
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": str(e)}), 500
+
+
+
 @guest.route("/get_purchase_list",methods=['GET'])
 @flask_praetorian.auth_required
 def get_purchase_list():
@@ -3382,6 +3464,16 @@ def get_purchase_list():
     inc = PurchaseRequest.query.filter_by(company_name=user.company_name)
     result = guest_schema.dump(inc)
     return jsonify(result)
+
+
+@guest.route("/get_purchase_by_cart/<int:cart_id>", methods=['GET'])
+@flask_praetorian.auth_required
+def get_purchase_by_cart(cart_id):
+    user = User.query.get(flask_praetorian.current_user().id)
+    purchases = PurchaseRequest.query.filter_by(cart_id=cart_id).all()
+    result = guest_schema.dump(purchases)
+    return jsonify(result)
+
 
 
 @guest.route("/get_order_list",methods=['GET'])
@@ -3896,7 +3988,7 @@ def create_orders():
     new_order = Order(
         user_id=us.id,
         items=items,
-        total=float(data['total']),
+        total=int(data['total']),
         company_name=us.company_name,
         waiter=us.firstname,
         order_status="Pending",
@@ -3910,17 +4002,17 @@ def create_orders():
     # ✅ Deduct Stock & Create Order Items
     for cart_item in data['cartItems']:
         item_name = cart_item.get('name')
-        item_quantity = int(cart_item.get('qty', 0))
+        item_quantity = (cart_item.get('qty', 0))
         category = cart_item.get('category')
         family = cart_item.get('family')
         price  = cart_item.get('price')
-        total_price = int(price) * int(item_quantity)
+        total_price = float(price) * float(item_quantity)
         item = Iteman.query.filter_by(name=item_name).first()
         if not item:
             return jsonify({"error": f"Item '{item_name}' not found"}), 404
-        if int(item.quantity) < int( item_quantity):
-            return jsonify({"error": f"Not enough stock for {item_name}"}), 400
-        old_quantity = int(item.quantity)
+        # if int(item.quantity) < int( item_quantity):
+        #     return jsonify({"error": f"Not enough stock for {item_name}"}), 400
+        old_quantity = float(item.quantity)
 
 
         item.quantity =   old_quantity -item_quantity  # 🔻 Deduct stock
@@ -3939,12 +4031,12 @@ def create_orders():
 
         pos_payment = PosPayment(company_name=us.company_name,name=item_name,amount=total_price,  method = request.json["method"],
                                  quantity=item_quantity,attendant=us.firstname +" "+us.lastname,created_by_id=us.id,cashier=cashier.firstname+" "+cashier.lastname,
-                                 payment_date=datetime.now().strftime('%Y-%m-%d %H:%M'),session=session.open_date, category = cart_item.get('family'))
+                                 payment_date=datetime.now().strftime('%Y-%m-%d %H:%M'),session=session.open_date, category = cart_item.get('family'),cat=category)
         
 
-        income = Income(name=item_name + "-"+ us.firstname +" "+us.lastname,amount =total_price,date =datetime.now().strftime('%Y-%m-%d %H:%M'),
+        income = Income(name=item_name + "-"+ us.firstname +" "+us.lastname,attendant=us.firstname +" "+us.lastname,amount =total_price,date =datetime.now().strftime('%Y-%m-%d %H:%M'),
                         note="Pos Payment",company_name=us.company_name,created_date=datetime.now().strftime('%Y-%m-%d %H:%M'),
-                        created_by_id=us.id,cashier=cashier.firstname+" "+cashier.lastname,session=session.open_date,  method=request.json["method"], category = cart_item.get('category'))
+                        created_by_id=us.id,cashier=cashier.firstname+" "+cashier.lastname,session=session.open_date,  method=request.json["method"], category = cart_item.get('category'),cat=category)
 
     
         held_cart = HeldCart.query.filter_by(id=request.json["id"]).first()
@@ -3996,7 +4088,7 @@ def create_orders_all():
     new_order = Order(
         user_id=us.id,
         items=items,
-        total=float(data['total']),
+        total=int(data['total']),
         company_name=us.company_name,
         waiter=us.firstname,
         order_status="Pending",
@@ -4009,17 +4101,17 @@ def create_orders_all():
     # ✅ Deduct Stock & Create Order Items
     for cart_item in data['cartItems']:
         item_name = cart_item.get('name')
-        item_quantity = int(cart_item.get('qty', 0))
+        item_quantity = (cart_item.get('qty', 0))
         category = cart_item.get('category')
         family = cart_item.get('family')
         price = cart_item.get('price')
-        total_price = int(price) * int(item_quantity)
+        total_price = float(price) * float(item_quantity)
         item = Iteman.query.filter_by(name=item_name).first()
         if not item:
             return jsonify({"error": f"Item '{item_name}' not found"}), 404
-        if int(item.quantity) < int(item_quantity):
-            return jsonify({"error": f"Not enough stock for {item_name}"}), 400
-        old_quantity = int(item.quantity)
+        #if int(item.quantity) < int(item_quantity):
+            #return jsonify({"error": f"Not enough stock for {item_name}"}), 400
+        old_quantity = float(item.quantity)
 
         item.quantity = old_quantity - item_quantity  # 🔻 Deduct stock
 
@@ -4048,7 +4140,7 @@ def create_orders_all():
             created_by_id=us.id,
             cashier=cashier.firstname + " " + cashier.lastname,
             payment_date=datetime.now().strftime('%Y-%m-%d %H:%M'),
-            session=session.open_date, category = cart_item.get('family')
+            session=session.open_date, category = cart_item.get('family'),cat=category
         )
 
         income = Income(
@@ -4061,7 +4153,7 @@ def create_orders_all():
             created_by_id=us.id,
             cashier=cashier.firstname + " " + cashier.lastname,
             session=session.open_date,
-            method=request.json["method"], category = cart_item.get('category')
+            method=request.json["method"], category = cart_item.get('category'),cat=category
         )
 
         # Query all held carts for the current user and update their paid_status
@@ -4113,7 +4205,7 @@ def create_orders_two():
     new_order = Order(
         user_id=us.id,
         items=items,
-        total=float(data['total']),
+        total=int(data['total']),
         company_name=us.company_name,
         waiter=us.firstname,
         order_status="Pending",
@@ -4126,17 +4218,17 @@ def create_orders_two():
     # ✅ Deduct Stock & Create Order Items
     for cart_item in data['cartItems']:
         item_name = cart_item.get('name')
-        item_quantity = int(cart_item.get('qty', 0))
+        item_quantity = (cart_item.get('qty', 0))
         category = cart_item.get('category')
         family = cart_item.get('family')
         price  = cart_item.get('price')
-        total_price = int(price) * int(item_quantity)
+        total_price = float(price) * float(item_quantity)
         item = Iteman.query.filter_by(name=item_name).first()
         if not item:
             return jsonify({"error": f"Item '{item_name}' not found"}), 404
-        if int(item.quantity) < int( item_quantity):
-            return jsonify({"error": f"Not enough stock for {item_name}"}), 400
-        old_quantity = int(item.quantity)
+        # if int(item.quantity) < int( item_quantity):
+        #     return jsonify({"error": f"Not enough stock for {item_name}"}), 400
+        old_quantity = float(item.quantity)
 
 
         item.quantity =   old_quantity -item_quantity  # 🔻 Deduct stock
@@ -4156,13 +4248,14 @@ def create_orders_two():
 
         pos_payment = PosPayment(company_name=us.company_name,name=item_name,amount=total_price,
                                  quantity=item_quantity,attendant=us.firstname +" "+us.lastname,created_by_id=us.id,
-                                 method=request.json["method"],cashier=cashier.firstname+" "+cashier.lastname,
+                                 method=request.json["method"],cashier=cashier.firstname+" "+cashier.lastname,category = cart_item.get('family'),cat=category,
                                  payment_date=datetime.now().strftime('%Y-%m-%d %H:%M'),session=session.open_date)
         
 
-        income = Income(name=item_name + "-"+ us.firstname +" "+us.lastname,amount =total_price,date =datetime.now().strftime('%Y-%m-%d %H:%M'),
+        income = Income(name=item_name + "-"+ us.firstname +" "+us.lastname,attendant=us.firstname +" "+us.lastname,amount =total_price,date =datetime.now().strftime('%Y-%m-%d %H:%M'),
                         note="Pos Payment",company_name=us.company_name,created_date=datetime.now().strftime('%Y-%m-%d %H:%M'),
-                        created_by_id=us.id,cashier=cashier.firstname+" "+cashier.lastname,session=session.open_date,  method=request.json["method"])
+                        created_by_id=us.id,cashier=cashier.firstname+" "+cashier.lastname,session=session.open_date,  method=request.json["method"],
+                        category = cart_item.get('family'),cat=category)
 
     
         held_cart = HeldCart.query.filter_by(id=request.json["id"]).first()
@@ -4212,7 +4305,7 @@ def create_orders_two_all():
     new_order = Order(
         user_id=us.id,
         items=items,
-        total=float(data['total']),
+        total=int(data['total']),
         company_name=us.company_name,
         waiter=us.firstname,
         order_status="Pending",
@@ -4225,17 +4318,17 @@ def create_orders_two_all():
     # ✅ Deduct Stock & Create Order Items
     for cart_item in data['cartItems']:
         item_name = cart_item.get('name')
-        item_quantity = int(cart_item.get('qty', 0))
+        item_quantity = (cart_item.get('qty', 0))
         category = cart_item.get('category')
         family = cart_item.get('family')
         price = cart_item.get('price')
-        total_price = int(price) * int(item_quantity)
+        total_price = float(price) * float(item_quantity)
         item = Iteman.query.filter_by(name=item_name).first()
         if not item:
             return jsonify({"error": f"Item '{item_name}' not found"}), 404
-        if int(item.quantity) < int(item_quantity):
-            return jsonify({"error": f"Not enough stock for {item_name}"}), 400
-        old_quantity = int(item.quantity)
+        # if int(item.quantity) < int(item_quantity):
+        #     return jsonify({"error": f"Not enough stock for {item_name}"}), 400
+        old_quantity = float(item.quantity)
 
         item.quantity = old_quantity - item_quantity  # 🔻 Deduct stock
 
@@ -4264,7 +4357,7 @@ def create_orders_two_all():
             method=request.json["method"],
             cashier=cashier.firstname + " " + cashier.lastname,
             payment_date=datetime.now().strftime('%Y-%m-%d %H:%M'),
-            session=session.open_date
+            session=session.open_date,category = cart_item.get('family'),cat=category
         )
 
         income = Income(
@@ -4277,7 +4370,7 @@ def create_orders_two_all():
             created_by_id=us.id,
             cashier=cashier.firstname + " " + cashier.lastname,
             session=session.open_date,
-            method=request.json["method"]
+            method=request.json["method"],category = cart_item.get('family'),cat=category
         )
 
         # Query all held carts for the current user and update their paid_status
@@ -4329,29 +4422,30 @@ def update_order_status(order_id):
     db.session.commit()
 
     return jsonify({"message": f"Order {order_id} updated to {new_status}"}), 200
+
 @guest.route('/hold_order', methods=['POST'])
 @auth_required
 def hold_order():
     user = current_user()
     data = request.get_json()
     session = Session.query.filter_by(status="current").first()
-    
 
     if not data or 'cartItems' not in data or 'total' not in data:
         return jsonify({"error": "Invalid request. 'cartItems' and 'total' are required."}), 400
 
     hold_id = data.get('id')
+    existing_hold = None
+
     if isinstance(hold_id, str) and hold_id.strip() == "":
         hold_id = None
     elif hold_id is not None:
         try:
             hold_id = int(hold_id)
+            existing_hold = HeldCart.query.filter_by(id=hold_id, user_id=user.id).first()
         except ValueError:
             return jsonify({"error": "Invalid hold ID"}), 400
 
     try:
-        existing_hold = HeldCart.query.filter_by(id=hold_id).first() if hold_id else None
-
         if existing_hold:
             try:
                 existing_items = json.loads(existing_hold.items)
@@ -4360,15 +4454,12 @@ def hold_order():
 
             existing_items_dict = {int(item['id']): item for item in existing_items}
             new_items_dict = {int(item['id']): item for item in data['cartItems']}
-
             updated_items = []
 
-            # Keep confirmed items that are still in the new cart
+            # Keep confirmed items
             for item_id, item in existing_items_dict.items():
-                if item.get("confirmed", False):
-                    # Keep confirmed item only if it still exists in new cart
-                    if item_id in new_items_dict:
-                        updated_items.append(item)
+                if item.get("confirmed", False) and item_id in new_items_dict:
+                    updated_items.append(item)
 
             # Add/update unconfirmed items
             for item in data['cartItems']:
@@ -4378,21 +4469,7 @@ def hold_order():
                 except (ValueError, TypeError):
                     return jsonify({"error": f"Invalid item ID or quantity: {item}"}), 400
 
-                if item_id in existing_items_dict:
-                    existing_item = existing_items_dict[item_id]
-                    if not existing_item.get("confirmed", False):
-                        # Update unconfirmed item
-                        updated_items.append({
-                            "id": item_id,
-                            "qty": item_qty,
-                            "name": item["name"],
-                            "price": item["price"],
-                            "family": str(item.get("family", "")).strip(),
-                            "confirmed": False
-                        })
-                    # else: already kept as confirmed, skip overwrite
-                else:
-                    # New item
+                if item_id in existing_items_dict and not existing_items_dict[item_id].get("confirmed", False):
                     updated_items.append({
                         "id": item_id,
                         "qty": item_qty,
@@ -4400,19 +4477,31 @@ def hold_order():
                         "price": item["price"],
                         "family": str(item.get("family", "")).strip(),
                         "confirmed": False,
-                        "is_vip":item["is_vip"]
+                        "is_vip": item["is_vip"]
+                    })
+                elif item_id not in existing_items_dict:
+                    updated_items.append({
+                        "id": item_id,
+                        "qty": item_qty,
+                        "name": item["name"],
+                        "price": item["price"],
+                        "family": str(item.get("family", "")).strip(),
+                        "confirmed": False,
+                        "is_vip": item["is_vip"]
                     })
 
             contain_drink = any(item.get("family") == "drink" for item in updated_items)
             contain_food = any(item.get("family") == "food" for item in updated_items)
 
             existing_hold.items = json.dumps(updated_items)
-            existing_hold.total = float(data['total'])
+            existing_hold.total = int(data['total'])
             existing_hold.contain_drink = "yes" if contain_drink else "no"
             existing_hold.contain_food = "yes" if contain_food else "no"
 
+            print(f"Updated existing held order ID: {existing_hold.id}")
+
         else:
-            # No existing hold, create new
+            # New held order
             try:
                 cart_items = [{
                     "id": int(item["id"]),
@@ -4421,7 +4510,7 @@ def hold_order():
                     "price": item["price"],
                     "family": str(item.get("family", "")).strip(),
                     "confirmed": False,
-                    "is_vip":item["is_vip"]
+                    "is_vip": item["is_vip"]
                 } for item in data["cartItems"]]
             except (ValueError, TypeError, KeyError):
                 return jsonify({"error": "Invalid cart items format"}), 400
@@ -4432,7 +4521,7 @@ def hold_order():
             existing_hold = HeldCart(
                 user_id=user.id,
                 items=json.dumps(cart_items),
-                total=float(data['total']),
+                total=int(data['total']),
                 company_name=user.company_name,
                 status="Pending",
                 paid_status="Pending",
@@ -4441,10 +4530,13 @@ def hold_order():
                 contain_drink="yes" if contain_drink else "no",
                 contain_food="yes" if contain_food else "no",
                 food_confirm="no",
-                drink_confirm="no",session=session.open_date,
-                table =data['table']
+                drink_confirm="no",
+                session=session.open_date,
+                table=data['table']
             )
             db.session.add(existing_hold)
+
+            print("Created new held order.")
 
         db.session.commit()
         return jsonify({"message": "Order held successfully"}), 200
@@ -4452,7 +4544,6 @@ def hold_order():
     except Exception as e:
         db.session.rollback()
         return jsonify({"error": "An error occurred while holding the order", "details": str(e)}), 500
-
 
 
 @guest.route('/held_orders', methods=['GET'])
@@ -4569,7 +4660,6 @@ def remove_held_order(hold_id):
 
     return jsonify({"message": f"Held order {hold_id} removed"}), 200
 
-
 @guest.route('/load_held_order/<int:hold_id>', methods=['GET'])
 @flask_praetorian.auth_required
 def load_held_order(hold_id):
@@ -4639,108 +4729,117 @@ def merge_orders():
     return jsonify({"message": "Orders merged successfully", "id": new_held.id}), 200
 
 
+from collections import Counter
+from flask import request, jsonify
 
 
 @guest.route("/search_most_item", methods=["POST"])
 @flask_praetorian.auth_required
 def search_most_item():
+    # Get the current user
     user = User.query.filter_by(id=flask_praetorian.current_user().id).first()
-    date = request.json.get("date")
-    # session = Session.query.filter_by(status="current").first()
-    # if session:
-    #     open_date=session.open_date
-    # room_number=request.json["room_number"]
+    
+    # Get the session substring (e.g. a date like "2024-05-14") from request
+    session_filter = request.json.get("date")  # Can be renamed to "session" for clarity
 
+    # Validate user
     if not user:
         return jsonify({"error": "User not found"}), 404
 
-    if not date:
-        return jsonify({"error": "Date is required"}), 400
+    # Validate input
+    if not session_filter:
+        return jsonify({"error": "Session value is required"}), 400
 
-    # Query OrderItem instead of Order to get item details directly
+    # Query OrderItem using .contains() for partial match on session
     order_items = OrderItem.query.filter(
-        OrderItem.session.contains(date),
+        OrderItem.session.contains(session_filter),
         OrderItem.company_name == user.company_name
     ).all()
 
-    # Count occurrences of each item_name
+    # Count item occurrences
     item_counts = Counter(item.item_name for item in order_items)
 
-    # Convert to a list of dictionaries for JSON response
+    # Format result
     result = [{"name": name, "count": count} for name, count in item_counts.most_common()]
 
     return jsonify(result), 200
 
 
+from collections import Counter
+from flask import request, jsonify
 
 
 @guest.route("/search_most_item_food", methods=["POST"])
 @flask_praetorian.auth_required
 def search_most_item_food():
+    # Get current user
     user = User.query.filter_by(id=flask_praetorian.current_user().id).first()
-    date = request.json.get("date")
-    # session = Session.query.filter_by(status="current").first()
-    # if session:
-    #     open_date=session.open_date
-    # room_number=request.json["room_number"]
 
+    # Get session/date input
+    session_filter = request.json.get("date")
+
+    # Validate user
     if not user:
         return jsonify({"error": "User not found"}), 404
 
-    if not date:
-        return jsonify({"error": "Date is required"}), 400
+    # Validate input
+    if not session_filter:
+        return jsonify({"error": "Session value is required"}), 400
 
-    # Query OrderItem instead of Order to get item details directly
+    # Filter OrderItems by session (contains), company, and family == "food"
     order_items = OrderItem.query.filter(
-        OrderItem.session.contains(date),
-        OrderItem.company_name == user.company_name,OrderItem.family=="food"
+        OrderItem.session.contains(session_filter),
+        OrderItem.company_name == user.company_name,
+        OrderItem.family == "food"
     ).all()
 
-    # Count occurrences of each item_name
+    # Count item occurrences
     item_counts = Counter(item.item_name for item in order_items)
 
-    # Convert to a list of dictionaries for JSON response
+    # Build response
     result = [{"name": name, "count": count} for name, count in item_counts.most_common()]
 
     return jsonify(result), 200
 
-
+from collections import Counter
+from flask import request, jsonify
 
 
 @guest.route("/search_most_item_drink", methods=["POST"])
 @flask_praetorian.auth_required
 def search_most_item_drink():
+    # Get current user
     user = User.query.filter_by(id=flask_praetorian.current_user().id).first()
-    date = request.json.get("date")
-    # session = Session.query.filter_by(status="current").first()
-    # if session:
-    #     open_date=session.open_date
-    # room_number=request.json["room_number"]
 
+    # Get session/date input
+    session_filter = request.json.get("date")
+
+    # Validate user
     if not user:
         return jsonify({"error": "User not found"}), 404
 
-    if not date:
-        return jsonify({"error": "Date is required"}), 400
+    # Validate input
+    if not session_filter:
+        return jsonify({"error": "Session value is required"}), 400
 
-    # Query OrderItem instead of Order to get item details directly
+    # Filter OrderItems by session (contains), company, and family == "drink"
     order_items = OrderItem.query.filter(
-        OrderItem.session.contains(date),
-        OrderItem.company_name == user.company_name,OrderItem.family=="drink"
+        OrderItem.session.contains(session_filter),
+        OrderItem.company_name == user.company_name,
+        OrderItem.family == "drink"
     ).all()
 
-    # Count occurrences of each item_name
+    # Count item occurrences
     item_counts = Counter(item.item_name for item in order_items)
 
-    # Convert to a list of dictionaries for JSON response
+    # Build response
     result = [{"name": name, "count": count} for name, count in item_counts.most_common()]
 
     return jsonify(result), 200
 
 
-
-
-
+from collections import Counter
+from flask import request, jsonify
 
 
 @guest.route("/search_most_item_two", methods=["POST"])
@@ -4757,9 +4856,9 @@ def search_most_item_two():
         return jsonify({"error": "Both 'date' and 'datetwo' are required"}), 400
 
     try:
-        # Filter items between the two dates
+        # Filter items whose session string contains either date
         order_items = OrderItem.query.filter(
-            func.date(OrderItem.session).between(date, datetwo),
+            (OrderItem.session.contains(date) | OrderItem.session.contains(datetwo)),
             OrderItem.company_name == user.company_name
         ).all()
 
@@ -4777,53 +4876,38 @@ def search_most_item_two():
 
 
 
+
+from collections import Counter
+from flask import request, jsonify
+
+from flask_praetorian import auth_required
+
 @guest.route("/search_most_attendant", methods=["POST"])
-@flask_praetorian.auth_required
+@auth_required
 def search_most_attendant():
-    us = User.query.filter_by(id=flask_praetorian.current_user().id).first()
+    # Get current user
+    user = User.query.filter_by(id=flask_praetorian.current_user().id).first()
+
+    # Get date/session filter
     date = request.json.get("date")
+
+    # Validate user and input
+    if not user:
+        return jsonify({"error": "User not found"}), 404
 
     if not date:
         return jsonify({"error": "Date is required"}), 400
 
-    # Query orders from the given date
+    # Query orders for matching session
     orders = Order.query.filter(
-        Order.session.contains(date), 
-        Order.company_name == us.company_name
+        Order.session.contains(date),
+        Order.company_name == user.company_name
     ).all()
 
-    # Count appearances of each attendant (assuming 'attendant' is a string field)
+    # Count waiter appearances
     attendant_counts = Counter(order.waiter for order in orders if order.waiter)
 
-    # Convert to a list of dictionaries for JSON response
-    result = [{"waiter": waiter, "count": count} for waiter, count in attendant_counts.most_common()]
-
-    return jsonify(result), 200
-
-
-
-
-
-@guest.route("/search_most_attendant_two", methods=["POST"])
-@flask_praetorian.auth_required
-def search_most_attendant_two():
-    us = User.query.filter_by(id=flask_praetorian.current_user().id).first()
-    date = request.json.get("date")
-    datetwo= request.json.get("datetwo")
-
-    if not date:
-        return jsonify({"error": "Date is required"}), 400
-
-    # Query orders from the given date
-    orders = Order.query.filter(
-        or_(
-                Order.session.contains(date), Order.session.contains(datetwo)
-        )).filter(Order.company_name == us.company_name).all()
-
-    # Count appearances of each attendant (assuming 'attendant' is a string field)
-    attendant_counts = Counter(order.waiter for order in orders if order.waiter)
-
-    # Convert to a list of dictionaries for JSON response
+    # Format result
     result = [{"waiter": waiter, "count": count} for waiter, count in attendant_counts.most_common()]
 
     return jsonify(result), 200
@@ -4885,3 +4969,16 @@ def delete_chef(id):
       return resp
 
 
+@guest.route('/get_stock_items', methods=['GET'])
+@flask_praetorian.auth_required
+def get_stock_items():
+    categories = Category.query.all()
+    data = []
+    for cat in categories:
+        items = Iteman.query.filter_by(category=cat.name).all()
+        item_list = [{"id": item.id, "description": item.name} for item in items]
+        data.append({
+            "category": cat.name,
+            "items": item_list
+        })
+    return jsonify(data)

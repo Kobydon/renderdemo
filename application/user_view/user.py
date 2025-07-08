@@ -87,6 +87,17 @@ def find_cashier():
         return jsonify({"message": "success"}), 200  # ✅ Password is correct
     
     return jsonify({"message": "unauthorized"}), 401  # ❌ Wrong password
+
+@user.route("/find_manager", methods=["POST"])
+def find_manager():
+    # password = request.json["password"]
+    user = User.query.filter_by(username=request.json["username"],roles="admin").first()  # Use username or email
+
+    if user:
+        return jsonify({"message": "success"}), 200  # ✅ Password is correct
+    
+    return jsonify({"message": "unauthorized"}), 401  # ❌ Wrong password
+
 @user.route("/register", methods=["POST"])
 def register():
     try:
@@ -95,7 +106,10 @@ def register():
         password = request.json["password"]
         lastname = request.json["lastname"]
         company_name = request.json["company_name"]
-        email = request.json["email"]
+        try:
+         email = request.json["email"]
+        except:
+            email=""
         role = request.json["role"]
 
         hashed_password = guard.hash_password(password)
