@@ -381,7 +381,8 @@ class PosPayment(db.Model):
     attendant= db.Column(db.String(100)) 
     quantity= db.Column(db.String(100)) 
     method= db.Column(db.String(100)) 
-    cashier= db.Column(db.String(100)) 
+    cashier= db.Column(db.String(100))
+    customer = db.Column(db.String(400)) 
     
     created_by_id = db.Column(db.Integer, db.ForeignKey('user.id'))
     session=db.Column(db.String(200))
@@ -527,14 +528,31 @@ class Income(db.Model):
     company_name= db.Column(db.String(500))  
     cashier= db.Column(db.String(300))  
     created_date = db.Column(db.String(400))
+    customer = db.Column(db.String(400))
     created_by_id = db.Column(db.Integer, db.ForeignKey('user.id'))
     session  =db.Column(db.String(200))
     cat  =db.Column(db.String(200))
     method=db.Column(db.String(200))
     category = db.Column(db.String(200))
+    discount = db.Column(db.String(200))
     def __repr__(self):
         return f"<Income(id={self.id}, name={self.name}, amount={self.amount}, date={self.date})>"
-    
+
+
+class CanceldOrder(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.Text)
+    amount = db.Column(db.Text)
+    date = db.Column(db.Text)
+    attendant= db.Column(db.String(400))
+    company_name= db.Column(db.String(500))  
+    # cashier= db.Column(db.String(300))  
+    created_date = db.Column(db.String(400))
+    # created_by_id = db.Column(db.Integer, db.ForeignKey('user.id'))
+    session  =db.Column(db.String(200))
+   
+    def __repr__(self):
+        return f"<CanceldOrder(id={self.id}, name={self.name}, amount={self.amount}, date={self.date})>"
 
 
 class EventPayment(db.Model):
@@ -625,9 +643,19 @@ class ReceivedItem(db.Model):
     company_name= db.Column(db.String(500))  
     quantity = db.Column(db.Text)
     created_date = db.Column(db.String(400))
+    expired_date = db.Column(db.String(400)) 
+
 
     def __repr__(self):
         return f"<ReceivedItem(id={self.id}, name={self.name}, quantity={self.quantity})>"
+    
+class Customer(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    firstname = db.Column(db.Text)
+    company_name= db.Column(db.String(500))  
+    lastname = db.Column(db.Text)
+    created_date = db.Column(db.String(400))
+   
 
 class Stock(db.Model):
     id = db.Column(db.Integer, primary_key=True)
