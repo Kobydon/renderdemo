@@ -1025,7 +1025,7 @@ def search_held_order_dates_two():
     date = request.json.get("date")
     datetwo = request.json.get("datetwo")
     if not date or not datetwo:
-        return jsonify({"error": "Both date and datetwo are required"}), 400
+        return jsonify({"error": "Both date and datetwo are requireds"}), 400
 
     try:
         # Convert to datetime range covering full days
