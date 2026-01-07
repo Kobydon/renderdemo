@@ -19,11 +19,13 @@ guard.init_app(app, User)
 
 class User_schema(ma.Schema):
     class Meta:
-        fields=("id","firstname","lastname","about","email","username","hashed_password",
-                "roles","city","country","address","phone","created_date",
-                "account_status",
-                    "state","transaction_pin" ,"photo","company_name"
-)
+        fields = (
+            "id", "firstname", "lastname", "about", "email", "username",
+            "hashed_password", "roles", "city", "country", "address", "phone",
+            "created_date", "account_status", "last_login", "last_logout",
+            "photo", "company_name"
+        )
+
         
 
 
@@ -81,7 +83,7 @@ def register_quick():
 @user.route("/find_cashier", methods=["POST"])
 def find_cashier():
     # password = request.json["password"]
-    user = User.query.filter_by(username=request.json["username"],roles="cashier").first()  # Use username or email
+    user = User.query.filter_by(username=request.json["username"],roles="sales").first()  # Use username or email
 
     if user:
         return jsonify({"message": "success"}), 200  # ✅ Password is correct

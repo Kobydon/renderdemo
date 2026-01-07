@@ -7,8 +7,8 @@ from  application.settings.setup import app
 
 import json
 # from application.forms import LoginForm
-from application.database.user.user_db import db,Guests,User,Booking,Rooms,Payment,Reservation,Refund,Budget,Income,Expenses,Attendance,Iteman,Family,Category,Unit,Stock,Store,StockTransfer,Department,Vendor,PurchaseOrder,PurchaseRequest,ReceivedItem,returnRequest,GOP,RoomType,Session,Wifi,Order,StockUsage,PosPayment,OrderItem,HeldCart,FoodChef,EventPayment,StockTransferOut,Cart,CanceldOrder,Customer
-
+from application.database.user.user_db import db,Guests,User,Booking,Rooms,Payment,Reservation,Refund,Budget,Income,Expenses,Attendance,Iteman,Family,Category,Unit,Stock,Store,StockTransfer,Department,Vendor,PurchaseOrder,PurchaseRequest,ReceivedItem,returnRequest,GOP,RoomType,Session,Wifi,Order,StockUsage,PosPayment,OrderItem,HeldCart,FoodChef,EventPayment,StockTransferOut,Cart,CanceldOrder,Customer,Credit,AccountGroup
+from application.database.user.user_db import Account
 from sqlalchemy import or_,desc,and_
 from datetime import datetime
 from datetime import date
@@ -39,9 +39,9 @@ orders_schema = OrderSchema(many=True)
         
 class Guest_schema(ma.Schema):
     class Meta:
-        fields=("id","first_name","last_name","cart_id","amount","operation","unit","family","open_by","department","price","address","has_checkout","checkout_date","arrival","city","country","id_type","id_number","id_upload","dob","gender","work","remark","phone",
-                "region","email","username","arrival_date","checkout_date","guest_id","note","amount","created_date","date","type","attendace","name","description","store","quantity","hod","requested_by","item","approved_by","attendant",
-                "total_cost","unit_price","store","status","Department","attendance","time_in","time_out","position","reason","voided","item_id","request_by","user","method",
+        fields=("id","first_name","last_name","cart_id","operation","unit","family","open_by","department","price","address","has_checkout","checkout_date","arrival","city","country","id_type","id_number","id_upload","dob","gender","work","remark","phone",
+                "region","email","username","arrival_date","checkout_date","guest_id","note","amount","created_date","date","type","attendace","name","description","store","quantity","hod","requested_by","item","approved_by","attendant","coupon_value","coupon_applied",
+                "total_cost","unit_price","store","status","Department","attendance","time_in","time_out","position","reason","voided","item_id","request_by","user","method","subcategory","whole_price",
                     "close_by","open_date","lastname","firstname","close_date","wifi_code","order_id","waiter","food","cashier","is_vip","balance","customer_name","customer_phone","received_by","start_time","end_time",  "category","expired_date","batch_number","discount","customer")
 
 
@@ -152,7 +152,7 @@ def add_guest():
         address= request.json["address"],
         first_name= request.json["first_name"],
         last_name= request.json["last_name"],
-        region= request.json["region"],company_name=us.company_name,
+        region= request.json["region"],
 
 
                       created_by_id =  flask_praetorian.current_user().id
@@ -161,7 +161,7 @@ def add_guest():
         user =User(
                    created_date=datetime.now().strftime('%Y-%m-%d %H:%M'),  firstname= first_name, lastname=last_name,
         country= country,address= address,
-        city = city,  phone = phone,company_name=us.company_name)
+        city = city,  phone = phone)
         db.session.add(user)
         db.session.commit()
         db.session.add(owner)
@@ -179,7 +179,7 @@ def add_guest():
 @flask_praetorian.auth_required
 def get_all_guest():
     us = User.query.filter_by(id = flask_praetorian.current_user().id).first()
-    guests = Guests.query.filter_by(company_name=us.company_name)
+    guests = Guests.query.all()
     results = guest_schema.dump(guests)
 
     return jsonify(results)
@@ -196,10 +196,11 @@ def add_expense():
     amount =request.json["amount"]
     note= request.json["note"]
     date =request.json["date"]
+    subcategory =request.json["subcategory"]
     usr = user.firstname +" " + user.lastname
     created_date=datetime.now().strftime('%Y-%m-%d %H:%M')
     exp = Expenses(name=name,amount=amount,note=note,date=date,
-                   user=usr,created_by_id=flask_praetorian.current_user().id ,
+                   user=usr,created_by_id=flask_praetorian.current_user().id ,subcategory=subcategory,
                    created_date=created_date,company_name=user.company_name,session=session.open_date)
   
     db.session.add(exp)
@@ -461,7 +462,7 @@ def add_booking():
      
      status=request.json["status"],
      create_date=datetime.now().strftime('%Y-%m-%d %H:%M'),
-     created_by_id = flask_praetorian.current_user().id,guest_id=guest_id,company_name=us.company_name
+     created_by_id = flask_praetorian.current_user().id,guest_id=guest_id
     )
     room = Rooms.query.filter_by(room_number=room_number).first()
     guest = Guests.query.filter_by(id=guest_id).first()
@@ -526,7 +527,7 @@ def add_payment():
         checkin_date=request.json.get("checkin_date"),
         checkout_date=request.json.get("checkout_date"),
         status=status,booking_id=booking_id,session=session.open_date,
-        created_by_id=flask_praetorian.current_user().id,company_name=us.company_name)
+        created_by_id=flask_praetorian.current_user().id)
     
     inc = Income(
             amount=amount,
@@ -611,7 +612,7 @@ def add_payment():
 @flask_praetorian.auth_required
 def get_payment():
      us = User.query.filter_by(id = flask_praetorian.current_user().id).first()
-     pay = Payment.query.filter_by(company_name=us.company_name)
+     pay = Payment.query.all()
     #  lst =  pay.order_by(desc(Payment.payment_date))
      result = pay_schema.dump(pay)
      return jsonify(result)
@@ -621,7 +622,7 @@ def get_payment():
 @flask_praetorian.auth_required
 def get_payment_pos():
      us = User.query.filter_by(id = flask_praetorian.current_user().id).first()
-     pay = PosPayment.query.filter_by(company_name=us.company_name)
+     pay = PosPayment.query.all()
     #  lst =  pay.order_by(desc(Payment.payment_date))
      result = pay_schema.dump(pay)
      return jsonify(result)
@@ -657,10 +658,11 @@ def get_return_request():
     us = User.query.filter_by(id = flask_praetorian.current_user().id).first()
     # date = request.json["date"]
     # print(date)
-    refund = returnRequest.query.filter_by(company_name=us.company_name).order_by(returnRequest.created_date)
+    refund = returnRequest.query.all()
     
     result = guest_schema.dump(refund)
     return jsonify(result)
+
 
 
 
@@ -673,6 +675,39 @@ def search_stock_usuage():
     refund = StockUsage.query.filter(StockUsage.created_date.contains(date) ,StockUsage.company_name.contains(us.company_name))
     lst = refund.order_by(desc(StockUsage.created_date))
     result = guest_schema.dump(lst)
+    return jsonify(result)
+
+
+@guest.route("/search_account_group",methods=["POST"])
+@flask_praetorian.auth_required
+def search_account_group():
+    us = User.query.filter_by(id = flask_praetorian.current_user().id).first()
+    find = request.json["find"]
+    # print(date)
+    group = AccountGroup.query.filter(AccountGroup.subcategory.contains(find))
+    result = guest_schema.dump(group)
+    return jsonify(result)
+
+@guest.route("/search_expense_group",methods=["POST"])
+@flask_praetorian.auth_required
+def search_expense_group():
+    us = User.query.filter_by(id = flask_praetorian.current_user().id).first()
+    find = request.json["find"]
+    # print(date)
+    group = Expenses.query.filter(AccountGroup.subcategory.contains(find))
+    result = guest_schema.dump(group)
+    return jsonify(result)
+
+
+
+@guest.route("/search_account",methods=["POST"])
+@flask_praetorian.auth_required
+def search_account():
+    us = User.query.filter_by(id = flask_praetorian.current_user().id).first()
+    find = request.json["find"]
+    # print(date)
+    group = Account.query.filter(AccountGroup.subcategory.contains(find))
+    result = guest_schema.dump(group)
     return jsonify(result)
 
 
@@ -946,10 +981,10 @@ def search_held_order_dates():
         return jsonify({"error": "Date is required"}), 400
 
     # Query HeldCart with filtering
-    held_orders = HeldCart.query.filter(
-        HeldCart.session.contains(date),HeldCart.paid_status=="pending",
-        HeldCart.company_name == user.company_name
-    ).order_by(desc(HeldCart.created_at)).all()
+    held_orders = Credit.query.filter(
+        Credit.session.contains(date),
+        Credit.company_name == user.company_name
+    ).order_by(desc(Credit.session)).all()
 
     # Deserialize 'items' field before returning JSON response
     result = []
@@ -967,10 +1002,10 @@ def search_held_order_dates():
             "total": order.total,
             "waiter": order.waiter,
             "items": order_items , 
-            "food_confirm": order.food_confirm,
-             "drink_confirm": order.drink_confirm  ,
-              "food_confirm_at": order.food_confirm_at,
-             "drink_confirm_at": order.drink_confirm_at  
+            "customer": order.customer,
+             "phone": order.phone  
+            #   "food_confirm_at": order.food_confirm_at,
+            #  "drink_confirm_at": order.drink_confirm_at  
 
         })
 
@@ -998,11 +1033,11 @@ def search_held_order_dates_two():
         end_date = datetime.combine(datetime.strptime(datetwo, "%Y-%m-%d"), time.max)
 
         # Query HeldCart with filtering
-        held_orders = HeldCart.query.filter(
-            HeldCart.session >= start_date,
-            HeldCart.session <= end_date,
-            HeldCart.company_name == user.company_name,HeldCart.paid_status=="pending"
-        ).order_by(desc(HeldCart.created_at)).all()
+        held_orders = Credit.query.filter(
+            Credit.session >= start_date,
+            Credit.session <= end_date,
+            Credit.company_name == user.company_name,Credit.paid_status=="pending"
+        ).order_by(desc(Credit.session)).all()
 
         # Deserialize 'items' field before returning JSON response
         result = []
@@ -1020,10 +1055,8 @@ def search_held_order_dates_two():
                 "total": order.total,
                 "waiter": order.waiter,
                 "items": order_items,
-                "food_confirm": order.food_confirm,
-                "drink_confirm": order.drink_confirm,
-                "food_confirm_at": order.food_confirm_at,
-                "drink_confirm_at": order.drink_confirm_at
+                "customer": order.customer,
+             "phone": order.phone  
             })
 
         return jsonify(result), 200
@@ -1249,7 +1282,6 @@ def search_waiter_dates_two():
         pay = Income.query.filter(
             Income.session >= start_date,
             Income.session <= end_date,
-            Income.company_name.contains(us.company_name),
             Income.attendant.contains(waiter)
         ).order_by(desc(Income.date))
 
@@ -1308,7 +1340,6 @@ def search_method_dates_two():
         pay = Income.query.filter(
             Income.session >= start_date,
             Income.session <= end_date,
-            Income.company_name.contains(us.company_name),
             Income.method.contains(method)
         ).order_by(desc(Income.date))
 
@@ -1339,7 +1370,6 @@ def search_department_dates_two():
         pay = Income.query.filter(
             Income.session >= start_date,
             Income.session <= end_date,
-            Income.company_name.contains(us.company_name),
             Income.category.contains(request.json["waiter"])
         ).order_by(desc(Income.date))
 
@@ -1372,7 +1402,6 @@ def search_category_dates_two():
         pay = Income.query.filter(
             Income.session >= start_date,
             Income.session <= end_date,
-            Income.company_name.contains(us.company_name),
             Income.cat.contains(request.json["waiter"])
         ).order_by(desc(Income.date))
 
@@ -1405,7 +1434,6 @@ def search_cashier_dates_two():
         pay = Income.query.filter(
             Income.session >= start_date,
             Income.session <= end_date,
-            Income.company_name.contains(us.company_name),
             Income.cashier.contains(cashier)
         ).order_by(desc(Income.date))
 
@@ -1758,7 +1786,7 @@ def add_reservation():
         country=request.json.get("country"),
         price=request.json.get("price"),
         created_date=datetime.now().strftime('%Y-%m-%d %H:%M'),
-        created_by_id=flask_praetorian.current_user().id,company_name=us.company_name
+        created_by_id=flask_praetorian.current_user().id
     )
 
     # Save the reservation to the database
@@ -1816,7 +1844,7 @@ def add_reservation():
 @flask_praetorian.auth_required
 def get_reserve():
       us = User.query.filter_by(id = flask_praetorian.current_user().id).first()
-      rsv = db.session.query(Reservation).filter(Reservation.created_by_id ==flask_praetorian.current_user().id,company_name=us.company_name)
+      rsv = db.session.query(Reservation).filter(Reservation.created_by_id ==flask_praetorian.current_user().id)
     #   lst = rsv.order_by(desc(Reservation.created_date))
       result = reserve_schema.dump(rsv)
       return jsonify(result)
@@ -1826,7 +1854,7 @@ def get_reserve():
 @flask_praetorian.auth_required
 def get_all_reserve():
       us = User.query.filter_by(id = flask_praetorian.current_user().id).first()
-      rsv = db.session.query(Reservation).filter_by(company_name=us.company_name)
+      rsv = db.session.query(Reservation).all()
 
       result = reserve_schema.dump(rsv)
       return jsonify(result)
@@ -1972,7 +2000,7 @@ def add_refund():
 def get_refund():
     us = User.query.filter_by(id = flask_praetorian.current_user().id).first()
     # Query the Refund table, ordering by the latest refund time
-    refund_list = Refund.query.filter_by(company_name=us.company_name).order_by(Refund.refund_time.desc()).all()
+    refund_list = Refund.query.all().order_by(Refund.refund_time.desc()).all()
     
     # Serialize the results
     result = refund_schema.dump(refund_list)
@@ -2140,7 +2168,7 @@ def add_income():
 def get_income_list():
     # user = User.query.filter_by(id = flask_praetorian.current_user().id).first()
     us = User.query.filter_by(id = flask_praetorian.current_user().id).first()
-    inc = Income.query.filter_by(company_name=us.company_name)
+    inc = Income.query.all()
     result = guest_schema.dump(inc)
     return jsonify(result)
 
@@ -2237,7 +2265,7 @@ def add_hall_payment():
 def get_hall_payment():
     # user = User.query.filter_by(id = flask_praetorian.current_user().id).first()
     us = User.query.filter_by(id = flask_praetorian.current_user().id).first()
-    inc = EventPayment.query.filter_by(company_name=us.company_name)
+    inc = EventPayment.query.all()
     result = guest_schema.dump(inc)
     return jsonify(result)
 
@@ -2306,11 +2334,13 @@ def add_item():
     unit =request.json["unit"]
     category= request.json["category"]
     family= request.json["family"]
+    wholesale= request.json["wholesale"]
+    
     
     # usr = user.firstname +" " + user.lastname
     created_date=datetime.now().strftime('%Y-%m-%d %H:%M')
-    inc = Iteman(name=name,description=description,price=price,quantity="0",is_vip="no",
-                   created_date=created_date,family=family,category=category,unit=unit,company_name=us.company_name)
+    inc = Iteman(name=name,description=description,price=price,quantity="0",is_vip=wholesale,
+                   created_date=created_date,family=family,category=category,unit=unit,whole_price=request.json["whole_price"])
   
     db.session.add(inc)
     db.session.commit()
@@ -2326,9 +2356,33 @@ def add_item():
 def get_item_list():
     us = User.query.filter_by(id = flask_praetorian.current_user().id).first()
     # user = User.query.filter_by(id = flask_praetorian.current_user().id).first()
-    inc = Iteman.query.filter_by(company_name=us.company_name)
+    inc = Iteman.query.filter_by(is_vip="no")
     result = guest_schema.dump(inc)
     return jsonify(result)
+
+
+
+@guest.route("/search_item",methods=['POST'])
+@flask_praetorian.auth_required
+def search_item():
+    us = User.query.filter_by(id = flask_praetorian.current_user().id).first()
+    # user = User.query.filter_by(id = flask_praetorian.current_user().id).first()
+    item=request.json["find"]
+    inc = Iteman.query.filter(Iteman.name.contains(item))
+    result = guest_schema.dump(inc)
+    return jsonify(result)
+
+
+@guest.route("/search_discount",methods=['POST'])
+@flask_praetorian.auth_required
+def search_discount():
+    us = User.query.filter_by(id = flask_praetorian.current_user().id).first()
+    # user = User.query.filter_by(id = flask_praetorian.current_user().id).first()
+    id=request.json["find"]
+    inc = Customer.query.filter_by(id=id)
+    result = guest_schema.dump(inc)
+    return jsonify(result)
+
 
 
 
@@ -2336,7 +2390,7 @@ def get_item_list():
 @flask_praetorian.auth_required
 def get_item(id):
     us = User.query.filter_by(id = flask_praetorian.current_user().id).first()
-    inc = Iteman.query.filter_by(id=id,company_name=us.company_name)
+    inc = Iteman.query.filter_by(id=id)
     result = guest_schema.dump(inc)
     return jsonify(result)
 
@@ -2346,9 +2400,9 @@ def get_item(id):
 @flask_praetorian.auth_required
 def get_food(id):
     us = User.query.filter_by(id = flask_praetorian.current_user().id).first()
-    cat = Category.query.filter_by(id=id,company_name=us.company_name).first()
+    cat = Category.query.filter_by(id=id).first()
 
-    inc = Iteman.query.filter_by(category=cat.name,company_name=us.company_name,is_vip="no")
+    inc = Iteman.query.filter_by(category=cat.name,is_vip="no")
     result = guest_schema.dump(inc)
     return jsonify(result)
 
@@ -2359,9 +2413,9 @@ def get_food(id):
 @flask_praetorian.auth_required
 def get_food_vip(id):
     us = User.query.filter_by(id = flask_praetorian.current_user().id).first()
-    cat = Category.query.filter_by(id=id,company_name=us.company_name).first()
+    cat = Category.query.filter_by(id=id).first()
 
-    inc = Iteman.query.filter_by(category=cat.name,company_name=us.company_name,is_vip="yes")
+    inc = Iteman.query.filter_by(category=cat.name).all()
     result = guest_schema.dump(inc)
     return jsonify(result)
 
@@ -2378,6 +2432,7 @@ def update_item():
     sub_data.Category = request.json["category"]
     sub_data.unit =request.json["unit"]
     sub_data.faily =request.json["family"]
+    sub_data.whole_price=request.json["whole_price"]
 
     db.session.commit()
     db.session.close()
@@ -2416,7 +2471,7 @@ def add_category():
     # usr = user.firstname +" " + user.lastname
     created_date=datetime.now().strftime('%Y-%m-%d %H:%M')
     inc = Category(name=name,description=description,
-                   created_date=created_date,company_name=us.company_name)
+                   created_date=created_date)
   
     db.session.add(inc)
     db.session.commit()
@@ -2432,7 +2487,7 @@ def add_category():
 def get_category_list():
     us = User.query.filter_by(id = flask_praetorian.current_user().id).first()
     # user = User.query.filter_by(id = flask_praetorian.current_user().id).first()
-    inc = Category.query.filter_by(company_name=us.company_name)
+    inc = Category.query.all()
     result = guest_schema.dump(inc)
     return jsonify(result)
 
@@ -2498,7 +2553,7 @@ def add_family():
     # usr = user.firstname +" " + user.lastname
     created_date=datetime.now().strftime('%Y-%m-%d %H:%M')
     inc = Family(name=name,description=description,
-                   created_date=created_date,company_name=us.company_name)
+                   created_date=created_date)
   
     db.session.add(inc)
     db.session.commit()
@@ -2514,7 +2569,7 @@ def add_family():
 def get_family_list():
     us = User.query.filter_by(id = flask_praetorian.current_user().id).first()
     # user = User.query.filter_by(id = flask_praetorian.current_user().id).first()
-    inc = Family.query.filter_by(company_name=us.company_name)
+    inc = Family.query.all()
     result = guest_schema.dump(inc)
     return jsonify(result)
 
@@ -2787,8 +2842,7 @@ def search_income_dates_two():
 
         pay = Income.query.filter(
             Income.session >= start_date,
-            Income.session <= end_date,
-            Income.company_name.contains(us.company_name)
+            Income.session <= end_date
         ).order_by(desc(Income.date)).all()
 
         result = guest_schema.dump(pay)
@@ -2838,7 +2892,7 @@ def searchdates_two():
     us = User.query.filter_by(id=current_user.id).first()
 
     date = request.json.get("date")
-    date_two = request.json.get("datetwo")
+    date_two = request.json.get("date_two")
 
     if not date or not date_two:
         return jsonify({"error": "Both 'date' and 'date_two' must be provided"}), 400
@@ -2866,7 +2920,7 @@ def search_purchase_date_two():
     us = User.query.filter_by(id=current_user.id).first()
 
     date = request.json.get("date")
-    date_two = request.json.get("datetwo")
+    date_two = request.json.get("date_two")
 
     if not date or not date_two:
         return jsonify({"error": "Both 'date' and 'date_two' must be provided"}), 400
@@ -2894,7 +2948,7 @@ def search_refund_dates_two():
     us = User.query.filter_by(id=current_user.id).first()
 
     date = request.json.get("date")
-    date_two = request.json.get("datetwo")
+    date_two = request.json.get("date_two")
 
     if not date or not date_two:
         return jsonify({"error": "Both 'date' and 'date_two' must be provided"}), 400
@@ -3081,7 +3135,7 @@ def add_store():
 def get_store_list():
     us = User.query.filter_by(id = flask_praetorian.current_user().id).first()
     # user = User.query.filter_by(id = flask_praetorian.current_user().id).first()
-    inc = Store.query.filter_by(company_name=us.company_name)
+    inc = Store.query.all()
     result = guest_schema.dump(inc)
     return jsonify(result)
 
@@ -3189,7 +3243,7 @@ def update_stock():
     sub_data = Stock.query.filter_by(id=id).first()
     sub_data.name = request.json["name"]
     sub_data.store= request.json["store"]
-    sub_data.store= int(quantity) + int(sub_data.quantity) 
+    sub_data.quantity= int(quantity) + int(sub_data.quantity) 
     # sub_data.Category =request.json["category"]
 
     db.session.commit()
@@ -3782,7 +3836,7 @@ def add_received_item():
 @flask_praetorian.auth_required
 def get_received():    
     us = User.query.filter_by(id = flask_praetorian.current_user().id).first()
-    itm = ReceivedItem.query.filter_by(company_name=us.company_name)
+    itm = ReceivedItem.query.all()
     result = guest_schema.dump(itm)
     return jsonify(result)
 
@@ -3855,7 +3909,7 @@ def add_return_request():
     user = User.query.filter_by(id =flask_praetorian.current_user().id).first()
     request_by= user.firstname +" "+ user.lastname
 
-    a = returnRequest(item_id=item_id,item=item,quantity=qty,reason=reason,created_date=created_date,request_by=request_by,status="Pending",company_name=us.company_name)
+    a = returnRequest(item_id=item_id,item=item,quantity=qty,reason=reason,created_date=created_date,request_by=request_by,status="Pending")
     db.session.add(a)
     db.session.commit()
     resp = jsonify("success")
@@ -4001,7 +4055,7 @@ def close_session():
 @flask_praetorian.auth_required
 def get_current_session():
     us = User.query.filter_by(id = flask_praetorian.current_user().id).first()
-    session_data =  Session.query.filter_by(status="current",company_name=us.company_name).all()
+    session_data =  Session.query.filter_by(status="current").all()
     results = guest_schema.dump(session_data)
     return jsonify(results)
 
@@ -4011,7 +4065,7 @@ def get_current_session():
 @flask_praetorian.auth_required
 def get_all_session():
     us = User.query.filter_by(id = flask_praetorian.current_user().id).first()
-    session_data =  Session.query.filter_by(company_name=us.company_name).order_by(desc(Session.open_date))
+    session_data =  Session.query.all().order_by(desc(Session.open_date))
     results = guest_schema.dump(session_data)
     return jsonify(results)
 
@@ -4072,7 +4126,7 @@ def create_orders():
         user_id=us.id,
         items=items,
         total=int(data['total']),
-        company_name=us.company_name,
+        
         waiter=us.firstname,
         order_status="Pending",
       
@@ -4108,14 +4162,14 @@ def create_orders():
             category=category,
             waiter=us.firstname + " " + us.lastname,
             status="Pending",  table=data['table']),
-        pos_payment = PosPayment(company_name=us.company_name,name=item_name,amount=total_price,  method = request.json["method"],
+        pos_payment = PosPayment(name=item_name,amount=total_price,  method = request.json["method"],
                                  quantity=item_quantity,attendant=us.firstname +" "+us.lastname,created_by_id=us.id,cashier=cashier.firstname+" "+cashier.lastname,
-                                 payment_date=datetime.now().strftime('%Y-%m-%d %H:%M'),session=session.open_date, category = cart_item.get('family'),cat=category,customer=cus.firstname+" "+cus.lastname)
+                                 payment_date=datetime.now().strftime('%Y-%m-%d %H:%M'),session=session.open_date, category = cart_item.get('family'),cat=category,customer=cus.firstname+" "+cus.lastname,phone=request.json["phone"])
         
 
         income = Income(name=item_name,attendant=us.firstname +" "+us.lastname,amount =total_price,date =datetime.now().strftime('%Y-%m-%d %H:%M'),discount=request.json["discount"],
-                        note="Pos Payment",company_name=us.company_name,created_date=datetime.now().strftime('%Y-%m-%d %H:%M'),
-                        created_by_id=us.id,cashier=cashier.firstname+" "+cashier.lastname,session=session.open_date,  method=request.json["method"], category = cart_item.get('family'),cat=category,customer=cus.firstname+" "+cus.lastname,
+                        note="Pos Payment",created_date=datetime.now().strftime('%Y-%m-%d %H:%M'),
+                        created_by_id=us.id,cashier=cashier.firstname+" "+cashier.lastname,session=session.open_date,  method=request.json["method"], category = cart_item.get('family'),cat=category,customer=cus.firstname+" "+cus.lastname,phone=request.json["phone"],
 )
 
     
@@ -4170,7 +4224,7 @@ def create_orders_all():
         user_id=us.id,
         items=items,
         total=int(data['total']),
-        company_name=us.company_name,
+        
         waiter=us.firstname,
         order_status="Pending",
         status="paid",
@@ -4187,7 +4241,7 @@ def create_orders_all():
         family = cart_item.get('family')
         price = cart_item.get('price')
         total_price = float(price) * float(item_quantity)
-        item = Iteman.query.filter_by(name=item_name).first()
+        item = Iteman.query.filter_by(name=item_name,is_vip="no").first()
         if not item:
             return jsonify({"error": f"Item '{item_name}' not found"}), 404
         #if int(item.quantity) < int(item_quantity):
@@ -4204,7 +4258,7 @@ def create_orders_all():
             category=category,
             waiter=us.firstname + " " + us.lastname,
             status="Pending",
-            company_name=us.company_name,
+            
             created_date=datetime.now().strftime('%Y-%m-%d %H:%M'),
             family=family,
             session=session.open_date,  
@@ -4212,7 +4266,7 @@ def create_orders_all():
         )
 
         pos_payment = PosPayment(
-            company_name=us.company_name,
+            
             name=item_name,
             amount=total_price,
             method=request.json["method"],
@@ -4221,7 +4275,7 @@ def create_orders_all():
             created_by_id=us.id,
             cashier=cashier.firstname + " " + cashier.lastname,
             payment_date=datetime.now().strftime('%Y-%m-%d %H:%M'),
-            session=session.open_date, category = cart_item.get('family'),cat=category,customer=cus.firstname+" "+cus.lastname
+            session=session.open_date, category = cart_item.get('family'),cat=category,customer=cus.firstname+" "+cus.lastname,phone=request.json["phone"]
         )
 
         income = Income(
@@ -4229,12 +4283,12 @@ def create_orders_all():
             amount=total_price,
             date=datetime.now().strftime('%Y-%m-%d %H:%M'),
             note="Pos Payment",
-            company_name=us.company_name,
+            
             created_date=datetime.now().strftime('%Y-%m-%d %H:%M'),
             created_by_id=us.id,
             cashier=cashier.firstname + " " + cashier.lastname,discount=request.json["discount"],
             session=session.open_date,
-            method=request.json["method"], category = cart_item.get('family'),cat=category,customer=cus.firstname+" "+cus.lastname
+            method=request.json["method"], category = cart_item.get('family'),cat=category,customer=cus.firstname+" "+cus.lastname,phone=request.json["phone"]
         )
 
         # Query all held carts for the current user and update their paid_status
@@ -4260,6 +4314,140 @@ def create_orders_all():
         "user_id": new_order.user_id,
         "waiter": new_order.waiter
     }), 201
+    
+    
+    
+    
+    
+    
+
+@guest.route('/credit', methods=['POST'])
+@flask_praetorian.auth_required
+def credit():
+    us = User.query.filter_by(id=flask_praetorian.current_user().id).first()
+    session = Session.query.filter_by(status="current").first()
+    
+    data = request.json
+    cash = ""
+    cashier = User.query.filter_by(username=request.json["cashier"]).first()
+    cus=Customer.query.filter_by(id=request.json["customer"]).first()
+    if cashier:
+        cash = cashier.firstname + " " + cashier.lastname
+
+    print("Incoming data:", data)  # ✅ Debug incoming request
+
+    if not data or 'cartItems' not in data or 'total' not in data:
+        return jsonify({"error": "Invalid request"}), 400
+
+    # ✅ Always store valid JSON
+    items = json.dumps(data.get('cartItems', []))
+
+    new_order = Order(
+        user_id=us.id,
+        items=items,
+        total=int(data['total']),
+        
+        waiter=us.firstname,
+        order_status="Pending",
+        status="paid",
+        session=session.open_date,
+    )
+    db.session.add(new_order)
+    db.session.commit()
+    
+    
+    
+    credit = Credit(
+        user_id=us.id,
+        items=items,
+        total=int(data['total']),
+        
+        waiter=us.firstname,
+        order_status="Sucess",
+        status="credit",
+        customer=cus.firstname+" "+cus.lastname,
+        phone = request.json["phone"],
+        session=session.open_date,
+    )
+    db.session.add(new_order)
+    db.session.commit()
+
+    # ✅ Deduct Stock & Create Order Items
+    for cart_item in data['cartItems']:
+        item_name = cart_item.get('name')
+        item_quantity = (cart_item.get('qty', 0))
+        category = cart_item.get('category')
+        family = cart_item.get('family')
+        price = cart_item.get('price')
+        total_price = float(price) * float(item_quantity)
+        item = Iteman.query.filter_by(name=item_name,is_vip="no").first()
+        if not item:
+            return jsonify({"error": f"Item '{item_name}' not found"}), 404
+        #if int(item.quantity) < int(item_quantity):
+            #return jsonify({"error": f"Not enough stock for {item_name}"}), 400
+        # old_quantity = float(item.quantity)
+
+        # item.quantity = old_quantity - item_quantity  # 🔻 Deduct stock
+
+        order_item = OrderItem(
+            item_name=item_name,
+            order_id=new_order.id,
+            item_id=item.id,
+            quantity=item_quantity,
+            category=category,
+            waiter=us.firstname + " " + us.lastname,
+            status="Pending",
+            
+            created_date=datetime.now().strftime('%Y-%m-%d %H:%M'),
+            family=family,
+            session=session.open_date,  
+            table=data['table']
+        )
+
+        pos_payment = PosPayment(
+            
+            name=item_name,
+            amount=total_price,
+            method=request.json["method"],
+            quantity=item_quantity,
+            attendant=us.firstname + " " + us.lastname,
+            created_by_id=us.id,
+            cashier=cashier.firstname + " " + cashier.lastname,
+            payment_date=datetime.now().strftime('%Y-%m-%d %H:%M'),
+            session=session.open_date, category = cart_item.get('family'),cat=category,customer=cus.firstname+" "+cus.lastname,phone=request.json["phone"]
+        )
+
+        
+
+        # Query all held carts for the current user and update their paid_status
+        held_carts = HeldCart.query.filter_by(user_id=us.id).all()
+        for held_cart in held_carts:
+            held_cart.status = "Confirmed"
+            held_cart.paid_status = "Success"
+
+        db.session.commit()
+
+        db.session.add(pos_payment)
+        db.session.add(credit)
+        db.session.add(new_order)
+        db.session.add(order_item)
+        db.session.commit()
+    
+    return jsonify({
+        "id": new_order.id,
+        "company_name": new_order.company_name,
+        "created_at": new_order.created_at.strftime('%Y-%m-%d %H:%M:%S'),
+        "items": items,
+        "order_status": new_order.order_status,
+        "total": new_order.total,
+        "user_id": new_order.user_id,
+        "waiter": new_order.waiter
+    }), 201
+    
+    
+    
+    
+    
 
 
 @guest.route('/create_orders_two', methods=['POST'])
@@ -4288,7 +4476,7 @@ def create_orders_two():
         user_id=us.id,
         items=items,
         total=int(data['total']),
-        company_name=us.company_name,
+        
         waiter=us.firstname,
         order_status="Pending",
         status="paid",session=session.open_date
@@ -4324,20 +4512,20 @@ def create_orders_two():
             category=category,
             waiter=us.firstname + " " + us.lastname,
             status="Pending",
-            company_name=us.company_name,   created_date=datetime.now().strftime('%Y-%m-%d %H:%M') ,
+               created_date=datetime.now().strftime('%Y-%m-%d %H:%M') ,
             family =family,session=session.open_date
         )
 
-        pos_payment = PosPayment(company_name=us.company_name,name=item_name,amount=total_price,
+        pos_payment = PosPayment(name=item_name,amount=total_price,
                                  quantity=item_quantity,attendant=us.firstname +" "+us.lastname,created_by_id=us.id,
-                                 method=request.json["method"],cashier=cashier.firstname+" "+cashier.lastname,category = cart_item.get('family'),cat=category,customer=cus.firstname+" "+cus.lastname,
+                                 method=request.json["method"],cashier=cashier.firstname+" "+cashier.lastname,category = cart_item.get('family'),cat=category,customer=cus.firstname+" "+cus.lastname,phone=request.json["phone"],
                                  payment_date=datetime.now().strftime('%Y-%m-%d %H:%M'),session=session.open_date)
         
 
         income = Income(name=item_name + "-"+ us.firstname +" "+us.lastname,attendant=us.firstname +" "+us.lastname,amount =total_price,date =datetime.now().strftime('%Y-%m-%d %H:%M'),
-                        note="Pos Payment",company_name=us.company_name,created_date=datetime.now().strftime('%Y-%m-%d %H:%M'),
+                        note="Pos Payment",created_date=datetime.now().strftime('%Y-%m-%d %H:%M'),
                         created_by_id=us.id,cashier=cashier.firstname+" "+cashier.lastname,session=session.open_date,  method=request.json["method"],
-                        category = cart_item.get('family'),cat=category,customer=cus.firstname+" "+cus.lastname,discount=request.json["discount"])
+                        category = cart_item.get('family'),cat=category,customer=cus.firstname+" "+cus.lastname,phone=request.json["phone"],discount=request.json["discount"])
 
     
         held_cart = HeldCart.query.filter_by(id=request.json["id"]).first()
@@ -4389,7 +4577,7 @@ def create_orders_two_all():
         user_id=us.id,
         items=items,
         total=int(data['total']),
-        company_name=us.company_name,
+        
         waiter=us.firstname,
         order_status="Pending",
         status="paid", 
@@ -4423,7 +4611,7 @@ def create_orders_two_all():
             category=category,
             waiter=us.firstname + " " + us.lastname,
             status="Pending",
-            company_name=us.company_name,
+            
             created_date=datetime.now().strftime('%Y-%m-%d %H:%M'),
             family=family,
             session=session.open_date,  
@@ -4431,7 +4619,7 @@ def create_orders_two_all():
         )
 
         pos_payment = PosPayment(
-            company_name=us.company_name,
+            
             name=item_name,
             amount=total_price,
             quantity=item_quantity,
@@ -4440,7 +4628,7 @@ def create_orders_two_all():
             method=request.json["method"],
             cashier=cashier.firstname + " " + cashier.lastname,
             payment_date=datetime.now().strftime('%Y-%m-%d %H:%M'),
-            session=session.open_date,category = cart_item.get('family'),cat=category,customer=cus.firstname+" "+cus.lastname
+            session=session.open_date,category = cart_item.get('family'),cat=category,customer=cus.firstname+" "+cus.lastname,phone=request.json["phone"]
         )
 
         income = Income(
@@ -4448,12 +4636,12 @@ def create_orders_two_all():
             amount=total_price,
             date=datetime.now().strftime('%Y-%m-%d %H:%M'),
             note="Pos Payment",
-            company_name=us.company_name,
+            
             created_date=datetime.now().strftime('%Y-%m-%d %H:%M'),
             created_by_id=us.id,
             cashier=cashier.firstname + " " + cashier.lastname,
             session=session.open_date,discount=request.json["discount"],
-            method=request.json["method"],category = cart_item.get('family'),cat=category,customer=cus.firstname+" "+cus.lastname
+            method=request.json["method"],category = cart_item.get('family'),cat=category,customer=cus.firstname+" "+cus.lastname,phone=request.json["phone"]
         )
 
         # Query all held carts for the current user and update their paid_status
@@ -4654,7 +4842,7 @@ def get_helding_orders():
 
     # Query for held orders that contain food and have unconfirmed food
     held_orders = HeldCart.query.filter_by(
-        company_name=us.company_name,
+        
         contain_food="yes",  # Only orders with food
          # Only unconfirmed food orders
     ).all()
@@ -4696,7 +4884,7 @@ def get_helding_orders_drinks():
 
     # Adjusting the query to get only held orders containing drinks and with unconfirmed drinks
     held_orders = HeldCart.query.filter_by(
-        company_name=us.company_name
+    
     ).filter(
         HeldCart.contain_drink == "yes",  # Orders with drinks
       # Unconfirmed drinks
@@ -4775,6 +4963,20 @@ def remove_held_order():
 @flask_praetorian.auth_required
 def load_held_order(hold_id):
     held_order = HeldCart.query.get(hold_id)
+    if not held_order:
+        return jsonify({"error": "Held order not found"}), 404
+
+    return jsonify({
+        "id": held_order.id,
+        "items": json.loads(held_order.items),
+        "total": held_order.total
+    }), 200
+    
+    
+@guest.route('/load_held_order_save/<int:hold_id>', methods=['GET'])
+@flask_praetorian.auth_required
+def load_held_order_save(hold_id):
+    held_order = Order.query.get(hold_id)
     if not held_order:
         return jsonify({"error": "Held order not found"}), 404
 
@@ -5090,7 +5292,7 @@ def add_chef():
 def get_chef_list():
     # user = User.query.filter_by(id = flask_praetorian.current_user().id).first()
     us = User.query.filter_by(id = flask_praetorian.current_user().id).first()
-    inc = FoodChef.query.filter_by(company_name=us.company_name)
+    inc = FoodChef.query.all()
     result = guest_schema.dump(inc)
     return jsonify(result)
 
@@ -5135,6 +5337,7 @@ def add_customer():
     user = current_user()
     firstname=request.json["firstname"]
     lastname=request.json["lastname"]
+    phone=request.json["phone"]
     customer = Customer(firstname=firstname,lastname=lastname,created_date=datetime.now().strftime('%Y-%m-%d %H:%M'),
                         company_name=user.company_name)
     db.session.add(customer)
@@ -5152,3 +5355,314 @@ def get_customers():
     customer = Customer.query.all()
     results=guest_schema.dump(customer)
     return jsonify(results)
+
+@guest.route('/delete_customer/<int:customer_id>', methods=['DELETE'])
+@flask_praetorian.auth_required
+def delete_customer(customer_id):
+    customer = Customer.query.get_or_404(customer_id)
+    db.session.delete(customer)
+    db.session.commit()
+    return jsonify({'message': 'Customer deleted successfully'})
+
+
+@app.route('/apply_coupon/<int:customer_id>', methods=['POST','PUT'])
+@flask_praetorian.auth_required
+def apply_coupon(customer_id):
+    # Your logic to apply coupon (e.g., apply a discount)
+    # For now, we'll simulate the coupon being applied
+    customer = Customer.query.filter_by(id=customer_id).first()
+    if not customer:
+        return jsonify({"error": "Customer not found"}), 404
+    
+    else:
+        customer.coupon_applied = "no"
+        customer.coupon_value= request.json["discount"]
+        
+        db.session.commit() 
+        
+    return jsonify({"message": "Coupon applied successfully"}), 200
+    # Simulate a coupon being applied to customer (you might want to update their discount info here)
+    
+
+
+
+@guest.route("/add_account_group",methods=['POST'])
+@flask_praetorian.auth_required
+def add_account_group():
+    # user = User.query.filter_by(id = flask_praetorian.current_user().id).first()
+    # us = User.query.filter_by(id = flask_praetorian.current_user().id).first()
+    name= request.json["name"]
+    subcategory =request.json["subcategory"]
+    # price= request.json["price"]
+    # unit =request.json["unit"]
+    # category= request.json["category"]
+    # family= request.json["family"]
+    # wholesale= request.json["wholesale"]
+    
+    
+    # usr = user.firstname +" " + user.lastname
+    created_date=datetime.now().strftime('%Y-%m-%d %H:%M')
+    inc = AccountGroup(name=name,subcategory=subcategory,
+                   created_date=created_date)
+  
+    db.session.add(inc)
+    db.session.commit()
+    db.session.close()
+    resp = jsonify("success")
+    resp.status_code =200
+    return resp
+
+
+
+@guest.route("/get_account_group_list",methods=['GET'])
+@flask_praetorian.auth_required
+def get_account_group_list():
+    # us = User.query.filter_by(id = flask_praetorian.current_user().id).first()
+    # user = User.query.filter_by(id = flask_praetorian.current_user().id).first()
+    inc = AccountGroup.query.all()
+    result = guest_schema.dump(inc)
+    return jsonify(result)
+
+
+@guest.route("/get_account_group_list_sorted",methods=['GET'])
+@flask_praetorian.auth_required
+def get_account_group_list_sorted():
+    # us = User.query.filter_by(id = flask_praetorian.current_user().id).first()
+    # user = User.query.filter_by(id = flask_praetorian.current_user().id).first()
+    inc = AccountGroup.query.filter_by(subcategory="Uncategorized").all()
+    result = guest_schema.dump(inc)
+    return jsonify(result)
+
+
+
+
+
+@guest.route("/update_account_group",methods=['PUT'])
+@flask_praetorian.auth_required
+def update_account_group():
+    id = request.json["id"]
+    sub_data = AccountGroup.query.filter_by(id=id).first()
+    sub_data.name = request.json["name"]
+    sub_data.subcategory = request.json["subcategory"]
+   
+
+    db.session.commit()
+    db.session.close()
+    resp = jsonify("success")
+    resp.status_code =201
+    return resp
+
+@guest.route("/delete_account_group/<id>",methods=['DELETE'])
+@flask_praetorian.auth_required
+def delete_account_group(id):
+      sub_data = AccountGroup.query.filter_by(id=id).first()
+      
+      db.session.delete(sub_data)
+      db.session.commit()
+      db.session.close()
+      resp = jsonify("success")
+      resp.status_code =201
+      return resp
+  
+  
+  
+@guest.route("/get_account_group/<id>",methods=['GET'])
+@flask_praetorian.auth_required
+def get_account_group(id):
+    # us = User.query.filter_by(id = flask_praetorian.current_user().id).first()
+    inc = AccountGroup.query.all()
+    result = guest_schema.dump(inc)
+    return jsonify(result)
+
+
+
+
+
+
+@guest.route("/add_account",methods=['POST'])
+@flask_praetorian.auth_required
+def add_account():
+    # user = User.query.filter_by(id = flask_praetorian.current_user().id).first()
+    # us = User.query.filter_by(id = flask_praetorian.current_user().id).first()
+    name= request.json["name"]
+    subcategory =request.json["subcategory"]
+    amount= request.json["amount"]
+    # unit =request.json["unit"]
+    # category= request.json["category"]
+    # family= request.json["family"]
+    # wholesale= request.json["wholesale"]
+    
+    
+    # usr = user.firstname +" " + user.lastname
+    created_date=datetime.now().strftime('%Y-%m-%d %H:%M')
+    inc = Account(name=name,subcategory=subcategory,amount=amount,
+                   created_date=created_date)
+  
+    db.session.add(inc)
+    db.session.commit()
+    db.session.close()
+    resp = jsonify("success")
+    resp.status_code =200
+    return resp
+
+
+
+@guest.route("/get_account_list",methods=['GET'])
+@flask_praetorian.auth_required
+def get_account_list():
+    # us = User.query.filter_by(id = flask_praetorian.current_user().id).first()
+    # user = User.query.filter_by(id = flask_praetorian.current_user().id).first()
+    inc = Account.query.all()
+    result = guest_schema.dump(inc)
+    return jsonify(result)
+
+
+@guest.route("/get_account_list_sorted",methods=['GET'])
+@flask_praetorian.auth_required
+def get_account_list_sorted():
+    # us = User.query.filter_by(id = flask_praetorian.current_user().id).first()
+    # user = User.query.filter_by(id = flask_praetorian.current_user().id).first()
+    inc = Account.query.filter_by(subcategory="Uncategorized").all()
+    result = guest_schema.dump(inc)
+    return jsonify(result)
+
+
+
+
+
+@guest.route("/update_account",methods=['PUT'])
+@flask_praetorian.auth_required
+def update_account():
+    id = request.json["id"]
+    sub_data = Account.query.filter_by(id=id).first()
+    sub_data.name = request.json["name"]
+    sub_data.amount = request.json["name"]
+    sub_data.subcategory = request.json["subcategory"]
+   
+
+    db.session.commit()
+    db.session.close()
+    resp = jsonify("success")
+    resp.status_code =201
+    return resp
+
+@guest.route("/delete_account/<id>",methods=['DELETE'])
+@flask_praetorian.auth_required
+def delete_account(id):
+      sub_data = Account.query.filter_by(id=id).first()
+      
+      db.session.delete(sub_data)
+      db.session.commit()
+      db.session.close()
+      resp = jsonify("success")
+      resp.status_code =201
+      return resp
+
+
+@guest.route("/balance_sheet", methods=["POST"])
+@flask_praetorian.auth_required
+def balance_sheet():
+    try:
+        from_date = request.json.get("from_date")
+        to_date = request.json.get("to_date")
+
+        if not from_date or not to_date:
+            return jsonify({"error": "Please select both dates"}), 400
+
+        start = datetime.strptime(from_date, "%Y-%m-%d")
+        end = datetime.strptime(to_date, "%Y-%m-%d")
+
+        # -----------------------------------------------------
+        #                      INCOME
+        # -----------------------------------------------------
+        income_records = Income.query.filter(
+            Income.created_date >= start,
+            Income.created_date <= end
+        ).all()
+
+        total_income = sum(float(i.amount or 0) for i in income_records)
+
+        # -----------------------------------------------------
+        #                     EXPENSES
+        # -----------------------------------------------------
+        expense_records = Expenses.query.filter(
+            Expenses.created_date >= start,
+            Expenses.created_date <= end
+        ).all()
+
+        grouped_expenses = {}
+        category_totals = {}
+
+        for e in expense_records:
+            cat = e.name or "Other"
+            sub = e.subcategory or "General"
+
+            grouped_expenses.setdefault(cat, {}).setdefault(sub, 0)
+            grouped_expenses[cat][sub] += float(e.amount or 0)
+
+            category_totals[cat] = category_totals.get(cat, 0) + float(e.amount or 0)
+
+        total_expenses = sum(float(e.amount or 0) for e in expense_records)
+
+        # -----------------------------------------------------
+        #                ACCOUNTS RECEIVABLE
+        # -----------------------------------------------------
+        receivable_records = Credit.query.filter(
+            Credit.created_at >= start,
+            Credit.created_at <= end,
+            Credit.status == "pending"
+        ).all()
+
+        accounts_receivable = sum(float(c.total or 0) for c in receivable_records)
+
+        # -----------------------------------------------------
+        #            STOCK AVAILABLE FOR SALE (Iteman)
+        #            price × quantity
+        # -----------------------------------------------------
+        iteman_records = Iteman.query.filter_by(is_vip="no").all()
+
+        stock_for_sale = sum(
+            float(item.price or 0) * float(item.quantity or 0)
+            for item in iteman_records
+        )
+
+        # -----------------------------------------------------
+        #                    STOCK IN STORE
+        # -----------------------------------------------------
+        stock_records = Stock.query.all()
+
+        stock_in_store = sum(
+            float(s.quantity or 0)
+            for s in stock_records
+        )
+
+        # -----------------------------------------------------
+        #                     NET ASSETS
+        # -----------------------------------------------------
+        net_assets = (
+            total_income
+            + accounts_receivable
+            + stock_for_sale
+            + stock_in_store
+            - total_expenses
+        )
+
+        # -----------------------------------------------------
+        #                    RETURN DATA
+        # -----------------------------------------------------
+        return jsonify({
+            "date": to_date,
+            "income_total": total_income,
+            "accounts_receivable": accounts_receivable,
+            "stock_for_sale": stock_for_sale,
+            "stock_in_store": stock_in_store,
+            "total_expenses": total_expenses,
+            "net": net_assets,
+            "expense_groups": grouped_expenses,
+            "expense_totals": category_totals
+        })
+
+    except Exception as e:
+        print("Balance sheet error:", str(e))
+        return jsonify({"error": "Something went wrong"}), 500
+

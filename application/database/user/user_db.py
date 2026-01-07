@@ -306,6 +306,26 @@ class Order(db.Model):
 
     # Relationship to OrderItem
     order_items = db.relationship('OrderItem', backref='order', lazy=True, cascade="all, delete-orphan")
+    
+    
+    
+    
+class Credit(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    items = db.Column(db.String(500))  # JSON string of order items
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    total = db.Column(db.Float, nullable=False)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    company_name = db.Column(db.String(500))
+    order_status = db.Column(db.String(500), default="Pending")  # Pending, Confirmed, Completed
+    waiter = db.Column(db.String(500))
+    status = db.Column(db.String(20), default="paid")  # Status: paid, pending
+    session  =db.Column(db.String(200))
+    customer  =db.Column(db.String(200))
+    phone  =db.Column(db.String(200))
+
+    # Relationship to OrderItem
+    
 
 
 # ✅ Order Items Model
@@ -383,6 +403,7 @@ class PosPayment(db.Model):
     method= db.Column(db.String(100)) 
     cashier= db.Column(db.String(100))
     customer = db.Column(db.String(400)) 
+    phone = db.Column(db.String(400)) 
     
     created_by_id = db.Column(db.Integer, db.ForeignKey('user.id'))
     session=db.Column(db.String(200))
@@ -499,6 +520,7 @@ class Expenses(db.Model):
     created_date = db.Column(db.String(400))
     company_name= db.Column(db.String(500))  
     session = db.Column(db.String(200))
+    subcategory = db.Column(db.String(200))
     created_by_id = db.Column(db.Integer, db.ForeignKey('user.id'))
 
     def __repr__(self):
@@ -535,6 +557,7 @@ class Income(db.Model):
     method=db.Column(db.String(200))
     category = db.Column(db.String(200))
     discount = db.Column(db.String(200))
+    phone = db.Column(db.String(200))
     def __repr__(self):
         return f"<Income(id={self.id}, name={self.name}, amount={self.amount}, date={self.date})>"
 
@@ -618,10 +641,12 @@ class Iteman(db.Model):
     category = db.Column(db.Text)  # Change to TEXT
     family = db.Column(db.Text)  # Change to TEXT
     price = db.Column(db.String(400))
+    whole_price = db.Column(db.String(400))
     unit = db.Column(db.String(400))
     voided = db.Column(db.String(400))
     is_vip = db.Column(db.String(400))
     quantity= db.Column(db.String(500))
+   
     company_name= db.Column(db.String(500))  
 
     def __repr__(self):
@@ -643,6 +668,7 @@ class ReceivedItem(db.Model):
     company_name= db.Column(db.String(500))  
     quantity = db.Column(db.Text)
     created_date = db.Column(db.String(400))
+    batch_number = db.Column(db.String(400))
     expired_date = db.Column(db.String(400)) 
 
 
@@ -655,7 +681,9 @@ class Customer(db.Model):
     company_name= db.Column(db.String(500))  
     lastname = db.Column(db.Text)
     created_date = db.Column(db.String(400))
-   
+    phone= db.Column(db.String(400))
+    coupon_value = db.Column(db.String(400))
+    coupon_applied= db.Column(db.String(400))
 
 class Stock(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -764,6 +792,25 @@ class Category(db.Model):
 
     def __repr__(self):
         return f"<Category(id={self.id}, name={self.name}, description={self.description})>"
+    
+    
+    
+
+class AccountGroup(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.Text)
+    subcategory= db.Column(db.String(400))
+    created_date=created_date = db.Column(db.String(400))
+    
+class Account(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.Text)
+    amount = db.Column(db.Text)
+    subcategory= db.Column(db.String(400))
+    created_date=created_date = db.Column(db.String(400))
+  
+
+
 
 class PurchaseRequest(db.Model):
     id = db.Column(db.Integer, primary_key=True)
