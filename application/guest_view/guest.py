@@ -4035,7 +4035,7 @@ def close_session():
     id = request.json["id"]
    
 
-    user = User.query.filter_by(id = flask_praetorian.current_user().id).first()
+    user = User.query.filter_by(status="current").first()
   
     usr = user.firstname +" " + user.lastname
     created_date=datetime.now().strftime('%Y-%m-%d %H:%M')
