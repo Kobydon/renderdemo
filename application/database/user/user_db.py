@@ -3,7 +3,7 @@ from application.settings.setup import app
 from application.settings.settings import *
 from flask_migrate import Migrate
 from datetime import datetime, timezone
-
+from sqlalchemy.dialects.mysql import JSON
 
 
 # from application.database.user.user_db import User
@@ -35,6 +35,7 @@ class User(db.Model):
     gender = db.Column(db.String(50))  # Adjusted size
 
     # Relationships
+    payment_by = db.relationship('SalaryPayment', foreign_keys='SalaryPayment.created_by_id', lazy=True)
     messaging_by = db.relationship('Messager', foreign_keys='Messager.reciever_id',
                                    backref='messaging_find', lazy=True)
     room_by = db.relationship('RoomType', foreign_keys='RoomType.created_by_id',
@@ -280,6 +281,8 @@ class Wifi(db.Model):
     code = db.Column(db.String(100))  # Adjusted column size
     state = db.Column(db.String(255))  # Adjusted column size]
     duration =db.Column(db.String(255)) 
+    
+
   # Adjusted column size
 
 
@@ -456,6 +459,7 @@ class Employee(db.Model):
     remark = db.Column(db.String(400))
     city = db.Column(db.String(400))
     created_by_id = db.Column(db.Integer, db.ForeignKey('user.id'))
+    payment_by = db.relationship('SalaryPayment', foreign_keys='SalaryPayment.employee_id', lazy=True)
 
     def __repr__(self):
         return f"<Employee(id={self.id}, name={self.first_name} {self.last_name}, email={self.email})>"
@@ -525,6 +529,26 @@ class Expenses(db.Model):
 
     def __repr__(self):
         return f"<Expenses(id={self.id}, name={self.name}, amount={self.amount}, date={self.date})>"
+    
+class SalaryPayment(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+
+    employee_id = db.Column(db.Integer, db.ForeignKey('employee.id'))
+    employee_name = db.Column(db.String(200))
+    position = db.Column(db.String(120))
+
+    template_id = db.Column(db.Integer, db.ForeignKey('salary_template.id'))
+
+    gross_salary = db.Column(db.Float)
+    total_deductions = db.Column(db.Float)
+    net_salary = db.Column(db.Float)
+
+    session = db.Column(db.String(120))
+    payment_method = db.Column(db.String(50))
+    payment_date = db.Column(db.DateTime, default=datetime.utcnow)
+
+    company_name = db.Column(db.String(500))
+    created_by_id = db.Column(db.Integer, db.ForeignKey('user.id'))
 
 class GOP(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -646,7 +670,7 @@ class Iteman(db.Model):
     voided = db.Column(db.String(400))
     is_vip = db.Column(db.String(400))
     quantity= db.Column(db.String(500))
-   
+    cocktail_setup = db.Column(JSON)  # 
     company_name= db.Column(db.String(500))  
 
     def __repr__(self):
@@ -794,6 +818,16 @@ class Category(db.Model):
         return f"<Category(id={self.id}, name={self.name}, description={self.description})>"
     
     
+class SalaryTemplate(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(120), nullable=False)
+    position = db.Column(db.String(120))
+    company_name = db.Column(db.String(120))
+    earnings = db.Column(db.JSON)
+    deductions = db.Column(db.JSON)
+    payment_link =db.relationship('SalaryPayment', backref='salary_template', lazy=True)
+    
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
     
 
 class AccountGroup(db.Model):

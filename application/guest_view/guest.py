@@ -39,7 +39,7 @@ orders_schema = OrderSchema(many=True)
         
 class Guest_schema(ma.Schema):
     class Meta:
-        fields=("id","first_name","last_name","cart_id","operation","unit","family","open_by","department","price","address","has_checkout","checkout_date","arrival","city","country","id_type","id_number","id_upload","dob","gender","work","remark","phone",
+        fields=("id","first_name","last_name","cart_id","operation","cocktail_setup","unit","family","open_by","department","price","address","has_checkout","checkout_date","arrival","city","country","id_type","id_number","id_upload","dob","gender","work","remark","phone",
                 "region","email","username","arrival_date","checkout_date","guest_id","note","amount","created_date","date","type","attendace","name","description","store","quantity","hod","requested_by","item","approved_by","attendant","coupon_value","coupon_applied",
                 "total_cost","unit_price","store","status","Department","attendance","time_in","time_out","position","reason","voided","item_id","request_by","user","method","subcategory","whole_price",
                     "close_by","open_date","lastname","firstname","close_date","wifi_code","order_id","waiter","food","cashier","is_vip","balance","customer_name","customer_phone","received_by","start_time","end_time",  "category","expired_date","batch_number","discount","customer")
@@ -67,7 +67,7 @@ class ReserveSchema(ma.Schema):
 
 refund_schema = Refund_Schema(many=True)
 guest_schema = Guest_schema(many=True)
-
+guest_single_schema = Guest_schema()
 pay_schema = PaySchema(many=True)
 
 reserve_schema =ReserveSchema(many=True)
@@ -126,7 +126,7 @@ def add_guest():
             phone = request.json["phone"]
 
         except:
-            phone=""
+            phon=""
        
         owner =Guests(   
         username= request.json["username"],
@@ -981,10 +981,10 @@ def search_held_order_dates():
         return jsonify({"error": "Date is required"}), 400
 
     # Query HeldCart with filtering
-    held_orders = Credit.query.filter(
-        Credit.session.contains(date),
-        Credit.company_name == user.company_name
-    ).order_by(desc(Credit.session)).all()
+    held_orders = HeldCart.query.filter(
+        HeldCart.session.contains(date),HeldCart.status=="Pending",
+        HeldCart.company_name == user.company_name
+    ).order_by(desc(HeldCart.session)).all()
 
     # Deserialize 'items' field before returning JSON response
     result = []
@@ -1033,11 +1033,11 @@ def search_held_order_dates_two():
         end_date = datetime.combine(datetime.strptime(datetwo, "%Y-%m-%d"), time.max)
 
         # Query HeldCart with filtering
-        held_orders = Credit.query.filter(
-            Credit.session >= start_date,
-            Credit.session <= end_date,
-            Credit.company_name == user.company_name,Credit.paid_status=="pending"
-        ).order_by(desc(Credit.session)).all()
+        held_orders = HeldCart.query.filter(
+            HeldCart.session >= start_date,
+            HeldCart.session <= end_date,
+            HeldCart.company_name == user.company_name,HeldCart.paid_status=="pending"
+        ).order_by(desc(HeldCart.session)).all()
 
         # Deserialize 'items' field before returning JSON response
         result = []
@@ -4035,7 +4035,7 @@ def close_session():
     id = request.json["id"]
    
 
-    user = User.query.filter_by(status="current").first()
+    user = User.query.filter_by(id=flask_praetorian.current_user().id).first()
   
     usr = user.firstname +" " + user.lastname
     created_date=datetime.now().strftime('%Y-%m-%d %H:%M')
@@ -4109,7 +4109,13 @@ def create_orders():
     data = request.json
     cash=""
     cashier = User.query.filter_by(username=request.json["cashier"]).first()
-    cus=Customer.query.filter_by(id=request.json["customer"]).first()
+    customer=Customer.query.filter_by(id=request.json["customer"]).first()
+    if customer:
+        customer=customer.firstname+" "+customer.lastname
+    phon=""
+    phone= request.json["phone"]
+    if phone:
+        phon=phone
     if cashier:
         cash= cashier.firstname +" "+ cashier.lastname
 
@@ -4164,12 +4170,12 @@ def create_orders():
             status="Pending",  table=data['table']),
         pos_payment = PosPayment(name=item_name,amount=total_price,  method = request.json["method"],
                                  quantity=item_quantity,attendant=us.firstname +" "+us.lastname,created_by_id=us.id,cashier=cashier.firstname+" "+cashier.lastname,
-                                 payment_date=datetime.now().strftime('%Y-%m-%d %H:%M'),session=session.open_date, category = cart_item.get('family'),cat=category,customer=cus.firstname+" "+cus.lastname,phone=request.json["phone"])
+                                 payment_date=datetime.now().strftime('%Y-%m-%d %H:%M'),session=session.open_date, category = cart_item.get('family'),cat=category,customer=customer,phone=phon)
         
 
         income = Income(name=item_name,attendant=us.firstname +" "+us.lastname,amount =total_price,date =datetime.now().strftime('%Y-%m-%d %H:%M'),discount=request.json["discount"],
                         note="Pos Payment",created_date=datetime.now().strftime('%Y-%m-%d %H:%M'),
-                        created_by_id=us.id,cashier=cashier.firstname+" "+cashier.lastname,session=session.open_date,  method=request.json["method"], category = cart_item.get('family'),cat=category,customer=cus.firstname+" "+cus.lastname,phone=request.json["phone"],
+                        created_by_id=us.id,cashier=cashier.firstname+" "+cashier.lastname,session=session.open_date,  method=request.json["method"], category = cart_item.get('family'),cat=category,customer=customer,phone=phon,
 )
 
     
@@ -4208,7 +4214,13 @@ def create_orders_all():
     data = request.json
     cash = ""
     cashier = User.query.filter_by(username=request.json["cashier"]).first()
-    cus=Customer.query.filter_by(id=request.json["customer"]).first()
+    customer=Customer.query.filter_by(id=request.json["customer"]).first()
+    if customer:
+        customer=customer.firstname+" "+customer.lastname
+    phon=""
+    phone= request.json["phone"]
+    if phone:
+        phon=phone
     if cashier:
         cash = cashier.firstname + " " + cashier.lastname
 
@@ -4275,7 +4287,7 @@ def create_orders_all():
             created_by_id=us.id,
             cashier=cashier.firstname + " " + cashier.lastname,
             payment_date=datetime.now().strftime('%Y-%m-%d %H:%M'),
-            session=session.open_date, category = cart_item.get('family'),cat=category,customer=cus.firstname+" "+cus.lastname,phone=request.json["phone"]
+            session=session.open_date, category = cart_item.get('family'),cat=category,customer=customer,phone=phon
         )
 
         income = Income(
@@ -4286,9 +4298,9 @@ def create_orders_all():
             
             created_date=datetime.now().strftime('%Y-%m-%d %H:%M'),
             created_by_id=us.id,
-            cashier=cashier.firstname + " " + cashier.lastname,discount=request.json["discount"],
+            cashier=cashier.firstname + " " + cashier.lastname,
             session=session.open_date,
-            method=request.json["method"], category = cart_item.get('family'),cat=category,customer=cus.firstname+" "+cus.lastname,phone=request.json["phone"]
+            method=request.json["method"], category = cart_item.get('family'),cat=category,customer=customer,phone=phon
         )
 
         # Query all held carts for the current user and update their paid_status
@@ -4330,7 +4342,13 @@ def credit():
     data = request.json
     cash = ""
     cashier = User.query.filter_by(username=request.json["cashier"]).first()
-    cus=Customer.query.filter_by(id=request.json["customer"]).first()
+    customer=Customer.query.filter_by(id=request.json["customer"]).first()
+    if customer:
+        customer=customer.firstname+" "+customer.lastname
+    phon=""
+    phone= request.json["phone"]
+    if phone:
+        phon=phone
     if cashier:
         cash = cashier.firstname + " " + cashier.lastname
 
@@ -4365,7 +4383,7 @@ def credit():
         waiter=us.firstname,
         order_status="Sucess",
         status="credit",
-        customer=cus.firstname+" "+cus.lastname,
+        customer=customer,
         phone = request.json["phone"],
         session=session.open_date,
     )
@@ -4414,7 +4432,7 @@ def credit():
             created_by_id=us.id,
             cashier=cashier.firstname + " " + cashier.lastname,
             payment_date=datetime.now().strftime('%Y-%m-%d %H:%M'),
-            session=session.open_date, category = cart_item.get('family'),cat=category,customer=cus.firstname+" "+cus.lastname,phone=request.json["phone"]
+            session=session.open_date, category = cart_item.get('family'),cat=category,customer=customer,phone=phon
         )
 
         
@@ -4460,7 +4478,13 @@ def create_orders_two():
     data = request.json
     cash=""
     cashier = User.query.filter_by(username=request.json["cashier"]).first()
-    cus=Customer.query.filter_by(id=request.json["customer"]).first()
+    customer=Customer.query.filter_by(id=request.json["customer"]).first()
+    if customer:
+        customer=customer.firstname+" "+customer.lastname
+    phon=""
+    phone= request.json["phone"]
+    if phone:
+        phon=phone
     if cashier:
         cash= cashier.firstname +" "+ cashier.lastname
 
@@ -4518,14 +4542,14 @@ def create_orders_two():
 
         pos_payment = PosPayment(name=item_name,amount=total_price,
                                  quantity=item_quantity,attendant=us.firstname +" "+us.lastname,created_by_id=us.id,
-                                 method=request.json["method"],cashier=cashier.firstname+" "+cashier.lastname,category = cart_item.get('family'),cat=category,customer=cus.firstname+" "+cus.lastname,phone=request.json["phone"],
+                                 method=request.json["method"],cashier=cashier.firstname+" "+cashier.lastname,category = cart_item.get('family'),cat=category,customer=customer,phone=phon,
                                  payment_date=datetime.now().strftime('%Y-%m-%d %H:%M'),session=session.open_date)
         
 
         income = Income(name=item_name + "-"+ us.firstname +" "+us.lastname,attendant=us.firstname +" "+us.lastname,amount =total_price,date =datetime.now().strftime('%Y-%m-%d %H:%M'),
                         note="Pos Payment",created_date=datetime.now().strftime('%Y-%m-%d %H:%M'),
                         created_by_id=us.id,cashier=cashier.firstname+" "+cashier.lastname,session=session.open_date,  method=request.json["method"],
-                        category = cart_item.get('family'),cat=category,customer=cus.firstname+" "+cus.lastname,phone=request.json["phone"],discount=request.json["discount"])
+                        category = cart_item.get('family'),cat=category,customer=customer,phone=phon,discount=request.json["discount"])
 
     
         held_cart = HeldCart.query.filter_by(id=request.json["id"]).first()
@@ -4561,7 +4585,13 @@ def create_orders_two_all():
     data = request.json
     cash = ""
     cashier = User.query.filter_by(username=request.json["cashier"]).first()
-    cus=Customer.query.filter_by(id=request.json["customer"]).first()
+    customer=Customer.query.filter_by(id=request.json["customer"]).first()
+    if customer:
+        customer=customer.firstname+" "+customer.lastname
+    phon=""
+    phone= request.json["phone"]
+    if phone:
+        phon=phone
     if cashier:
         cash = cashier.firstname + " " + cashier.lastname
 
@@ -4628,7 +4658,7 @@ def create_orders_two_all():
             method=request.json["method"],
             cashier=cashier.firstname + " " + cashier.lastname,
             payment_date=datetime.now().strftime('%Y-%m-%d %H:%M'),
-            session=session.open_date,category = cart_item.get('family'),cat=category,customer=cus.firstname+" "+cus.lastname,phone=request.json["phone"]
+            session=session.open_date,category = cart_item.get('family'),cat=category,customer=customer,phone=phon
         )
 
         income = Income(
@@ -4641,7 +4671,7 @@ def create_orders_two_all():
             created_by_id=us.id,
             cashier=cashier.firstname + " " + cashier.lastname,
             session=session.open_date,discount=request.json["discount"],
-            method=request.json["method"],category = cart_item.get('family'),cat=category,customer=cus.firstname+" "+cus.lastname,phone=request.json["phone"]
+            method=request.json["method"],category = cart_item.get('family'),cat=category,customer=customer,phone=phon
         )
 
         # Query all held carts for the current user and update their paid_status
@@ -5586,8 +5616,8 @@ def balance_sheet():
         #                     EXPENSES
         # -----------------------------------------------------
         expense_records = Expenses.query.filter(
-            Expenses.created_date >= start,
-            Expenses.created_date <= end
+            Expenses.session >= start,
+            Expenses.session <= end
         ).all()
 
         grouped_expenses = {}
@@ -5607,10 +5637,10 @@ def balance_sheet():
         # -----------------------------------------------------
         #                ACCOUNTS RECEIVABLE
         # -----------------------------------------------------
-        receivable_records = Credit.query.filter(
-            Credit.created_at >= start,
-            Credit.created_at <= end,
-            Credit.status == "pending"
+        receivable_records = HeldCart.query.filter(
+            HeldCart.session >= start,
+            HeldCart.session <= end,
+            HeldCart.paid_status == "pending"
         ).all()
 
         accounts_receivable = sum(float(c.total or 0) for c in receivable_records)
@@ -5666,3 +5696,28 @@ def balance_sheet():
         print("Balance sheet error:", str(e))
         return jsonify({"error": "Something went wrong"}), 500
 
+
+@guest.route('/cocktail-setup/<int:item_id>', methods=['PUT'])
+@flask_praetorian.auth_required
+def save_cocktail_setup(item_id):
+    item = Iteman.query.get_or_404(item_id)
+    data = request.json
+
+    # ✅ Only fail if category does NOT contain "cocktail"
+    if not item.category or 'cocktail' not in item.category.lower():
+        return jsonify({'error': 'Item is not a cocktail'}), 400
+
+    # Save or overwrite the cocktail setup
+    item.cocktail_setup = data.get('cocktail_setup', [])
+    db.session.commit()
+
+    # Serialize single item
+    results = guest_single_schema.dump(item)
+    return jsonify(results), 200
+
+
+@guest.route('/cocktail-setup/<int:item_id>', methods=['GET'])
+@flask_praetorian.auth_required
+def get_cocktail_setup(item_id):
+    item = Iteman.query.get_or_404(item_id)
+    return jsonify(item.cocktail_setup or [])

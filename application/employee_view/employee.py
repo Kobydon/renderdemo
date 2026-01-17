@@ -5,7 +5,7 @@ from  application.extensions.extensions import *
 from  application.settings.settings import *
 from  application.settings.setup import app
 # from application.forms import LoginForm
-from application.database.user.user_db import db,Guests,User,Booking,Rooms,Payment,Employee,Attendance,Todo,Item,Session
+from application.database.user.user_db import db,Guests,User,Booking,Rooms,Payment,Employee,Attendance,Todo,Item,Session,SalaryTemplate,SalaryPayment,Expenses
 from sqlalchemy import or_,desc,and_
 from datetime import datetime
 from datetime import date
@@ -27,6 +27,26 @@ class TodoSchema(ma.Schema):
     class Meta:
         fields=("id","name","description","created_for","created_date","position","created_by")
 
+class SalaryTemplateSchema(ma.Schema):
+    class Meta:
+        fields = ("id", "name", "position", "earnings", "deductions", "created_at")
+
+class SalaryPaymentSchema(ma.Schema):
+    class Meta:
+        fields = (
+            "id",
+            "employee_id",
+            "employee_name",
+            "position",
+            "gross_salary",
+            "total_deductions",
+            "net_salary",
+            "payment_method",
+            "payment_date",
+            "note",
+            "session"
+        )
+
 
 class ItemSchema(ma.Schema):
     class Meta:
@@ -46,10 +66,10 @@ class AttendanceSchema(ma.Schema):
     class Meta:
         fields=("id","name","attendance","position","created_date","time_in","time_out")
 
-
+salary_payment_schema = SalaryPaymentSchema(many=True)
 employee_schema = employeeSchema(many=True)
 attendance_schema = AttendanceSchema(many=True)
-
+salary_template_schema = SalaryTemplateSchema(many=True)
 item_schema = ItemSchema(many=True)
 pay_schema = PaySchema(many=True)
 todo_schema= TodoSchema(many=True)
@@ -334,3 +354,145 @@ def get_item():
       result = item_schema.dump(itm)
       return jsonify(result)
     
+    
+@employee.route("/create_salary_template", methods=["POST"])
+@flask_praetorian.auth_required
+def create_salary_template():
+    data = request.get_json()
+    user = flask_praetorian.current_user()
+
+    template = SalaryTemplate(
+        name=data['name'],
+        position=data['position'],
+        earnings=data['earnings'],
+        deductions=data['deductions'],
+        company_name=user.company_name
+    )
+
+    db.session.add(template)
+    db.session.commit()
+    return jsonify({"message": "Salary template created"}), 201
+
+@employee.route("/get_salary_templates", methods=["GET"])
+@flask_praetorian.auth_required
+def get_salary_templates():
+    user = flask_praetorian.current_user()
+    templates = SalaryTemplate.query.filter_by(company_name=user.company_name)
+    return jsonify(salary_template_schema.dump(templates))
+
+@employee.route("/get_salary_template/<int:id>", methods=["GET"])
+@flask_praetorian.auth_required
+def get_salary_template(id):
+    template = SalaryTemplate.query.get_or_404(id)
+    return jsonify({
+        "id": template.id,
+        "name": template.name,
+        "position": template.position,
+        "earnings": template.earnings,
+        "deductions": template.deductions
+    })
+
+@employee.route("/update_salary_template/<int:id>", methods=["PUT"])
+@flask_praetorian.auth_required
+def update_salary_template(id):
+    data = request.get_json()
+    template = SalaryTemplate.query.get_or_404(id)
+
+    template.name = data['name']
+    template.position = data['position']
+    template.earnings = data['earnings']
+    template.deductions = data['deductions']
+
+    db.session.commit()
+    return jsonify({"message": "Salary template updated"})
+
+@employee.route("/delete_salary_template/<int:id>", methods=["DELETE"])
+@flask_praetorian.auth_required
+def delete_salary_template(id):
+    template = SalaryTemplate.query.get_or_404(id)
+    db.session.delete(template)
+    db.session.commit()
+    return jsonify({"message": "Salary template deleted"})
+@employee.route("/bulk_pay_salary", methods=["POST"])
+@flask_praetorian.auth_required
+def bulk_pay_salary():
+    data = request.get_json()
+    user = flask_praetorian.current_user()
+
+    template = SalaryTemplate.query.get_or_404(data['template_id'])
+
+    employees = Employee.query.filter_by(
+        position=template.position,
+        company_name=user.company_name
+    ).all()
+
+    if not employees:
+        return jsonify({"message": "No employees found for this template"}), 400
+
+    # Calculate totals from template
+    gross = sum(float(e['amount']) for e in template.earnings)
+    deductions = sum(float(d['amount']) for d in template.deductions)
+    net = gross - deductions
+
+    payments_done = []
+
+    for emp in employees:
+
+        # Prevent double payment
+        exists = SalaryPayment.query.filter_by(
+            employee_id=emp.id,
+            session=data['session'],
+            company_name=user.company_name
+        ).first()
+
+        if exists:
+            continue
+
+        payment = SalaryPayment(
+            employee_id=emp.id,
+            employee_name=f"{emp.first_name} {emp.last_name}",
+            position=emp.position,
+            template_id=template.id,
+            gross_salary=gross,
+            total_deductions=deductions,
+            net_salary=net,
+            session=data['session'],
+            payment_method=data.get('payment_method', 'cash'),
+            company_name=user.company_name,
+            created_by_id=user.id
+        )
+
+        db.session.add(payment)
+
+        # Insert into Expenses
+        expense = Expenses(
+            name=f"Salary - {emp.first_name} {emp.last_name}",
+            amount=str(net),
+            date=datetime.utcnow().strftime('%Y-%m-%d'),
+            note=f"Salary payment ({data['session']})",
+            user=user.username,
+            created_date=datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S'),
+            company_name=user.company_name,
+            session=data['session'],
+            subcategory="Salary",
+            created_by_id=user.id
+        )
+
+        db.session.add(expense)
+        payments_done.append(emp.id)
+
+    db.session.commit()
+
+    return jsonify({
+        "message": "Bulk salary payment completed",
+        "employees_paid": len(payments_done)
+    }), 201
+@employee.route("/salary_payment_history", methods=["GET"])
+@flask_praetorian.auth_required
+def salary_payment_history():
+    user = flask_praetorian.current_user()
+    payments = SalaryPayment.query.filter_by(
+        company_name=user.company_name
+    ).order_by(SalaryPayment.payment_date.desc())
+
+    return jsonify(salary_payment_schema.dump(payments))
