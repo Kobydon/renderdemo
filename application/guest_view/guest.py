@@ -159,7 +159,7 @@ def add_guest():
       
         )
         user =User(
-                   created_date=datetime.now().strftime('%Y-%m-%d %H:%M'),  firstname= first_name, lastname=last_name,
+                   created_date=datetime.now(),  firstname= first_name, lastname=last_name,
         country= country,address= address,
         city = city,  phone = phone)
         db.session.add(user)
@@ -198,7 +198,7 @@ def add_expense():
     date =request.json["date"]
     subcategory =request.json["subcategory"]
     usr = user.firstname +" " + user.lastname
-    created_date=datetime.now().strftime('%Y-%m-%d %H:%M')
+    created_date=datetime.now()
     exp = Expenses(name=name,amount=amount,note=note,date=date,
                    user=usr,created_by_id=flask_praetorian.current_user().id ,subcategory=subcategory,
                    created_date=created_date,company_name=user.company_name,session=session.open_date)
@@ -271,10 +271,15 @@ def confirm_order():
         items = json.loads(sub_data.items)
         
         for item in items:
-            if item.get("family") == "drink" and "bartender" in user.roles:
-                item["confirmed"] = True  # Set the drink item as confirmed
-            elif item.get("family") == "food" and "bartender" not in user.roles:
+            if item.get("family") == "digital_printing" and "digital_printing" in user.roles:
+                item["confirmed"] = True  # Set the digital printing item as confirmed
+            elif item.get("family") == "dtf" and "dtf"  in user.roles:
                 item["confirmed"] = True  # Set the food item as confirmed
+            elif item.get("family") == "large_format" and "large_format"  in user.roles:
+                item["confirmed"] = True  # Set the large_format item as confirmed
+
+            elif item.get("family") == "label" and "label"  in user.roles:
+                item["confirmed"] = True  # Set the label item as confirmed 
         
         # Update the items back to the order
         sub_data.items = json.dumps(items)
@@ -283,14 +288,14 @@ def confirm_order():
         return jsonify({"error": f"Error updating items: {e}"}), 400
 
     # Update other confirmation fields
-    if "bartender" in user.roles:
-        sub_data.contain_drink = "no"
-        sub_data.drink_confirm_at =  datetime.now().strftime('%Y-%m-%d %H:%M')
-        sub_data.drink_confirm = f"{user.firstname} {user.lastname}"
-    else:
-        sub_data.contain_food = "no"
-        sub_data.food_confirm_at= datetime.now().strftime('%Y-%m-%d %H:%M')
-        sub_data.food_confirm = f"{user.firstname} {user.lastname}"
+        # if "bartender" in user.roles:
+        #     sub_data.contain_drink = "no"
+        #     sub_data.drink_confirm_at =  datetime.now()
+        #     sub_data.drink_confirm = f"{user.firstname} {user.lastname}"
+        # else:
+        #     sub_data.contain_food = "no"
+        #     sub_data.food_confirm_at= datetime.now()
+        #     sub_data.food_confirm = f"{user.firstname} {user.lastname}"
 
     # Commit the changes to the database
     db.session.commit()
@@ -461,7 +466,7 @@ def add_booking():
      has_checkout=False,
      
      status=request.json["status"],
-     create_date=datetime.now().strftime('%Y-%m-%d %H:%M'),
+     create_date=datetime.now(),
      created_by_id = flask_praetorian.current_user().id,guest_id=guest_id
     )
     room = Rooms.query.filter_by(room_number=room_number).first()
@@ -523,7 +528,7 @@ def add_payment():
         children=request.json.get("children"),
         adult=request.json.get("adult"),
         guest_id=request.json.get("guest_id"),
-        payment_date=datetime.now().strftime('%Y-%m-%d %H:%M'),
+        payment_date=datetime.now(),
         checkin_date=request.json.get("checkin_date"),
         checkout_date=request.json.get("checkout_date"),
         status=status,booking_id=booking_id,session=session.open_date,
@@ -533,7 +538,7 @@ def add_payment():
             amount=amount,
             date=datetime.now().strftime('%Y-%m-%d'),
             note=request.json.get("room_type"),
-            created_date=datetime.now().strftime('%Y-%m-%d %H:%M'),cashier=us.firstname +" "+us.lastname,
+            created_date=datetime.now(),cashier=us.firstname +" "+us.lastname,
             created_by_id=flask_praetorian.current_user().id
         )
 
@@ -543,7 +548,7 @@ def add_payment():
     if room:
         room.occupied_by = name
         room.occupied_state = "occupied"
-        room.date_booked = datetime.now().strftime('%Y-%m-%d %H:%M')
+        room.date_booked = datetime.now()
 
     # Commit the changes to the database
     try:
@@ -559,7 +564,7 @@ def add_payment():
 
     # Get user details for the email
     usr = User.query.filter_by(id=flask_praetorian.current_user().id).first()
-    payment_date = datetime.now().strftime('%Y-%m-%d %H:%M')
+    payment_date = datetime.now()
 
     # Beautify the email message
     email_message = f"""
@@ -706,7 +711,7 @@ def search_account():
     us = User.query.filter_by(id = flask_praetorian.current_user().id).first()
     find = request.json["find"]
     # print(date)
-    group = Account.query.filter(AccountGroup.subcategory.contains(find))
+    group = Account.query.filter_by(subcategory=find).all()
     result = guest_schema.dump(group)
     return jsonify(result)
 
@@ -1023,7 +1028,7 @@ def search_held_order_dates_two():
 
     # Get date range from request
     date = request.json.get("date")
-    datetwo = request.json.get("datetwo")
+    datetwo = request.json.get("date_two")
     if not date or not datetwo:
         return jsonify({"error": "Both date and datetwo are requireds"}), 400
 
@@ -1450,60 +1455,62 @@ def search_cashier_dates_two():
 
 
 
+from sqlalchemy import Integer, or_
+
 @guest.route("/search_payment_date_two", methods=["POST"])
 @flask_praetorian.auth_required
 def search_payment_date_two():
-    # Extract the 'date' and 'date_two' from the request payload
-    us = User.query.filter_by(id = flask_praetorian.current_user().id).first()
+    us = User.query.filter_by(id=flask_praetorian.current_user().id).first()
+
     date = request.json.get("date")
-    date_two = request.json.get("datetwo")
-    
-    # Validate that 'date' is provided
+    date_two = request.json.get("date_two")
+
     if not date:
         return jsonify({"error": "Date is required"}), 400
-    
-    # Query to find payments with balance > 0 and payment date matching either 'date' or 'date_two'
+
     payments = Payment.query.filter(
         or_(
             Payment.session.contains(date),
             Payment.session.contains(date_two)
         )
     ).filter(
-        Payment.balance.cast(int) > 0  # Ensure balance is greater than 0, casting to int for proper comparison
+        Payment.balance.cast(Integer) > 0
     ).filter(
-        Payment.session != None  # Make sure payment_date is not None
-    ).filter(Payment.company_name.conatins(us.company_name)).order_by(Payment.session.desc())  # Order by payment date in descending order
+        Payment.session != None
+    ).filter(
+        Payment.company_name.contains(us.company_name)
+    ).order_by(
+        Payment.session.desc()
+    )
 
-    # Serialize the payment data
     result = pay_schema.dump(payments)
-    
-    # Return the result as JSON response
+
     return jsonify(result)
 
+
+from sqlalchemy import Integer
 
 @guest.route("/search_payment_date", methods=["POST"])
 @flask_praetorian.auth_required
 def search_payment_date():
-    us = User.query.filter_by(id = flask_praetorian.current_user().id).first()
-    # Extract date from the request payload
+    us = User.query.filter_by(id=flask_praetorian.current_user().id).first()
+
     date = request.json.get("date")
-    # date_two = request.json.get("datetwo")
-    
+
     if not date:
         return jsonify({"error": "Date is required"}), 400
-    
-    # Query to find payments with balance greater than 0, and payment date containing the given date
+
     payments = Payment.query.filter(
-        Payment.session.contains(date),Payment.company_name.contains(us.company_name),
-        Payment.balance.cast(int) > 0  # Cast balance to a int for comparison
-    ).order_by(Payment.session.desc())
+        Payment.session.contains(date),
+        Payment.company_name.contains(us.company_name),
+        Payment.balance.cast(Integer) > 0   # ✅ FIXED
+    ).order_by(
+        Payment.session.desc()
+    )
 
-    # Serialize the payments data
     result = pay_schema.dump(payments)
-    
-    # Return the results as JSON
-    return jsonify(result)
 
+    return jsonify(result)
 
 
 
@@ -1660,7 +1667,7 @@ def update_payment_checkout():
         book.has_checkout = True
         room.occupied_by = "none"
         room.occupied_state = "available"
-        guest.has_checkout = datetime.now().strftime('%Y-%m-%d %H:%M')
+        guest.has_checkout = datetime.now()
         db.session.commit()
 
     else:
@@ -1785,7 +1792,7 @@ def add_reservation():
         status="Pending",
         country=request.json.get("country"),
         price=request.json.get("price"),
-        created_date=datetime.now().strftime('%Y-%m-%d %H:%M'),
+        created_date=datetime.now(),
         created_by_id=flask_praetorian.current_user().id
     )
 
@@ -1978,7 +1985,7 @@ def add_refund():
       
 
           status = "pending",
-          refund_time =datetime.now().strftime('%Y-%m-%d %H:%M')
+          refund_time =datetime.now()
           )
           payData = Payment.query.filter_by(id =id).first()
           payData.refund_amount = refund_amount
@@ -2149,7 +2156,7 @@ def add_income():
     note= request.json["note"]
     date =request.json["date"]
     # usr = user.firstname +" " + user.lastname
-    created_date=datetime.now().strftime('%Y-%m-%d %H:%M')
+    created_date=datetime.now()
     inc = Income(name=name,amount=amount,note=note,date=date,session=session.open_date,
                    created_by_id=flask_praetorian.current_user().id ,
                    created_date=created_date,company_name=user.company_name,cashier=user.firstname+" "+user.lastname)
@@ -2241,7 +2248,7 @@ def add_hall_payment():
     end_time =request.json["end_time"]
     status="Success"
     # usr = user.firstname +" " + user.lastname
-    created_date=datetime.now().strftime('%Y-%m-%d %H:%M')
+    created_date=datetime.now()
     event_payment = EventPayment(name=name,amount=amount,note=note,date=date,session=session.open_date,
                    created_by_id=flask_praetorian.current_user().id ,balance=balance,method=method,customer_name=customer_name,
                    customer_phone=customer_phone,status=status,start_time=start_time,end_time=end_time,
@@ -2338,7 +2345,7 @@ def add_item():
     
     
     # usr = user.firstname +" " + user.lastname
-    created_date=datetime.now().strftime('%Y-%m-%d %H:%M')
+    created_date=datetime.now()
     inc = Iteman(name=name,description=description,price=price,quantity="0",is_vip=wholesale,
                    created_date=created_date,family=family,category=category,unit=unit,whole_price=request.json["whole_price"])
   
@@ -2469,7 +2476,7 @@ def add_category():
     # price= request.json["price"]
     
     # usr = user.firstname +" " + user.lastname
-    created_date=datetime.now().strftime('%Y-%m-%d %H:%M')
+    created_date=datetime.now()
     inc = Category(name=name,description=description,
                    created_date=created_date)
   
@@ -2551,7 +2558,7 @@ def add_family():
     # price= request.json["price"]
     
     # usr = user.firstname +" " + user.lastname
-    created_date=datetime.now().strftime('%Y-%m-%d %H:%M')
+    created_date=datetime.now()
     inc = Family(name=name,description=description,
                    created_date=created_date)
   
@@ -2631,7 +2638,7 @@ def add_unit():
     # price= request.json["price"]
     
     # usr = user.firstname +" " + user.lastname
-    created_date=datetime.now().strftime('%Y-%m-%d %H:%M')
+    created_date=datetime.now()
     inc = Unit(name=name,description=description,
                    created_date=created_date,company_name=user.company_name)
   
@@ -2707,7 +2714,7 @@ def add_budget():
     note= request.json["note"]
     type =request.json["type"]
     # usr = user.firstname +" " + user.lastname
-    created_date=datetime.now().strftime('%Y-%m-%d %H:%M')
+    created_date=datetime.now()
     inc = Budget(name=name,amount=amount,note=note,type=type,
                    created_by_id=flask_praetorian.current_user().id ,
                    created_date=created_date,company_name=user.company_name)
@@ -2824,21 +2831,33 @@ def search_budget_dates():
     lst = pay.order_by(desc(Budget.created_date))
     result = guest_schema.dump(lst)
     return jsonify(result)
-
-from datetime import datetime
-from datetime import time
+from datetime import datetime, time
+from sqlalchemy import desc
 
 @guest.route("/search_income_dates_two", methods=["POST"])
 @flask_praetorian.auth_required
 def search_income_dates_two():
     us = User.query.filter_by(id=flask_praetorian.current_user().id).first()
+
     date = request.json.get("date")
     date_two = request.json.get("datetwo")
 
+    # Validate inputs
+    if not date or not date_two:
+        return jsonify({
+            "error": "Both date and datetwo are required"
+        }), 400
+
     try:
-        # Convert to datetime range for full day
-        start_date = datetime.combine(datetime.strptime(date, "%Y-%m-%d"), time.min)
-        end_date = datetime.combine(datetime.strptime(date_two, "%Y-%m-%d"), time.max)
+        start_date = datetime.combine(
+            datetime.strptime(date, "%Y-%m-%d").date(),
+            time.min
+        )
+
+        end_date = datetime.combine(
+            datetime.strptime(date_two, "%Y-%m-%d").date(),
+            time.max
+        )
 
         pay = Income.query.filter(
             Income.session >= start_date,
@@ -2846,11 +2865,19 @@ def search_income_dates_two():
         ).order_by(desc(Income.date)).all()
 
         result = guest_schema.dump(pay)
+
         return jsonify(result), 200
+
+    except ValueError:
+        return jsonify({
+            "error": "Dates must be in YYYY-MM-DD format"
+        }), 400
 
     except Exception as e:
         print(f"Error occurred: {e}")
-        return jsonify({"error": "An error occurred while fetching data"}), 500
+        return jsonify({
+            "error": "An error occurred while fetching data"
+        }), 500
 
 
 @guest.route("/search_canceled_dates_two", methods=["POST"])
@@ -2892,7 +2919,7 @@ def searchdates_two():
     us = User.query.filter_by(id=current_user.id).first()
 
     date = request.json.get("date")
-    date_two = request.json.get("date_two")
+    date_two = request.json.get("datetwo")
 
     if not date or not date_two:
         return jsonify({"error": "Both 'date' and 'date_two' must be provided"}), 400
@@ -2920,7 +2947,7 @@ def search_purchase_date_two():
     us = User.query.filter_by(id=current_user.id).first()
 
     date = request.json.get("date")
-    date_two = request.json.get("date_two")
+    date_two = request.json.get("datetwo")
 
     if not date or not date_two:
         return jsonify({"error": "Both 'date' and 'date_two' must be provided"}), 400
@@ -2948,7 +2975,7 @@ def search_refund_dates_two():
     us = User.query.filter_by(id=current_user.id).first()
 
     date = request.json.get("date")
-    date_two = request.json.get("date_two")
+    date_two = request.json.get("datetwo")
 
     if not date or not date_two:
         return jsonify({"error": "Both 'date' and 'date_two' must be provided"}), 400
@@ -3117,7 +3144,7 @@ def add_store():
     category= request.json["category"]
     
     # usr = user.firstname +" " + user.lastname
-    created_date=datetime.now().strftime('%Y-%m-%d %H:%M')
+    created_date=datetime.now()
     inc = Store(name=name,description=description,category=category,
                    created_date=created_date,company_name=user.company_name)
   
@@ -3190,7 +3217,7 @@ def add_stock():
     quantity= request.json["quantity"]
     
     # usr = user.firstname +" " + user.lastname
-    created_date=datetime.now().strftime('%Y-%m-%d %H:%M')
+    created_date=datetime.now()
     st = Stock.query.filter_by(name=name).first()
     if st:
         st.quantity= int(st.quantity) + int(quantity)
@@ -3285,7 +3312,7 @@ def add_stock_transfer():
     
     
     # usr = user.firstname +" " + user.lastname
-    created_date=datetime.now().strftime('%Y-%m-%d %H:%M')
+    created_date=datetime.now()
     inc = StockTransfer(name=name,quantity=quantity,department=department,
                    created_date=created_date,company_name=user.company_name)
     
@@ -3325,7 +3352,7 @@ def add_stock_transfer_outside():
     
     
     # usr = user.firstname +" " + user.lastname
-    created_date=datetime.now().strftime('%Y-%m-%d %H:%M')
+    created_date=datetime.now()
     inc = StockTransferOut(name=name,quantity=quantity,department=department,
                    created_date=created_date,company_name=user.company_name)
     
@@ -3430,7 +3457,7 @@ def add_vendor():
     address= request.json["address"]
     
     # usr = user.firstname +" " + user.lastname
-    created_date=datetime.now().strftime('%Y-%m-%d %H:%M')
+    created_date=datetime.now()
     inc = Vendor(name=name,address=address,phone=phone,
                    created_date=created_date,company_name=user.company_name)
   
@@ -3506,7 +3533,7 @@ def add_purchase():
  
     requested_by = user.firstname + " "+user.lastname
     store = request.json["store"]
-    created_date=datetime.now().strftime('%Y-%m-%d %H:%M')
+    created_date=datetime.now()
 
     inc = PurchaseRequest(item=item,quantity=quantity,unit_price=unit_price,total_cost=total_cost,status=status,company_name=user.company_name,
                           department=department, requested_by=requested_by,store=store,created_date=created_date)
@@ -3537,7 +3564,7 @@ def add_purchase_bulk():
         new_cart = Cart(
             requested_by=f"{user.firstname} {user.lastname}",
             company_name=user.company_name,
-            created_date=datetime.now().strftime('%Y-%m-%d %H:%M'),
+            created_date=datetime.now(),
             status='Pending'
         )
         db.session.add(new_cart)
@@ -3727,7 +3754,7 @@ def add_department():
     hod = request.json["hod"]
     # created_date = db.Column(db.String(400))
     # usr = user.firstname +" " + user.lastname
-    created_date=datetime.now().strftime('%Y-%m-%d %H:%M')
+    created_date=datetime.now()
     inc = Department(name=name,description=description,hod=hod,
                    created_date=created_date,company_name=user.company_name)
   
@@ -3812,7 +3839,7 @@ def add_received_item():
     # Format example: BATCH-20251030
     batch_number = "BATCH-" + datetime.now().strftime("%Y%m%d")
 
-    created_date = datetime.now().strftime('%Y-%m-%d %H:%M')
+    created_date = datetime.now()
 
     itm = ReceivedItem(
         name=name,
@@ -3905,7 +3932,7 @@ def add_return_request():
     reason = request.json["reason"]
     # itm = Iteman.query.filter_by(id=id).first()
     # itm.voided="yes"
-    created_date=datetime.now().strftime('%Y-%m-%d %H:%M')
+    created_date=datetime.now()
     user = User.query.filter_by(id =flask_praetorian.current_user().id).first()
     request_by= user.firstname +" "+ user.lastname
 
@@ -3932,7 +3959,7 @@ def add_gop():
     note= request.json["note"]
     date =request.json["date"]
     usr = user.firstname +" " + user.lastname
-    created_date=datetime.now().strftime('%Y-%m-%d %H:%M')
+    created_date=datetime.now()
     gop = GOP(name=name,amount=amount,note=note,date=date,
                    user=usr,created_by_id=flask_praetorian.current_user().id ,
                    created_date=created_date,company_name=user.company_name)
@@ -4011,7 +4038,7 @@ def add_session():
         session_data.status = "old"
     
     usr = f"{user.firstname} {user.lastname}"
-    created_date = datetime.now().strftime('%Y-%m-%d %H:%M')
+    created_date = datetime.now()
 
     # Fix: Assign `None` instead of an empty string for close_date
     new_session = Session(
@@ -4038,7 +4065,7 @@ def close_session():
     user = User.query.filter_by(id=flask_praetorian.current_user().id).first()
   
     usr = user.firstname +" " + user.lastname
-    created_date=datetime.now().strftime('%Y-%m-%d %H:%M')
+    created_date=datetime.now()
     session_data = Session.query.filter_by(id=id).first()
     session_data.status="old"
     session_data.close_by=usr
@@ -4065,7 +4092,7 @@ def get_current_session():
 @flask_praetorian.auth_required
 def get_all_session():
     us = User.query.filter_by(id = flask_praetorian.current_user().id).first()
-    session_data =  Session.query.all().order_by(desc(Session.open_date))
+    session_data =  Session.query.all()
     results = guest_schema.dump(session_data)
     return jsonify(results)
 
@@ -4167,14 +4194,14 @@ def create_orders():
             quantity=item_quantity,
             category=category,
             waiter=us.firstname + " " + us.lastname,
-            status="Pending",  table=data['table']),
+            status="Pending",  table=data['table'])
         pos_payment = PosPayment(name=item_name,amount=total_price,  method = request.json["method"],
                                  quantity=item_quantity,attendant=us.firstname +" "+us.lastname,created_by_id=us.id,cashier=cashier.firstname+" "+cashier.lastname,
-                                 payment_date=datetime.now().strftime('%Y-%m-%d %H:%M'),session=session.open_date, category = cart_item.get('family'),cat=category,customer=customer,phone=phon)
+                                 payment_date=datetime.now(),session=session.open_date, category = cart_item.get('family'),cat=category,customer=customer,phone=phon)
         
 
-        income = Income(name=item_name,attendant=us.firstname +" "+us.lastname,amount =total_price,date =datetime.now().strftime('%Y-%m-%d %H:%M'),discount=request.json["discount"],
-                        note="Pos Payment",created_date=datetime.now().strftime('%Y-%m-%d %H:%M'),
+        income = Income(name=item_name,attendant=us.firstname +" "+us.lastname,amount =total_price,date =datetime.now(),discount=request.json["discount"],
+                        note="Pos Payment",created_date=datetime.now(),
                         created_by_id=us.id,cashier=cashier.firstname+" "+cashier.lastname,session=session.open_date,  method=request.json["method"], category = cart_item.get('family'),cat=category,customer=customer,phone=phon,
 )
 
@@ -4271,7 +4298,7 @@ def create_orders_all():
             waiter=us.firstname + " " + us.lastname,
             status="Pending",
             
-            created_date=datetime.now().strftime('%Y-%m-%d %H:%M'),
+            created_date=datetime.now(),
             family=family,
             session=session.open_date,  
             table=data['table']
@@ -4286,17 +4313,17 @@ def create_orders_all():
             attendant=us.firstname + " " + us.lastname,
             created_by_id=us.id,
             cashier=cashier.firstname + " " + cashier.lastname,
-            payment_date=datetime.now().strftime('%Y-%m-%d %H:%M'),
+            payment_date=datetime.now(),
             session=session.open_date, category = cart_item.get('family'),cat=category,customer=customer,phone=phon
         )
 
         income = Income(
             name=item_name,
             amount=total_price,
-            date=datetime.now().strftime('%Y-%m-%d %H:%M'),
+            date=datetime.now(),
             note="Pos Payment",
             
-            created_date=datetime.now().strftime('%Y-%m-%d %H:%M'),
+            created_date=datetime.now(),
             created_by_id=us.id,
             cashier=cashier.firstname + " " + cashier.lastname,
             session=session.open_date,
@@ -4416,7 +4443,7 @@ def credit():
             waiter=us.firstname + " " + us.lastname,
             status="Pending",
             
-            created_date=datetime.now().strftime('%Y-%m-%d %H:%M'),
+            created_date=datetime.now(),
             family=family,
             session=session.open_date,  
             table=data['table']
@@ -4431,7 +4458,7 @@ def credit():
             attendant=us.firstname + " " + us.lastname,
             created_by_id=us.id,
             cashier=cashier.firstname + " " + cashier.lastname,
-            payment_date=datetime.now().strftime('%Y-%m-%d %H:%M'),
+            payment_date=datetime.now(),
             session=session.open_date, category = cart_item.get('family'),cat=category,customer=customer,phone=phon
         )
 
@@ -4536,18 +4563,18 @@ def create_orders_two():
             category=category,
             waiter=us.firstname + " " + us.lastname,
             status="Pending",
-               created_date=datetime.now().strftime('%Y-%m-%d %H:%M') ,
+               created_date=datetime.now() ,
             family =family,session=session.open_date
         )
 
         pos_payment = PosPayment(name=item_name,amount=total_price,
                                  quantity=item_quantity,attendant=us.firstname +" "+us.lastname,created_by_id=us.id,
                                  method=request.json["method"],cashier=cashier.firstname+" "+cashier.lastname,category = cart_item.get('family'),cat=category,customer=customer,phone=phon,
-                                 payment_date=datetime.now().strftime('%Y-%m-%d %H:%M'),session=session.open_date)
+                                 payment_date=datetime.now(),session=session.open_date)
         
 
-        income = Income(name=item_name + "-"+ us.firstname +" "+us.lastname,attendant=us.firstname +" "+us.lastname,amount =total_price,date =datetime.now().strftime('%Y-%m-%d %H:%M'),
-                        note="Pos Payment",created_date=datetime.now().strftime('%Y-%m-%d %H:%M'),
+        income = Income(name=item_name + "-"+ us.firstname +" "+us.lastname,attendant=us.firstname +" "+us.lastname,amount =total_price,date =datetime.now(),
+                        note="Pos Payment",created_date=datetime.now(),
                         created_by_id=us.id,cashier=cashier.firstname+" "+cashier.lastname,session=session.open_date,  method=request.json["method"],
                         category = cart_item.get('family'),cat=category,customer=customer,phone=phon,discount=request.json["discount"])
 
@@ -4642,7 +4669,7 @@ def create_orders_two_all():
             waiter=us.firstname + " " + us.lastname,
             status="Pending",
             
-            created_date=datetime.now().strftime('%Y-%m-%d %H:%M'),
+            created_date=datetime.now(),
             family=family,
             session=session.open_date,  
             table=data['table']
@@ -4657,17 +4684,17 @@ def create_orders_two_all():
             created_by_id=us.id,
             method=request.json["method"],
             cashier=cashier.firstname + " " + cashier.lastname,
-            payment_date=datetime.now().strftime('%Y-%m-%d %H:%M'),
+            payment_date=datetime.now(),
             session=session.open_date,category = cart_item.get('family'),cat=category,customer=customer,phone=phon
         )
 
         income = Income(
             name=item_name,
             amount=total_price,
-            date=datetime.now().strftime('%Y-%m-%d %H:%M'),
+            date=datetime.now(),
             note="Pos Payment",
             
-            created_date=datetime.now().strftime('%Y-%m-%d %H:%M'),
+            created_date=datetime.now(),
             created_by_id=us.id,
             cashier=cashier.firstname + " " + cashier.lastname,
             session=session.open_date,discount=request.json["discount"],
@@ -4795,11 +4822,18 @@ def hold_order():
 
             contain_drink = any(item.get("family") == "drink" for item in updated_items)
             contain_food = any(item.get("family") == "food" for item in updated_items)
-
+            contain_dtf = any(item.get("family") == "dtf" for item in updated_items)
+            contain_digital_printing = any(item.get("family") == "digital_printing" for item in updated_items)
+            contain_large_format = any(item.get("family") == "large_format" for item in updated_items)
+            contain_label = any(item.get("family") == "label" for item in updated_items)
             existing_hold.items = json.dumps(updated_items)
             existing_hold.total = int(data['total'])
             existing_hold.contain_drink = "yes" if contain_drink else "no"
             existing_hold.contain_food = "yes" if contain_food else "no"
+            existing_hold.contain_dtf = "yes" if contain_dtf else "no"
+            existing_hold.contain_digital_printing = "yes" if contain_digital_printing else "no"
+            existing_hold.contain_large_format = "yes" if contain_large_format else "no"
+            existing_hold.contain_label = "yes" if contain_label else "no"
 
             print(f"Updated existing held order ID: {existing_hold.id}")
 
@@ -4822,6 +4856,10 @@ def hold_order():
 
             contain_drink = any(item.get("family") == "drink" for item in cart_items)
             contain_food = any(item.get("family") == "food" for item in cart_items)
+            contain_dtf = any(item.get("family") == "dtf" for item in cart_items)
+            contain_digital_printing = any(item.get("family") == "digital_printing" for item in cart_items)
+            contain_large_format = any(item.get("family") == "large_format" for item in cart_items)
+            contain_label = any(item.get("family") == "label" for item in cart_items)
 
             existing_hold = HeldCart(
                 user_id=user.id,
@@ -4834,8 +4872,16 @@ def hold_order():
                 waiter=f"{user.firstname} {user.lastname}",
                 contain_drink="yes" if contain_drink else "no",
                 contain_food="yes" if contain_food else "no",
+                contain_dtf="yes" if contain_dtf else "no",
+                contain_digital_printing="yes" if contain_digital_printing else "no",
+                contain_large_format="yes" if contain_large_format else "no",
+                contain_label="yes" if contain_label else "no",
                 food_confirm="no",
                 drink_confirm="no",
+                label_confirm="no",
+                dtf_confirm="no",
+                large_format_confirm="no",
+                digital_printing_confirm="no",
                 session=session.open_date,
                 table=data['table']
             )
@@ -4873,7 +4919,7 @@ def get_helding_orders():
     # Query for held orders that contain food and have unconfirmed food
     held_orders = HeldCart.query.filter_by(
         
-        contain_food="yes",  # Only orders with food
+        contain_digital_printing="yes",  # Only orders with food
          # Only unconfirmed food orders
     ).all()
 
@@ -4885,7 +4931,7 @@ def get_helding_orders():
             print(f"Order {order.id} items:", items)  # Debugging
 
             # Filter items by "food" family and unconfirmed status
-            filtered_items = [item for item in items if item.get("family") == "food" and item.get("confirmed") == False]  
+            filtered_items = [item for item in items if item.get("family") == "digital_printing" and item.get("confirmed") == False]  
             print(f"Filtered items for order {order.id}:", filtered_items)  # Debugging
 
             if filtered_items:  # Only include orders with unconfirmed food items
@@ -4896,13 +4942,14 @@ def get_helding_orders():
                     "waiter": order.waiter,
                     "company_name": order.company_name,
                     "status": order.status,
-                    "food_status": order.contain_food
+                    "digital_printing_status": order.contain_digital_printing
                 })
 
         except (json.JSONDecodeError, TypeError) as e:
             print(f"Error decoding JSON for order {order.id}: {e}")  # Debugging
 
     return jsonify(orders_list), 200
+
 @guest.route('/get_helding_orders_drinks', methods=['GET'])
 @flask_praetorian.auth_required
 def get_helding_orders_drinks():
@@ -4916,7 +4963,7 @@ def get_helding_orders_drinks():
     held_orders = HeldCart.query.filter_by(
     
     ).filter(
-        HeldCart.contain_drink == "yes",  # Orders with drinks
+        HeldCart.contain_large_format == "yes",  # Orders with drinks
       # Unconfirmed drinks
     ).all()
 
@@ -4928,7 +4975,7 @@ def get_helding_orders_drinks():
             items = json.loads(order.items)
 
             # Filter items to include only drinks
-            filtered_items = [item for item in items if item.get("family") == "drink" and item.get("confirmed") == False]
+            filtered_items = [item for item in items if item.get("family") == "large_format" and item.get("confirmed") == False]
             print(f"Filtered items for order {order.id}:", filtered_items)
 
             if filtered_items:
@@ -4939,7 +4986,7 @@ def get_helding_orders_drinks():
                     "waiter": order.waiter,
                     "company_name": order.company_name,
                     "status": order.status,
-                    "drink_status": order.contain_drink
+                    "large_format_status": order.contain_large_format
                 })
 
         except (json.JSONDecodeError, TypeError) as e:
@@ -4951,6 +4998,98 @@ def get_helding_orders_drinks():
 
 
     
+
+@guest.route('/get_helding_orders_label', methods=['GET'])
+@flask_praetorian.auth_required
+def get_helding_orders_label():
+    user = flask_praetorian.current_user()
+    us = User.query.filter_by(id=user.id).first()
+
+    if not us:
+        return jsonify({"error": "User not found"}), 404
+
+    # Adjusting the query to get only held orders containing drinks and with unconfirmed drinks
+    held_orders = HeldCart.query.filter_by(
+    
+    ).filter(
+        HeldCart.contain_label == "yes",  # Orders with drinks
+      # Unconfirmed drinks
+    ).all()
+
+    orders_list = []
+
+    for order in held_orders:
+        try:
+            print(f"Raw items JSON for order {order.id}:", order.items)  # Debug
+            items = json.loads(order.items)
+
+            # Filter items to include only drinks
+            filtered_items = [item for item in items if item.get("family") == "label" and item.get("confirmed") == False]
+            print(f"Filtered items for order {order.id}:", filtered_items)
+
+            if filtered_items:
+                orders_list.append({
+                    "id": order.id,
+                    "items": filtered_items,
+                    "total": order.total,
+                    "waiter": order.waiter,
+                    "company_name": order.company_name,
+                    "status": order.status,
+                    "label_status": order.contain_label
+                })
+
+        except (json.JSONDecodeError, TypeError) as e:
+            print(f"Error decoding JSON for order {order.id}: {e}")
+
+    return jsonify(orders_list), 200
+
+
+
+   
+
+@guest.route('/get_helding_orders_dtf', methods=['GET'])
+@flask_praetorian.auth_required
+def get_helding_orders_dtf():
+    user = flask_praetorian.current_user()
+    us = User.query.filter_by(id=user.id).first()
+
+    if not us:
+        return jsonify({"error": "User not found"}), 404
+
+    # Adjusting the query to get only held orders containing drinks and with unconfirmed drinks
+    held_orders = HeldCart.query.filter_by(
+    
+    ).filter(
+        HeldCart.contain_dtf == "yes",  # Orders with drinks
+      # Unconfirmed drinks
+    ).all()
+
+    orders_list = []
+
+    for order in held_orders:
+        try:
+            print(f"Raw items JSON for order {order.id}:", order.items)  # Debug
+            items = json.loads(order.items)
+
+            # Filter items to include only drinks
+            filtered_items = [item for item in items if item.get("family") == "dtf" and item.get("confirmed") == False]
+            print(f"Filtered items for order {order.id}:", filtered_items)
+
+            if filtered_items:
+                orders_list.append({
+                    "id": order.id,
+                    "items": filtered_items,
+                    "total": order.total,
+                    "waiter": order.waiter,
+                    "company_name": order.company_name,
+                    "status": order.status,
+                    "dtf_status": order.contain_dtf
+                })
+
+        except (json.JSONDecodeError, TypeError) as e:
+            print(f"Error decoding JSON for order {order.id}: {e}")
+
+    return jsonify(orders_list), 200
 
 
 import json
@@ -5058,7 +5197,7 @@ def merge_orders():
 
     new_held = HeldCart(
         user_id=flask_praetorian.current_user().id,
-        items=json.dumps(merged_items),pay_status="Pending",
+        items=json.dumps(merged_items),paid_status="Pending",
         total=total,
         company_name=flask_praetorian.current_user().company_name
     )
@@ -5303,7 +5442,7 @@ def add_chef():
     
     # date =request.json["date"]
     # usr = user.firstname +" " + user.lastname
-    created_date=datetime.now().strftime('%Y-%m-%d %H:%M')
+    created_date=datetime.now()
     inc = FoodChef(name=name,food=food,
                    created_by_id=flask_praetorian.current_user().id ,
                    created_date=created_date,company_name=user.company_name,session=session.open_date)
@@ -5368,7 +5507,7 @@ def add_customer():
     firstname=request.json["firstname"]
     lastname=request.json["lastname"]
     phone=request.json["phone"]
-    customer = Customer(firstname=firstname,lastname=lastname,created_date=datetime.now().strftime('%Y-%m-%d %H:%M'),
+    customer = Customer(firstname=firstname,lastname=lastname,created_date=datetime.now(),
                         company_name=user.company_name)
     db.session.add(customer)
     db.session.commit()
@@ -5431,7 +5570,7 @@ def add_account_group():
     
     
     # usr = user.firstname +" " + user.lastname
-    created_date=datetime.now().strftime('%Y-%m-%d %H:%M')
+    created_date=datetime.now()
     inc = AccountGroup(name=name,subcategory=subcategory,
                    created_date=created_date)
   
@@ -5524,7 +5663,7 @@ def add_account():
     
     
     # usr = user.firstname +" " + user.lastname
-    created_date=datetime.now().strftime('%Y-%m-%d %H:%M')
+    created_date=datetime.now()
     inc = Account(name=name,subcategory=subcategory,amount=amount,
                    created_date=created_date)
   

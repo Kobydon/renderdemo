@@ -424,7 +424,7 @@ def add_room_report():
                     room_type =request.json["room_type"],
                     employee =flask_praetorian.current_user().firstname+" "+flask_praetorian.current_user().firstname ,
                     status ="Not attended",
-                    created_date =datetime.now().strftime('%Y-%m-%d %H:%M')
+                    created_date =datetime.now()
           )
 
           db.session.add(rpt)

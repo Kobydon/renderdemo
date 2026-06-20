@@ -71,7 +71,7 @@ def register_quick():
     # if password == confirm_password:
     owner = User(firstname=firstname,lastname=lastname,about=about,country=country,company_name=us.company_name,
                     city=city ,phone=phone,username=username,hashed_password=hashed_password,roles=role,address=address,
-                    email=email,created_date=datetime.now().strftime('%Y-%m-%d %H:%M'))
+                    email=email,created_date=datetime.now())
     db.session.add(owner)
     db.session.commit()
     resp = jsonify ("success")
@@ -124,7 +124,7 @@ def register():
             roles=role,
             company_name=company_name,
             email=email,
-            created_date=datetime.now().strftime('%Y-%m-%d %H:%M')
+            created_date=datetime.now()
         )
 
         db.session.add(owner)
@@ -149,7 +149,7 @@ def get_signin_client():
     
     user = guard.authenticate(username, password)
     
-    # Update last_login timestamp
+    # Update last_login timesta
     user.last_login = datetime.utcnow()
     db.session.commit()
     

@@ -17,7 +17,7 @@ employee = Blueprint("employee", __name__)
 
 
         
-        
+    
 class employeeSchema(ma.Schema):
     class Meta:
         fields=("id","first_name","last_name","address","employment_date","checkout_date","session","city","country","id_type","id_number","id_upload","dob","gender","work","remark","phone",
@@ -193,9 +193,9 @@ def add_attendance():
         name=request.json["name"],
         position=request.json["position"],
         attendance=request.json["attendance"],
-        created_date=datetime.now().strftime('%Y-%m-%d'),
-        time_in = datetime.now().strftime('%H:%M'),
-        time_out = "-",
+        created_date=datetime.now(),
+        time_in = datetime.now(),
+       
     
         created_by_id = flask_praetorian.current_user().id,company_name=us.company_name,session=session.open_date
            
@@ -217,7 +217,7 @@ def update_attendance():
        id = request.json["id"]
 
        atd_data = Attendance.query.filter_by(id=id).first()
-       atd_data.time_out =datetime.now().strftime('%H:%M')
+       atd_data.time_out =datetime.now()
        db.session.commit()
        resp = jsonify("success")
        resp.status_code=200
