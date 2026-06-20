@@ -19,6 +19,6 @@ marshmallow
 
 SQLAlchemy
 
-
+psycopg2
 
 WTForms
