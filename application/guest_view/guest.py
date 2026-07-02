@@ -2837,18 +2837,17 @@ from sqlalchemy import desc
 @guest.route("/search_income_dates_two", methods=["POST"])
 @flask_praetorian.auth_required
 def search_income_dates_two():
-    us = User.query.filter_by(id=flask_praetorian.current_user().id).first()
-
-    date = request.json.get("date")
-    date_two = request.json.get("datetwo")
-
-    # Validate inputs
-    if not date or not date_two:
-        return jsonify({
-            "error": "Both date and datetwo are required"
-        }), 400
-
     try:
+        date = request.json.get("date")
+        date_two = request.json.get("datetwo")
+
+        if not date or not date_two:
+            return jsonify({
+                "status": "error",
+                "message": "Both date and datetwo are required."
+            }), 400
+
+        # Convert the input dates
         start_date = datetime.combine(
             datetime.strptime(date, "%Y-%m-%d").date(),
             time.min
@@ -2859,27 +2858,29 @@ def search_income_dates_two():
             time.max
         )
 
+        # Convert datetime objects to strings since session is VARCHAR
+        start_date = start_date.strftime("%Y-%m-%d %H:%M:%S.%f")
+        end_date = end_date.strftime("%Y-%m-%d %H:%M:%S.%f")
+
         pay = Income.query.filter(
             Income.session >= start_date,
             Income.session <= end_date
         ).order_by(desc(Income.date)).all()
 
-        result = guest_schema.dump(pay)
-
-        return jsonify(result), 200
+        return jsonify(guest_schema.dump(pay)), 200
 
     except ValueError:
         return jsonify({
-            "error": "Dates must be in YYYY-MM-DD format"
+            "status": "error",
+            "message": "Invalid date format. Use YYYY-MM-DD."
         }), 400
 
     except Exception as e:
-        print(f"Error occurred: {e}")
+        print("Error:", e)
         return jsonify({
-            "error": "An error occurred while fetching data"
+            "status": "error",
+            "message": str(e)
         }), 500
-
-
 @guest.route("/search_canceled_dates_two", methods=["POST"])
 @flask_praetorian.auth_required
 def search_canceled_dates_two():
