@@ -23,7 +23,7 @@ SQLAlchemy
 
 
 WTForms
-=======
+
 alembic==1.11.1
 aniso8601==9.0.1
 blinker==1.6.2
@@ -65,4 +65,4 @@ typing_extensions==4.6.2
 Werkzeug==2.3.4
 wrapt==1.15.0
 WTForms==3.0.1
->>>>>>> 0cbc247 (first commit)
+
