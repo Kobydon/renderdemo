@@ -21,3 +21,4 @@ marshmallow
 SQLAlchemy
 
 
+psycopg2
