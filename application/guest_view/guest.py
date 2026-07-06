@@ -4957,6 +4957,53 @@ def get_helding_orders():
 
     return jsonify(orders_list), 200
 
+
+
+
+@guest.route('/get_helding_ordersa', methods=['GET'])
+@flask_praetorian.auth_required
+def get_helding_ordersa():
+    user = flask_praetorian.current_user()
+    us = User.query.filter_by(id=user.id).first()
+
+    if not us:
+        return jsonify({"error": "User not found"}), 404
+
+    # Query for held orders that contain food and have unconfirmed food
+    held_orders = HeldCart.query.filter_by(
+        
+        contain_digital_printing="yes",  # Only orders with food
+         # Only unconfirmed food orders
+    ).all()
+
+    orders_list = []
+
+    for order in held_orders:
+        try:
+            items = json.loads(order.items)  # Convert JSON string to list
+            print(f"Order {order.id} items:", items)  # Debugging
+
+            # Filter items by "food" family and unconfirmed status
+            filtered_items = [item for item in items if item.get("family") == "digital_printing" and item.get("confirmed") == True]  
+            print(f"Filtered items for order {order.id}:", filtered_items)  # Debugging
+
+            if filtered_items:  # Only include orders with unconfirmed food items
+                orders_list.append({
+                    "id": order.id,
+                    "items": filtered_items,
+                    "total": order.total,
+                    "note": order.note,
+                    "waiter": order.waiter,
+                    "company_name": order.company_name,
+                    "status": order.status,
+                    "created_at": order.created_at.strftime('%Y-%m-%d %H:%M:%S')  # Format the datetime
+                })
+
+        except (json.JSONDecodeError, TypeError) as e:
+            print(f"Error decoding JSON for order {order.id}: {e}")  # Debugging
+
+    return jsonify(orders_list), 200
+
 @guest.route('/get_helding_orders_drinks', methods=['GET'])
 @flask_praetorian.auth_required
 def get_helding_orders_drinks():
