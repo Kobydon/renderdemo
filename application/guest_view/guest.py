@@ -4802,6 +4802,7 @@ def hold_order():
                     updated_items.append({
                         "id": item_id,
                         "qty": item_qty,
+                         "description": item.get("description", ""),
                         "name": item["name"],
                         "price": item["price"],
                         "family": str(item.get("family", "")).strip(),
@@ -4814,6 +4815,7 @@ def hold_order():
                         "id": item_id,
                         "qty": item_qty,
                         "name": item["name"],
+                        "description": item.get("description", ""),
                         "price": item["price"],
                         "family": str(item.get("family", "")).strip(),
                          "category": str(item.get("category", "")).strip(),
@@ -4846,6 +4848,7 @@ def hold_order():
                     "qty": int(item["qty"]),
                     "name": item["name"],
                     "price": item["price"],
+                    "description": item.get("description", ""),
                     "family": str(item.get("family", "")).strip(),
                     "category": str(item.get("category", "")).strip(),
                     
@@ -4861,6 +4864,7 @@ def hold_order():
             contain_digital_printing = any(item.get("family") == "digital_printing" for item in cart_items)
             contain_large_format = any(item.get("family") == "large_format" for item in cart_items)
             contain_label = any(item.get("family") == "label" for item in cart_items)
+            note= data.get("note", "")
 
             existing_hold = HeldCart(
                 user_id=user.id,
@@ -4884,7 +4888,8 @@ def hold_order():
                 large_format_confirm="no",
                 digital_printing_confirm="no",
                 session=session.open_date,
-                table=data['table']
+                table=data['table'],
+                note=note
             )
             db.session.add(existing_hold)
 
