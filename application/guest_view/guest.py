@@ -4945,6 +4945,7 @@ def get_helding_orders():
                     "id": order.id,
                     "items": filtered_items,
                     "total": order.total,
+                    "note": order.note,
                     "waiter": order.waiter,
                     "company_name": order.company_name,
                     "status": order.status,
