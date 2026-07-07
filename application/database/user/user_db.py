@@ -708,6 +708,7 @@ class ReceivedItem(db.Model):
 
     def __repr__(self):
         return f"<ReceivedItem(id={self.id}, name={self.name}, quantity={self.quantity})>"
+    
 class Customer(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     customer_id = db.Column(db.String(20), unique=True, nullable=False)
