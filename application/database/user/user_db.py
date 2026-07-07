@@ -718,6 +718,25 @@ class Customer(db.Model):
     phone = db.Column(db.String(400))
     coupon_value = db.Column(db.String(400))
     coupon_applied = db.Column(db.String(400))
+    
+    @property
+    def customer_id(self):
+        """Generate customer ID from id: AFG001, AFG002, etc."""
+        if self.id:
+            return f"AFG{self.id:03d}"
+        return None
+    
+    def to_dict(self):
+        """Convert customer to dictionary with formatted customer_id"""
+        return {
+            'id': self.id,
+            'customer_id': self.customer_id,  # This will be AFG001, AFG002, etc.
+            'firstname': self.firstname,
+            'lastname': self.lastname,
+            'phone': self.phone,
+            'company_name': self.company_name,
+            'created_date': self.created_date
+        }
 
 class Stock(db.Model):
     id = db.Column(db.Integer, primary_key=True)

@@ -5337,7 +5337,8 @@ def load_held_order(hold_id):
     return jsonify({
         "id": held_order.id,
         "items": json.loads(held_order.items),
-        "total": held_order.total
+        "total": held_order.total,
+        "customer": held_order.customer
     }), 200
     
     
@@ -5699,23 +5700,52 @@ def get_stock_items():
 
 
 
+
+        
 @guest.route('/add_customer', methods=['POST'])
 @flask_praetorian.auth_required
 def add_customer():
-    user = current_user()
-    firstname=request.json["firstname"]
-    lastname=request.json["lastname"]
-    phone=request.json["phone"]
-    customer = Customer(firstname=firstname,lastname=lastname,created_date=datetime.now(),
-                        company_name=user.company_name)
-    db.session.add(customer)
-    db.session.commit()
-    db.session.close()
-    resp = jsonify("success")
-    resp.status_code=200
-    return resp
-
-
+    try:
+        user = current_user()
+        firstname = request.json.get("firstname", "").strip()
+        lastname = request.json.get("lastname", "").strip()
+        phone = request.json.get("phone", "").strip()
+        
+        # Validate required fields
+        if not firstname or not lastname:
+            resp = jsonify({"error": "Firstname and lastname are required"})
+            resp.status_code = 400
+            return resp
+        
+        # Create new customer
+        customer = Customer(
+            firstname=firstname,
+            lastname=lastname,
+            phone=phone,
+            company_name=user.company_name,
+            created_date=datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        )
+        
+        db.session.add(customer)
+        db.session.commit()
+        
+        # Get the customer with generated ID
+        customer_dict = customer.to_dict()
+        
+        resp = jsonify({
+            "success": True,
+            "message": "Customer added successfully",
+            "customer_id": customer_dict['customer_id'],  # AFG001, AFG002, etc.
+            "customer": customer_dict
+        })
+        resp.status_code = 200
+        return resp
+        
+    except Exception as e:
+        db.session.rollback()
+        resp = jsonify({"error": str(e)})
+        resp.status_code = 500
+        return resp
 
 @guest.route('/get_customers', methods=['GET'])
 @flask_praetorian.auth_required
