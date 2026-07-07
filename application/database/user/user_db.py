@@ -708,9 +708,9 @@ class ReceivedItem(db.Model):
 
     def __repr__(self):
         return f"<ReceivedItem(id={self.id}, name={self.name}, quantity={self.quantity})>"
-    
 class Customer(db.Model):
     id = db.Column(db.Integer, primary_key=True)
+    customer_id = db.Column(db.String(20), unique=True, nullable=False)
     firstname = db.Column(db.Text)
     company_name = db.Column(db.String(500))
     lastname = db.Column(db.Text)
@@ -719,24 +719,38 @@ class Customer(db.Model):
     coupon_value = db.Column(db.String(400))
     coupon_applied = db.Column(db.String(400))
     
-    @property
-    def customer_id(self):
-        """Generate customer ID from id: AFG001, AFG002, etc."""
-        if self.id:
-            return f"AFG{self.id:03d}"
-        return None
+    def __init__(self, **kwargs):
+        super(Customer, self).__init__(**kwargs)
+        if not self.customer_id:
+            self.customer_id = self.generate_customer_id()
     
-    def to_dict(self):
-        """Convert customer to dictionary with formatted customer_id"""
-        return {
-            'id': self.id,
-            'customer_id': self.customer_id,  # This will be AFG001, AFG002, etc.
-            'firstname': self.firstname,
-            'lastname': self.lastname,
-            'phone': self.phone,
-            'company_name': self.company_name,
-            'created_date': self.created_date
-        }
+    @staticmethod
+    def generate_customer_id(prefix="AFG"):
+        """Generate customer ID with custom prefix"""
+        # Get count of existing customers
+        count = Customer.query.count()
+        
+        # If there are existing customers, get the max number
+        if count > 0:
+            # Get all customer IDs and extract numbers
+            customers = Customer.query.with_entities(Customer.customer_id).all()
+            numbers = []
+            import re
+            for c in customers:
+                if c.customer_id:
+                    match = re.search(r'(\d+)', c.customer_id)
+                    if match:
+                        numbers.append(int(match.group(1)))
+            
+            if numbers:
+                next_number = max(numbers) + 1
+            else:
+                next_number = count + 1
+        else:
+            next_number = 1
+        
+        # Format: prefix + 3-digit number (padded with zeros)
+        return f"{prefix}{next_number:03d}"
 
 class Stock(db.Model):
     id = db.Column(db.Integer, primary_key=True)
