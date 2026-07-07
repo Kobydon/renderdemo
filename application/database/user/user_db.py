@@ -376,6 +376,7 @@ class HeldCart(db.Model):
     food_confirm_at = db.Column(db.String(200))
     drink_confirm_at = db.Column(db.String(200))
     note= db.Column(db.String(200))
+    customer=db.Column(db.String(200))
     session = db.Column(db.String(200))
 
 

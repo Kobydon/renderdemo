@@ -4870,6 +4870,7 @@ def hold_order():
                 user_id=user.id,
                 items=json.dumps(cart_items),
                 total=int(data['total']),
+                customer=data['customer'],
                 company_name=user.company_name,
                 status="Pending",
                 paid_status="Pending",
@@ -5051,6 +5052,56 @@ def get_helding_orders_drinks():
 
 
 
+
+
+@guest.route('/get_helding_orders_processed_drinks', methods=['GET'])
+@flask_praetorian.auth_required
+def get_helding_orders_processed_drinks():
+    user = flask_praetorian.current_user()
+    us = User.query.filter_by(id=user.id).first()
+
+    if not us:
+        return jsonify({"error": "User not found"}), 404
+
+    # Adjusting the query to get only held orders containing drinks and with unconfirmed drinks
+    held_orders = HeldCart.query.filter_by(
+    
+    ).filter(
+        HeldCart.contain_large_format == "yes",  # Orders with drinks
+      # Unconfirmed drinks
+    ).all()
+
+    orders_list = []
+
+    for order in held_orders:
+        try:
+            print(f"Raw items JSON for order {order.id}:", order.items)  # Debug
+            items = json.loads(order.items)
+
+            # Filter items to include only drinks
+            filtered_items = [item for item in items if item.get("family") == "large_format" and item.get("confirmed") == True]
+            print(f"Filtered items for order {order.id}:", filtered_items)
+
+            if filtered_items:
+                orders_list.append({
+                    "id": order.id,
+                    "items": filtered_items,
+                    "total": order.total,
+                    "note": order.note,
+                    "waiter": order.waiter,
+                    "company_name": order.company_name,
+                    "status": order.status,
+                    "created_at": order.created_at.strftime('%Y-%m-%d %H:%M:%S')  # Format the datetime
+                })
+
+        except (json.JSONDecodeError, TypeError) as e:
+            print(f"Error decoding JSON for order {order.id}: {e}")
+
+    return jsonify(orders_list), 200
+
+
+
+
     
 
 @guest.route('/get_helding_orders_label', methods=['GET'])
@@ -5099,6 +5150,53 @@ def get_helding_orders_label():
 
 
 
+
+
+@guest.route('/get_helding_orders_label_processed', methods=['GET'])
+@flask_praetorian.auth_required
+def get_helding_orders_label_processed():
+    user = flask_praetorian.current_user()
+    us = User.query.filter_by(id=user.id).first()
+
+    if not us:
+        return jsonify({"error": "User not found"}), 404
+
+    # Adjusting the query to get only held orders containing drinks and with unconfirmed drinks
+    held_orders = HeldCart.query.filter_by(
+    
+    ).filter(
+        HeldCart.contain_label == "yes",  # Orders with drinks
+      # Unconfirmed drinks
+    ).all()
+
+    orders_list = []
+
+    for order in held_orders:
+        try:
+            print(f"Raw items JSON for order {order.id}:", order.items)  # Debug
+            items = json.loads(order.items)
+
+            # Filter items to include only drinks
+            filtered_items = [item for item in items if item.get("family") == "label" and item.get("confirmed") == True]
+            print(f"Filtered items for order {order.id}:", filtered_items)
+
+            if filtered_items:
+                orders_list.append({
+                   "id": order.id,
+                    "items": filtered_items,
+                    "total": order.total,
+                    "note": order.note,
+                    "waiter": order.waiter,
+                    "company_name": order.company_name,
+                    "status": order.status,
+                    "created_at": order.created_at.strftime('%Y-%m-%d %H:%M:%S')  # Format the datetime
+                })
+
+        except (json.JSONDecodeError, TypeError) as e:
+            print(f"Error decoding JSON for order {order.id}: {e}")
+
+    return jsonify(orders_list), 200
+
    
 
 @guest.route('/get_helding_orders_dtf', methods=['GET'])
@@ -5138,6 +5236,53 @@ def get_helding_orders_dtf():
                     "company_name": order.company_name,
                     "status": order.status,
                     "dtf_status": order.contain_dtf
+                })
+
+        except (json.JSONDecodeError, TypeError) as e:
+            print(f"Error decoding JSON for order {order.id}: {e}")
+
+    return jsonify(orders_list), 200
+
+
+
+@guest.route('/get_helding_orders_dtf_processed', methods=['GET'])
+@flask_praetorian.auth_required
+def get_helding_orders_dtf_processed():
+    user = flask_praetorian.current_user()
+    us = User.query.filter_by(id=user.id).first()
+
+    if not us:
+        return jsonify({"error": "User not found"}), 404
+
+    # Adjusting the query to get only held orders containing drinks and with unconfirmed drinks
+    held_orders = HeldCart.query.filter_by(
+    
+    ).filter(
+        HeldCart.contain_dtf == "yes",  # Orders with drinks
+      # Unconfirmed drinks
+    ).all()
+
+    orders_list = []
+
+    for order in held_orders:
+        try:
+            print(f"Raw items JSON for order {order.id}:", order.items)  # Debug
+            items = json.loads(order.items)
+
+            # Filter items to include only drinks
+            filtered_items = [item for item in items if item.get("family") == "dtf" and item.get("confirmed") == True]
+            print(f"Filtered items for order {order.id}:", filtered_items)
+
+            if filtered_items:
+                orders_list.append({
+                    "id": order.id,
+                    "items": filtered_items,
+                    "total": order.total,
+                    "note": order.note,
+                    "waiter": order.waiter,
+                    "company_name": order.company_name,
+                    "status": order.status,
+                    "created_at": order.created_at.strftime('%Y-%m-%d %H:%M:%S')  # Format the datetime
                 })
 
         except (json.JSONDecodeError, TypeError) as e:
