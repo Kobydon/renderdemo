@@ -4139,7 +4139,7 @@ def create_orders():
     
    
     cashier = User.query.filter_by(username=request.json["cashier"]).first()
-    Customer.query.filter(or_(Customer.id == request.json["customer"], Customer.customer_id == request.json["customer"])).first()
+    customer=Customer.query.filter(or_(Customer.id == request.json["customer"], Customer.customer_id == request.json["customer"])).first()
     if customer:
         customer=customer.firstname+" "+customer.lastname
     phon=""
@@ -4245,7 +4245,7 @@ def create_orders_all():
     cash = ""
     cashier = User.query.filter_by(username=request.json["cashier"]).first()
     Customer.query.filter(or_(Customer.id == request.json["customer"], Customer.customer_id == request.json["customer"])).first()
-    if customer:
+    if customer:customer=
         customer=customer.firstname+" "+customer.lastname
     phon=""
     phone= request.json["phone"]
@@ -4373,7 +4373,7 @@ def credit():
     cash = ""
     cashier = User.query.filter_by(username=request.json["cashier"]).first()
     Customer.query.filter(or_(Customer.id == request.json["customer"], Customer.customer_id == request.json["customer"])).first()
-    if customer:
+    if customer:customer=
         customer=customer.firstname+" "+customer.lastname
     phon=""
     phone= request.json["phone"]
@@ -4509,7 +4509,7 @@ def create_orders_two():
     cash=""
     cashier = User.query.filter_by(username=request.json["cashier"]).first()
     Customer.query.filter(or_(Customer.id == request.json["customer"], Customer.customer_id == request.json["customer"])).first()
-    if customer:
+    if customer:customer=
         customer=customer.firstname+" "+customer.lastname
     phon=""
     phone= request.json["phone"]
@@ -4616,7 +4616,7 @@ def create_orders_two_all():
     cash = ""
     cashier = User.query.filter_by(username=request.json["cashier"]).first()
     Customer.query.filter(or_(Customer.id == request.json["customer"], Customer.customer_id == request.json["customer"])).first()
-    if customer:
+    if customer:customer=
         customer=customer.firstname+" "+customer.lastname
     phon=""
     phone= request.json["phone"]
@@ -5701,7 +5701,6 @@ def get_stock_items():
     return jsonify(data)
 
 
-
 @guest.route('/add_customer', methods=['POST'])
 @flask_praetorian.auth_required
 def add_customer():
@@ -5717,7 +5716,7 @@ def add_customer():
             resp.status_code = 400
             return resp
         
-        # Create new customer
+        # Create new customer WITHOUT customer_id
         customer = Customer(
             firstname=firstname,
             lastname=lastname,
@@ -5729,18 +5728,18 @@ def add_customer():
         db.session.add(customer)
         db.session.commit()
         
-        # DON'T close the session here - the customer is still attached
+        # NOW generate the customer_id after commit
+        customer_id = generate_customer_id(customer.id)
+        customer.customer_id = customer_id
+        db.session.commit()
         
-        # Now access the customer_id property (which uses self.id)
-        # Since the session is still open and the object is attached,
-        # this will work fine
         resp = jsonify({
             "success": True,
             "message": "Customer added successfully",
-            "customer_id": customer.customer_id,  # This will work now
+            "customer_id": customer_id,
             "customer": {
                 "id": customer.id,
-                "customer_id": customer.customer_id,
+                "customer_id": customer_id,
                 "firstname": customer.firstname,
                 "lastname": customer.lastname,
                 "phone": customer.phone
@@ -5754,6 +5753,10 @@ def add_customer():
         resp = jsonify({"error": str(e)})
         resp.status_code = 500
         return resp
+
+def generate_customer_id(customer_id, prefix="AFG"):
+    """Generate customer ID from the id"""
+    return f"{prefix}{customer_id:03d}"
 @guest.route('/get_customers', methods=['GET'])
 @flask_praetorian.auth_required
 def get_customers():
