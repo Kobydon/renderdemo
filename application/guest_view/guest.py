@@ -4245,7 +4245,7 @@ def create_orders_all():
     cash = ""
     cashier = User.query.filter_by(username=request.json["cashier"]).first()
     Customer.query.filter(or_(Customer.id == request.json["customer"], Customer.customer_id == request.json["customer"])).first()
-    if customer:customer=
+    if customer:
         customer=customer.firstname+" "+customer.lastname
     phon=""
     phone= request.json["phone"]
@@ -4373,7 +4373,7 @@ def credit():
     cash = ""
     cashier = User.query.filter_by(username=request.json["cashier"]).first()
     Customer.query.filter(or_(Customer.id == request.json["customer"], Customer.customer_id == request.json["customer"])).first()
-    if customer:customer=
+    if customer:
         customer=customer.firstname+" "+customer.lastname
     phon=""
     phone= request.json["phone"]
@@ -4509,7 +4509,7 @@ def create_orders_two():
     cash=""
     cashier = User.query.filter_by(username=request.json["cashier"]).first()
     Customer.query.filter(or_(Customer.id == request.json["customer"], Customer.customer_id == request.json["customer"])).first()
-    if customer:customer=
+    if customer:
         customer=customer.firstname+" "+customer.lastname
     phon=""
     phone= request.json["phone"]
@@ -4616,7 +4616,7 @@ def create_orders_two_all():
     cash = ""
     cashier = User.query.filter_by(username=request.json["cashier"]).first()
     Customer.query.filter(or_(Customer.id == request.json["customer"], Customer.customer_id == request.json["customer"])).first()
-    if customer:customer=
+    if customer:
         customer=customer.firstname+" "+customer.lastname
     phon=""
     phone= request.json["phone"]
