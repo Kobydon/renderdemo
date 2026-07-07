@@ -5372,6 +5372,7 @@ def load_held_order_all():
             "id": order.id,
             "items": json.loads(order.items),
             "total": order.total,
+            "customer":order.customer
             "created_at": order.created_at.strftime('%Y-%m-%d %H:%M:%S') if order.created_at else None
         } for order in held_orders
     ]), 200
