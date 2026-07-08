@@ -4753,7 +4753,6 @@ def update_order_status(order_id):
     db.session.commit()
 
     return jsonify({"message": f"Order {order_id} updated to {new_status}"}), 200
-
 @guest.route('/hold_order', methods=['POST'])
 @auth_required
 def hold_order():
@@ -4804,7 +4803,7 @@ def hold_order():
                     updated_items.append({
                         "id": item_id,
                         "qty": item_qty,
-                         "description": item.get("description", ""),
+                        "description": item.get("description", ""),
                         "name": item["name"],
                         "price": item["price"],
                         "family": str(item.get("family", "")).strip(),
@@ -4820,7 +4819,7 @@ def hold_order():
                         "description": item.get("description", ""),
                         "price": item["price"],
                         "family": str(item.get("family", "")).strip(),
-                         "category": str(item.get("category", "")).strip(),
+                        "category": str(item.get("category", "")).strip(),
                         "confirmed": False,
                         "is_vip": item["is_vip"]
                     })
@@ -4841,6 +4840,7 @@ def hold_order():
             existing_hold.contain_label = "yes" if contain_label else "no"
 
             print(f"Updated existing held order ID: {existing_hold.id}")
+            order_id = existing_hold.id
 
         else:
             # New held order
@@ -4853,7 +4853,6 @@ def hold_order():
                     "description": item.get("description", ""),
                     "family": str(item.get("family", "")).strip(),
                     "category": str(item.get("category", "")).strip(),
-                    
                     "confirmed": False,
                     "is_vip": item["is_vip"]
                 } for item in data["cartItems"]]
@@ -4866,13 +4865,13 @@ def hold_order():
             contain_digital_printing = any(item.get("family") == "digital_printing" for item in cart_items)
             contain_large_format = any(item.get("family") == "large_format" for item in cart_items)
             contain_label = any(item.get("family") == "label" for item in cart_items)
-            note= data.get("note", "")
+            note = data.get("note", "")
 
             existing_hold = HeldCart(
                 user_id=user.id,
                 items=json.dumps(cart_items),
                 total=int(data['total']),
-                customer=data['customer'],
+                customer=data.get('customer', ''),
                 company_name=user.company_name,
                 status="Pending",
                 paid_status="Pending",
@@ -4890,22 +4889,28 @@ def hold_order():
                 dtf_confirm="no",
                 large_format_confirm="no",
                 digital_printing_confirm="no",
-                session=session.open_date,
-                table=data['table'],
+                session=session.open_date if session else None,
+                table=data.get('table', ''),
                 note=note
             )
             db.session.add(existing_hold)
+            db.session.flush()  # This assigns the ID
+            order_id = existing_hold.id
 
-            print("Created new held order.")
+            print(f"Created new held order with ID: {order_id}")
 
         db.session.commit()
-        return jsonify({"message": "Order held successfully"}), 200
+        
+        # Return the order ID in response
+        return jsonify({
+            "message": "Order held successfully",
+            "id": order_id,
+            "order_id": order_id
+        }), 200
 
     except Exception as e:
         db.session.rollback()
         return jsonify({"error": "An error occurred while holding the order", "details": str(e)}), 500
-
-
 @guest.route('/held_orders', methods=['GET'])
 @flask_praetorian.auth_required
 def get_held_orders():
