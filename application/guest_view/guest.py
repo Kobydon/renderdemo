@@ -4244,7 +4244,7 @@ def create_orders_all():
     data = request.json
     cash = ""
     cashier = User.query.filter_by(username=request.json["cashier"]).first()
-    Customer.query.filter(or_(Customer.id == request.json["customer"], Customer.customer_id == request.json["customer"])).first()
+    customer=Customer.query.filter(or_(Customer.id == request.json["customer"], Customer.customer_id == request.json["customer"])).first()
     if customer:
         customer=customer.firstname+" "+customer.lastname
     phon=""
