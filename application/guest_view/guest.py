@@ -5344,19 +5344,165 @@ def load_held_order(hold_id):
     }), 200
     
     
-@guest.route('/load_held_order_save/<int:hold_id>', methods=['GET'])
+@guest.route('/load_held_order_save', methods=['POST'])
 @flask_praetorian.auth_required
-def load_held_order_save(hold_id):
-    held_order = Order.query.get(hold_id)
-    if not held_order:
-        return jsonify({"error": "Held order not found"}), 404
+def load_held_order_save():
+    try:
+        user = current_user()
+        data = request.json
+        
+        # Get the hold_id from request
+        hold_id = data.get('hold_id') or data.get('id')
+        customer_id = data.get('customer')
+        
+        if not hold_id and not customer_id:
+            return jsonify({"error": "Hold ID or Customer ID is required"}), 400
+        
+        # Build query
+        query = HeldCart.query.filter_by(company_name=user.company_name)
+        
+        if hold_id:
+            query = query.filter_by(id=hold_id)
+        elif customer_id:
+            # Try to find by customer
+            query = query.filter_by(customer=customer_id)
+        
+        held_order = query.first()
+        
+        if not held_order:
+            return jsonify({"error": "Held order not found"}), 404
+        
+        # Parse items
+        items = []
+        try:
+            if held_order.items:
+                items = json.loads(held_order.items)
+                for item in items:
+                    if 'description' not in item:
+                        item['description'] = ''
+                    if 'confirmed' not in item:
+                        item['confirmed'] = None
+        except json.JSONDecodeError:
+            items = []
+        
+        # Prepare response
+        response_data = {
+            "id": held_order.id,
+            "items": items,
+            "total": held_order.total,
+            "customer": held_order.customer,
+            "note": held_order.note,
+            "table": held_order.table,
+            "waiter": held_order.waiter,
+            "status": held_order.status,
+            "paid_status": held_order.paid_status,
+            "onetime": held_order.onetime,
+            "created_at": held_order.created_at.isoformat() if held_order.created_at else None,
+            "contain_food": held_order.contain_food,
+            "contain_drink": held_order.contain_drink,
+            "contain_digital_printing": held_order.contain_digital_printing,
+            "contain_large_format": held_order.contain_large_format,
+            "contain_label": held_order.contain_label,
+            "contain_dtf": held_order.contain_dtf,
+            "food_confirm": held_order.food_confirm,
+            "drink_confirm": held_order.drink_confirm,
+            "digital_printing_confirm": held_order.digital_printing_confirm,
+            "large_format_confirm": held_order.large_format_confirm,
+            "label_confirm": held_order.label_confirm,
+            "dtf_confirm": held_order.dtf_confirm,
+            "session": held_order.session,
+            "food_confirm_at": held_order.food_confirm_at,
+            "drink_confirm_at": held_order.drink_confirm_at
+        }
+        
+        return jsonify(response_data), 200
+        
+    except Exception as e:
+        print(f"Error loading held order: {str(e)}")
+        return jsonify({"error": str(e)}), 500
 
-    return jsonify({
-        "id": held_order.id,
-        "items": json.loads(held_order.items),
-        "total": held_order.total
-    }), 200
 
+@guest.route('/load_held_orders_batch', methods=['POST'])
+@flask_praetorian.auth_required
+def load_held_orders_batch():
+    try:
+        user = current_user()
+        data = request.json
+        hold_ids = data.get('hold_ids', [])
+        
+        if not hold_ids:
+            return jsonify({"error": "Hold IDs are required"}), 400
+        
+        held_orders = HeldCart.query.filter(
+            HeldCart.id.in_(hold_ids),
+            HeldCart.company_name == user.company_name
+        ).all()
+        
+        result = []
+        for held_order in held_orders:
+            try:
+                items = json.loads(held_order.items) if held_order.items else []
+                for item in items:
+                    if 'description' not in item:
+                        item['description'] = ''
+            except:
+                items = []
+            
+            result.append({
+                "id": held_order.id,
+                "items": items,
+                "total": held_order.total,
+                "customer": held_order.customer,
+                "note": held_order.note,
+                "table": held_order.table
+            })
+        
+        return jsonify(result), 200
+        
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    
+
+
+
+@guest.route('/get_held_order_by_customer/<string:customer_id>', methods=['GET'])
+@flask_praetorian.auth_required
+def get_held_order_by_customer(customer_id):
+    try:
+        user = current_user()
+        
+        # Find held order by customer
+        held_order = HeldCart.query.filter_by(
+            customer=customer_id,
+            company_name=user.company_name,
+            status='held'  # Only get active held orders
+        ).first()
+        
+        if not held_order:
+            return jsonify({"error": "No held order found for this customer"}), 404
+        
+        # Parse items
+        items = []
+        try:
+            if held_order.items:
+                items = json.loads(held_order.items)
+                for item in items:
+                    if 'description' not in item:
+                        item['description'] = ''
+        except:
+            items = []
+        
+        return jsonify({
+            "id": held_order.id,
+            "items": items,
+            "total": held_order.total,
+            "customer": held_order.customer,
+            "note": held_order.note,
+            "table": held_order.table
+        }), 200
+        
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 @guest.route('/load_held_order_all', methods=['GET'])
 @flask_praetorian.auth_required
@@ -6100,3 +6246,85 @@ def save_cocktail_setup(item_id):
 def get_cocktail_setup(item_id):
     item = Iteman.query.get_or_404(item_id)
     return jsonify(item.cocktail_setup or [])
+
+
+@guest.route('/sales_report', methods=['POST'])
+@flask_praetorian.auth_required
+def sales_report():
+    try:
+        user = current_user()
+        data = request.json
+        
+        # Get date range from request
+        date_from = data.get('date_from')
+        date_to = data.get('date_to')
+        
+        # Build query
+        query = HeldCart.query.filter_by(
+            user_id=user.id,
+            paid_status="Success"
+        )
+        
+        # Apply date filter if provided
+        if date_from:
+            query = query.filter(HeldCart.created_at >= date_from)
+        if date_to:
+            query = query.filter(HeldCart.created_at <= date_to)
+        
+        # Get all matching orders
+        orders = query.all()
+        
+        # Calculate totals
+        total_sales = sum(order.total for order in orders)
+        total_orders = len(orders)
+        
+        # Get daily breakdown
+        daily_sales = {}
+        for order in orders:
+            date_key = order.created_at.strftime('%Y-%m-%d') if order.created_at else 'unknown'
+            if date_key not in daily_sales:
+                daily_sales[date_key] = {
+                    'total': 0,
+                    'count': 0,
+                    'orders': []
+                }
+            daily_sales[date_key]['total'] += order.total
+            daily_sales[date_key]['count'] += 1
+            daily_sales[date_key]['orders'].append({
+                'id': order.id,
+                'total': order.total,
+                'customer': order.customer,
+                'created_at': order.created_at.isoformat() if order.created_at else None
+            })
+        
+        # Prepare response
+        response = {
+            'success': True,
+            'summary': {
+                'total_sales': total_sales,
+                'total_orders': total_orders,
+                'average_order': total_sales / total_orders if total_orders > 0 else 0,
+                'date_from': date_from,
+                'date_to': date_to
+            },
+            'daily_breakdown': daily_sales,
+            'orders': [
+                {
+                    'id': order.id,
+                    'total': order.total,
+                    'customer': order.customer,
+                    'created_at': order.created_at.isoformat() if order.created_at else None,
+                    'paid_status': order.paid_status,
+                    'table': order.table,
+                    'waiter': order.waiter,
+                    'items': json.loads(order.items) if order.items else []
+                }
+                for order in orders
+            ]
+        }
+        
+        return jsonify(response), 200
+        
+    except Exception as e:
+        print(f"Error in sales report: {str(e)}")
+        return jsonify({"error": str(e)}), 500
