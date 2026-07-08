@@ -4130,604 +4130,663 @@ import json
 @guest.route('/create_orders', methods=['POST'])
 @flask_praetorian.auth_required
 def create_orders():
-    us = User.query.filter_by(id=flask_praetorian.current_user().id).first()
-    session = Session.query.filter_by(status="current").first()
-    
-    # room_number=request.json["room_number"]
-    data = request.json
-    cash=""
-    
-   
-    cashier = User.query.filter_by(username=request.json["cashier"]).first()
-    customer=Customer.query.filter(or_(Customer.id == request.json["customer"], Customer.customer_id == request.json["customer"])).first()
-    if customer:
-        customer=customer.firstname+" "+customer.lastname
-    phon=""
-    phone= request.json["phone"]
-    if phone:
-        phon=phone
-    if cashier:
-        cash= cashier.firstname +" "+ cashier.lastname
+    try:
+        us = User.query.filter_by(id=flask_praetorian.current_user().id).first()
+        session = Session.query.filter_by(status="current").first()
+        data = request.json
 
+        if not data or 'cartItems' not in data or 'total' not in data:
+            return jsonify({"error": "Invalid request"}), 400
 
-    print("Incoming data:", data)  # ✅ Debug incoming request
+        # Get cashier
+        cashier = User.query.filter_by(username=data.get("cashier", "")).first()
+        if not cashier:
+            return jsonify({"error": "Cashier not found"}), 404
 
-    if not data or 'cartItems' not in data or 'total' not in data:
-        return jsonify({"error": "Invalid request"}), 400
+        # Get customer - handle both ID and customer_id
+        customer_input = data.get("customer")
+        customer_name = None
+        if customer_input:
+            customer = None
+            if str(customer_input).isdigit():
+                customer = Customer.query.filter_by(id=int(customer_input)).first()
+            if not customer:
+                customer = Customer.query.filter_by(customer_id=str(customer_input)).first()
+            if customer:
+                customer_name = f"{customer.firstname} {customer.lastname}"
 
-    # ✅ Always store valid JSON
-    items = json.dumps(data.get('cartItems', []))
+        phone = data.get("phone", "")
+        items = json.dumps(data.get('cartItems', []))
 
-    new_order = Order(
-        user_id=us.id,
-        items=items,
-        total=int(data['total']),
-        
-        waiter=us.firstname,
-        order_status="Pending",
-      
-        status="paid",session=session.open_date
-     
-    )
-    db.session.add(new_order)
-    db.session.commit()
+        # Create new order
+        new_order = Order(
+            user_id=us.id,
+            items=items,
+            total=float(data['total']),
+            waiter=us.firstname,
+            order_status="Pending",
+            status="paid",
+            session=session.open_date if session else None
+        )
+        db.session.add(new_order)
+        db.session.flush()
 
-    # ✅ Deduct Stock & Create Order Items
-    for cart_item in data['cartItems']:
-        item_name = cart_item.get('name')
-        item_quantity = (cart_item.get('qty', 0))
-        category = cart_item.get('category')
-        family = cart_item.get('family')
-        price  = cart_item.get('price')
-        total_price = float(price) * float(item_quantity)
-        item = Iteman.query.filter_by(name=item_name).first()
-        if not item:
-            return jsonify({"error": f"Item '{item_name}' not found"}), 404
-        # if int(item.quantity) < int( item_quantity):
-        #     return jsonify({"error": f"Not enough stock for {item_name}"}), 400
-        # old_quantity = float(item.quantity)
+        # Process each cart item
+        for cart_item in data['cartItems']:
+            item_name = cart_item.get('name')
+            item_quantity = int(cart_item.get('qty', 0))
+            category = cart_item.get('category')
+            family = cart_item.get('family')
+            price = float(cart_item.get('price', 0))
+            total_price = price * item_quantity
+            
+            item = Iteman.query.filter_by(name=item_name).first()
+            if not item:
+                db.session.rollback()
+                return jsonify({"error": f"Item '{item_name}' not found"}), 404
 
+            order_item = OrderItem(
+                item_name=item_name,
+                order_id=new_order.id,
+                item_id=item.id,
+                quantity=item_quantity,
+                category=category,
+                waiter=f"{us.firstname} {us.lastname}",
+                status="Pending",
+                table=data.get('table', '')
+            )
+            db.session.add(order_item)
 
-        # item.quantity =   old_quantity -item_quantity  # 🔻 Deduct stock
+            pos_payment = PosPayment(
+                name=item_name,
+                amount=total_price,
+                method=data.get("method", "Cash"),
+                quantity=item_quantity,
+                attendant=f"{us.firstname} {us.lastname}",
+                created_by_id=us.id,
+                cashier=f"{cashier.firstname} {cashier.lastname}",
+                payment_date=datetime.now(),
+                session=session.open_date if session else None,
+                category=family,
+                cat=category,
+                customer=customer_name,
+                phone=phone
+            )
+            db.session.add(pos_payment)
 
-        order_item = OrderItem(
-            item_name=item_name,
-            order_id=new_order.id,
-            item_id=item.id,
-            quantity=item_quantity,
-            category=category,
-            waiter=us.firstname + " " + us.lastname,
-            status="Pending",  table=data['table'])
-        pos_payment = PosPayment(name=item_name,amount=total_price,  method = request.json["method"],
-                                 quantity=item_quantity,attendant=us.firstname +" "+us.lastname,created_by_id=us.id,cashier=cashier.firstname+" "+cashier.lastname,
-                                 payment_date=datetime.now(),session=session.open_date, category = cart_item.get('family'),cat=category,customer=customer,phone=phon)
-        
+            income = Income(
+                name=item_name,
+                attendant=f"{us.firstname} {us.lastname}",
+                amount=total_price,
+                date=datetime.now(),
+                discount=data.get("discount", 0),
+                note="Pos Payment",
+                created_date=datetime.now(),
+                created_by_id=us.id,
+                cashier=f"{cashier.firstname} {cashier.lastname}",
+                session=session.open_date if session else None,
+                method=data.get("method", "Cash"),
+                category=family,
+                cat=category,
+                customer=customer_name,
+                phone=phone
+            )
+            db.session.add(income)
 
-        income = Income(name=item_name,attendant=us.firstname +" "+us.lastname,amount =total_price,date =datetime.now(),discount=request.json["discount"],
-                        note="Pos Payment",created_date=datetime.now(),
-                        created_by_id=us.id,cashier=cashier.firstname+" "+cashier.lastname,session=session.open_date,  method=request.json["method"], category = cart_item.get('family'),cat=category,customer=customer,phone=phon,
-)
+            # Update held cart if exists
+            held_cart_id = data.get("id")
+            if held_cart_id:
+                held_cart = HeldCart.query.filter_by(id=held_cart_id).first()
+                if held_cart:
+                    held_cart.status = "Confirmed"
+                    held_cart.paid_status = "Success"
 
-    
-        held_cart = HeldCart.query.filter_by(id=request.json["id"]).first()
-        if held_cart:
-            held_cart.status="Confirmed"
-            held_cart.paid_status="Success"
-        
-        db.session.add(pos_payment)
-        db.session.add(income)
-        db.session.add(order_item)
         db.session.commit()
-    
-    return jsonify({
-        "id": new_order.id,
-        "company_name": new_order.company_name,
-        "created_at": new_order.created_at.strftime('%Y-%m-%d %H:%M:%S'),
-        "items": items,
-        "order_status": new_order.order_status,
-        "total": new_order.total,
-        "user_id": new_order.user_id,
-        "waiter": new_order.waiter
-    }), 201
-    
 
+        return jsonify({
+            "id": new_order.id,
+            "company_name": new_order.company_name,
+            "created_at": new_order.created_at.strftime('%Y-%m-%d %H:%M:%S') if new_order.created_at else None,
+            "items": items,
+            "order_status": new_order.order_status,
+            "total": new_order.total,
+            "user_id": new_order.user_id,
+            "waiter": new_order.waiter
+        }), 201
 
-
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error in create_orders: {str(e)}")
+        return jsonify({"error": str(e)}), 500
 
 
 @guest.route('/create_orders_all', methods=['POST'])
 @flask_praetorian.auth_required
 def create_orders_all():
-    us = User.query.filter_by(id=flask_praetorian.current_user().id).first()
-    session = Session.query.filter_by(status="current").first()
-    
-    data = request.json
-    cash = ""
-    cashier = User.query.filter_by(username=request.json["cashier"]).first()
-    customer=Customer.query.filter(or_(Customer.id == request.json["customer"], Customer.customer_id == request.json["customer"])).first()
-    if customer:
-        customer=customer.firstname+" "+customer.lastname
-    phon=""
-    phone= request.json["phone"]
-    if phone:
-        phon=phone
-    if cashier:
-        cash = cashier.firstname + " " + cashier.lastname
+    try:
+        us = User.query.filter_by(id=flask_praetorian.current_user().id).first()
+        session = Session.query.filter_by(status="current").first()
+        data = request.json
 
-    print("Incoming data:", data)  # ✅ Debug incoming request
+        if not data or 'cartItems' not in data or 'total' not in data:
+            return jsonify({"error": "Invalid request"}), 400
 
-    if not data or 'cartItems' not in data or 'total' not in data:
-        return jsonify({"error": "Invalid request"}), 400
+        # Get cashier
+        cashier = User.query.filter_by(username=data.get("cashier", "")).first()
+        if not cashier:
+            return jsonify({"error": "Cashier not found"}), 404
 
-    # ✅ Always store valid JSON
-    items = json.dumps(data.get('cartItems', []))
+        # Get customer - handle both ID and customer_id
+        customer_input = data.get("customer")
+        customer_name = None
+        if customer_input:
+            customer = None
+            if str(customer_input).isdigit():
+                customer = Customer.query.filter_by(id=int(customer_input)).first()
+            if not customer:
+                customer = Customer.query.filter_by(customer_id=str(customer_input)).first()
+            if customer:
+                customer_name = f"{customer.firstname} {customer.lastname}"
 
-    new_order = Order(
-        user_id=us.id,
-        items=items,
-        total=int(data['total']),
-        
-        waiter=us.firstname,
-        order_status="Pending",
-        status="paid",
-        session=session.open_date,
-    )
-    db.session.add(new_order)
-    db.session.commit()
+        phone = data.get("phone", "")
+        items = json.dumps(data.get('cartItems', []))
 
-    # ✅ Deduct Stock & Create Order Items
-    for cart_item in data['cartItems']:
-        item_name = cart_item.get('name')
-        item_quantity = (cart_item.get('qty', 0))
-        category = cart_item.get('category')
-        family = cart_item.get('family')
-        price = cart_item.get('price')
-        total_price = float(price) * float(item_quantity)
-        item = Iteman.query.filter_by(name=item_name,is_vip="no").first()
-        if not item:
-            return jsonify({"error": f"Item '{item_name}' not found"}), 404
-        #if int(item.quantity) < int(item_quantity):
-            #return jsonify({"error": f"Not enough stock for {item_name}"}), 400
-        # old_quantity = float(item.quantity)
-
-        # item.quantity = old_quantity - item_quantity  # 🔻 Deduct stock
-
-        order_item = OrderItem(
-            item_name=item_name,
-            order_id=new_order.id,
-            item_id=item.id,
-            quantity=item_quantity,
-            category=category,
-            waiter=us.firstname + " " + us.lastname,
-            status="Pending",
-            
-            created_date=datetime.now(),
-            family=family,
-            session=session.open_date,  
-            table=data['table']
+        # Create new order
+        new_order = Order(
+            user_id=us.id,
+            items=items,
+            total=float(data['total']),
+            waiter=us.firstname,
+            order_status="Pending",
+            status="paid",
+            session=session.open_date if session else None
         )
-
-        pos_payment = PosPayment(
-            
-            name=item_name,
-            amount=total_price,
-            method=request.json["method"],
-            quantity=item_quantity,
-            attendant=us.firstname + " " + us.lastname,
-            created_by_id=us.id,
-            cashier=cashier.firstname + " " + cashier.lastname,
-            payment_date=datetime.now(),
-            session=session.open_date, category = cart_item.get('family'),cat=category,customer=customer,phone=phon
-        )
-
-        income = Income(
-            name=item_name,
-            amount=total_price,
-            date=datetime.now(),
-            note="Pos Payment",
-            
-            created_date=datetime.now(),
-            created_by_id=us.id,
-            cashier=cashier.firstname + " " + cashier.lastname,
-            session=session.open_date,
-            method=request.json["method"], category = cart_item.get('family'),cat=category,customer=customer,phone=phon
-        )
-
-        # Query all held carts for the current user and update their paid_status
-        held_carts = HeldCart.query.filter_by(user_id=us.id).all()
-        for held_cart in held_carts:
-            held_cart.status = "Confirmed"
-            held_cart.paid_status = "Success"
-
-        db.session.commit()
-
-        db.session.add(pos_payment)
-        db.session.add(income)
-        db.session.add(order_item)
-        db.session.commit()
-    
-    return jsonify({
-        "id": new_order.id,
-        "company_name": new_order.company_name,
-        "created_at": new_order.created_at.strftime('%Y-%m-%d %H:%M:%S'),
-        "items": items,
-        "order_status": new_order.order_status,
-        "total": new_order.total,
-        "user_id": new_order.user_id,
-        "waiter": new_order.waiter
-    }), 201
-    
-    
-    
-    
-    
-    
-
-@guest.route('/credit', methods=['POST'])
-@flask_praetorian.auth_required
-def credit():
-    us = User.query.filter_by(id=flask_praetorian.current_user().id).first()
-    session = Session.query.filter_by(status="current").first()
-    
-    data = request.json
-    cash = ""
-    cashier = User.query.filter_by(username=request.json["cashier"]).first()
-    Customer.query.filter(or_(Customer.id == request.json["customer"], Customer.customer_id == request.json["customer"])).first()
-    if customer:
-        customer=customer.firstname+" "+customer.lastname
-    phon=""
-    phone= request.json["phone"]
-    if phone:
-        phon=phone
-    if cashier:
-        cash = cashier.firstname + " " + cashier.lastname
-
-    print("Incoming data:", data)  # ✅ Debug incoming request
-
-    if not data or 'cartItems' not in data or 'total' not in data:
-        return jsonify({"error": "Invalid request"}), 400
-
-    # ✅ Always store valid JSON
-    items = json.dumps(data.get('cartItems', []))
-
-    new_order = Order(
-        user_id=us.id,
-        items=items,
-        total=int(data['total']),
-        
-        waiter=us.firstname,
-        order_status="Pending",
-        status="paid",
-        session=session.open_date,
-    )
-    db.session.add(new_order)
-    db.session.commit()
-    
-    
-    
-    credit = Credit(
-        user_id=us.id,
-        items=items,
-        total=int(data['total']),
-        
-        waiter=us.firstname,
-        order_status="Sucess",
-        status="credit",
-        customer=customer,
-        phone = request.json["phone"],
-        session=session.open_date,
-    )
-    db.session.add(new_order)
-    db.session.commit()
-
-    # ✅ Deduct Stock & Create Order Items
-    for cart_item in data['cartItems']:
-        item_name = cart_item.get('name')
-        item_quantity = (cart_item.get('qty', 0))
-        category = cart_item.get('category')
-        family = cart_item.get('family')
-        price = cart_item.get('price')
-        total_price = float(price) * float(item_quantity)
-        item = Iteman.query.filter_by(name=item_name,is_vip="no").first()
-        if not item:
-            return jsonify({"error": f"Item '{item_name}' not found"}), 404
-        #if int(item.quantity) < int(item_quantity):
-            #return jsonify({"error": f"Not enough stock for {item_name}"}), 400
-        # old_quantity = float(item.quantity)
-
-        # item.quantity = old_quantity - item_quantity  # 🔻 Deduct stock
-
-        order_item = OrderItem(
-            item_name=item_name,
-            order_id=new_order.id,
-            item_id=item.id,
-            quantity=item_quantity,
-            category=category,
-            waiter=us.firstname + " " + us.lastname,
-            status="Pending",
-            
-            created_date=datetime.now(),
-            family=family,
-            session=session.open_date,  
-            table=data['table']
-        )
-
-        pos_payment = PosPayment(
-            
-            name=item_name,
-            amount=total_price,
-            method=request.json["method"],
-            quantity=item_quantity,
-            attendant=us.firstname + " " + us.lastname,
-            created_by_id=us.id,
-            cashier=cashier.firstname + " " + cashier.lastname,
-            payment_date=datetime.now(),
-            session=session.open_date, category = cart_item.get('family'),cat=category,customer=customer,phone=phon
-        )
-
-        
-
-        # Query all held carts for the current user and update their paid_status
-        held_carts = HeldCart.query.filter_by(user_id=us.id).all()
-        for held_cart in held_carts:
-            held_cart.status = "Confirmed"
-            held_cart.paid_status = "Success"
-
-        db.session.commit()
-
-        db.session.add(pos_payment)
-        db.session.add(credit)
         db.session.add(new_order)
-        db.session.add(order_item)
+        db.session.flush()
+
+        # Process each cart item
+        for cart_item in data['cartItems']:
+            item_name = cart_item.get('name')
+            item_quantity = int(cart_item.get('qty', 0))
+            category = cart_item.get('category')
+            family = cart_item.get('family')
+            price = float(cart_item.get('price', 0))
+            total_price = price * item_quantity
+            
+            item = Iteman.query.filter_by(name=item_name).first()
+            if not item:
+                db.session.rollback()
+                return jsonify({"error": f"Item '{item_name}' not found"}), 404
+
+            order_item = OrderItem(
+                item_name=item_name,
+                order_id=new_order.id,
+                item_id=item.id,
+                quantity=item_quantity,
+                category=category,
+                waiter=f"{us.firstname} {us.lastname}",
+                status="Pending",
+                created_date=datetime.now(),
+                family=family,
+                session=session.open_date if session else None,
+                table=data.get('table', '')
+            )
+            db.session.add(order_item)
+
+            pos_payment = PosPayment(
+                name=item_name,
+                amount=total_price,
+                method=data.get("method", "Cash"),
+                quantity=item_quantity,
+                attendant=f"{us.firstname} {us.lastname}",
+                created_by_id=us.id,
+                cashier=f"{cashier.firstname} {cashier.lastname}",
+                payment_date=datetime.now(),
+                session=session.open_date if session else None,
+                category=family,
+                cat=category,
+                customer=customer_name,
+                phone=phone
+            )
+            db.session.add(pos_payment)
+
+            income = Income(
+                name=item_name,
+                amount=total_price,
+                date=datetime.now(),
+                note="Pos Payment",
+                created_date=datetime.now(),
+                created_by_id=us.id,
+                cashier=f"{cashier.firstname} {cashier.lastname}",
+                session=session.open_date if session else None,
+                method=data.get("method", "Cash"),
+                category=family,
+                cat=category,
+                customer=customer_name,
+                phone=phone
+            )
+            db.session.add(income)
+
+        # Update ALL pending held carts for this user
+        held_carts = HeldCart.query.filter_by(user_id=us.id, paid_status="Pending").all()
+        for held_cart in held_carts:
+            held_cart.status = "Confirmed"
+            held_cart.paid_status = "Success"
+
         db.session.commit()
-    
-    return jsonify({
-        "id": new_order.id,
-        "company_name": new_order.company_name,
-        "created_at": new_order.created_at.strftime('%Y-%m-%d %H:%M:%S'),
-        "items": items,
-        "order_status": new_order.order_status,
-        "total": new_order.total,
-        "user_id": new_order.user_id,
-        "waiter": new_order.waiter
-    }), 201
-    
-    
-    
-    
-    
+
+        return jsonify({
+            "id": new_order.id,
+            "company_name": new_order.company_name,
+            "created_at": new_order.created_at.strftime('%Y-%m-%d %H:%M:%S') if new_order.created_at else None,
+            "items": items,
+            "order_status": new_order.order_status,
+            "total": new_order.total,
+            "user_id": new_order.user_id,
+            "waiter": new_order.waiter
+        }), 201
+
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error in create_orders_all: {str(e)}")
+        return jsonify({"error": str(e)}), 500
 
 
 @guest.route('/create_orders_two', methods=['POST'])
 @flask_praetorian.auth_required
 def create_orders_two():
-    us = User.query.filter_by(id=flask_praetorian.current_user().id).first()
-    session = Session.query.filter_by(status="current").first()
-  
-    # room_number=request.json["room_number"]
-    data = request.json
-    cash=""
-    cashier = User.query.filter_by(username=request.json["cashier"]).first()
-    Customer.query.filter(or_(Customer.id == request.json["customer"], Customer.customer_id == request.json["customer"])).first()
-    if customer:
-        customer=customer.firstname+" "+customer.lastname
-    phon=""
-    phone= request.json["phone"]
-    if phone:
-        phon=phone
-    if cashier:
-        cash= cashier.firstname +" "+ cashier.lastname
+    try:
+        us = User.query.filter_by(id=flask_praetorian.current_user().id).first()
+        session = Session.query.filter_by(status="current").first()
+        data = request.json
 
-    print("Incoming data:", data)  # ✅ Debug incoming request
+        if not data or 'cartItems' not in data or 'total' not in data:
+            return jsonify({"error": "Invalid request"}), 400
 
-    if not data or 'cartItems' not in data or 'total' not in data:
-        return jsonify({"error": "Invalid request"}), 400
+        # Get cashier
+        cashier = User.query.filter_by(username=data.get("cashier", "")).first()
+        if not cashier:
+            return jsonify({"error": "Cashier not found"}), 404
 
-    # ✅ Always store valid JSON
-    items = json.dumps(data.get('cartItems', []))
+        # Get customer - handle both ID and customer_id
+        customer_input = data.get("customer")
+        customer_name = None
+        if customer_input:
+            customer = None
+            if str(customer_input).isdigit():
+                customer = Customer.query.filter_by(id=int(customer_input)).first()
+            if not customer:
+                customer = Customer.query.filter_by(customer_id=str(customer_input)).first()
+            if customer:
+                customer_name = f"{customer.firstname} {customer.lastname}"
 
-    new_order = Order(
-        user_id=us.id,
-        items=items,
-        total=int(data['total']),
-        
-        waiter=us.firstname,
-        order_status="Pending",
-        status="paid",session=session.open_date
-     
-    )
-    db.session.add(new_order)
-    db.session.commit()
+        phone = data.get("phone", "")
+        items = json.dumps(data.get('cartItems', []))
 
-    # ✅ Deduct Stock & Create Order Items
-    for cart_item in data['cartItems']:
-        item_name = cart_item.get('name')
-        item_quantity = (cart_item.get('qty', 0))
-        category = cart_item.get('category')
-        family = cart_item.get('family')
-        price  = cart_item.get('price')
-        total_price = float(price) * float(item_quantity)
-        item = Iteman.query.filter_by(name=item_name).first()
-        if not item:
-            return jsonify({"error": f"Item '{item_name}' not found"}), 404
-        # if int(item.quantity) < int( item_quantity):
-        #     return jsonify({"error": f"Not enough stock for {item_name}"}), 400
-        # old_quantity = float(item.quantity)
-
-
-        # item.quantity =   old_quantity -item_quantity  # 🔻 Deduct stock
-
-        order_item = OrderItem(
-            item_name=item_name,
-            order_id=new_order.id,
-              table=data['table'],
-            item_id=item.id,
-            quantity=item_quantity,
-            category=category,
-            waiter=us.firstname + " " + us.lastname,
-            status="Pending",
-               created_date=datetime.now() ,
-            family =family,session=session.open_date
+        # Create new order
+        new_order = Order(
+            user_id=us.id,
+            items=items,
+            total=float(data['total']),
+            waiter=us.firstname,
+            order_status="Pending",
+            status="paid",
+            session=session.open_date if session else None
         )
+        db.session.add(new_order)
+        db.session.flush()
 
-        pos_payment = PosPayment(name=item_name,amount=total_price,
-                                 quantity=item_quantity,attendant=us.firstname +" "+us.lastname,created_by_id=us.id,
-                                 method=request.json["method"],cashier=cashier.firstname+" "+cashier.lastname,category = cart_item.get('family'),cat=category,customer=customer,phone=phon,
-                                 payment_date=datetime.now(),session=session.open_date)
-        
+        # Process each cart item
+        for cart_item in data['cartItems']:
+            item_name = cart_item.get('name')
+            item_quantity = int(cart_item.get('qty', 0))
+            category = cart_item.get('category')
+            family = cart_item.get('family')
+            price = float(cart_item.get('price', 0))
+            total_price = price * item_quantity
+            
+            item = Iteman.query.filter_by(name=item_name).first()
+            if not item:
+                db.session.rollback()
+                return jsonify({"error": f"Item '{item_name}' not found"}), 404
 
-        income = Income(name=item_name + "-"+ us.firstname +" "+us.lastname,attendant=us.firstname +" "+us.lastname,amount =total_price,date =datetime.now(),
-                        note="Pos Payment",created_date=datetime.now(),
-                        created_by_id=us.id,cashier=cashier.firstname+" "+cashier.lastname,session=session.open_date,  method=request.json["method"],
-                        category = cart_item.get('family'),cat=category,customer=customer,phone=phon,discount=request.json["discount"])
+            order_item = OrderItem(
+                item_name=item_name,
+                order_id=new_order.id,
+                item_id=item.id,
+                quantity=item_quantity,
+                category=category,
+                waiter=f"{us.firstname} {us.lastname}",
+                status="Pending",
+                table=data.get('table', ''),
+                created_date=datetime.now(),
+                family=family,
+                session=session.open_date if session else None
+            )
+            db.session.add(order_item)
 
-    
-        held_cart = HeldCart.query.filter_by(id=request.json["id"]).first()
-        if held_cart:
-            held_cart.status="Confirmed"
-            held_cart.paid_status="Success"
-        
-        db.session.add(pos_payment)
-        db.session.add(income)
-        db.session.add(order_item)
+            pos_payment = PosPayment(
+                name=item_name,
+                amount=total_price,
+                method=data.get("method", "Cash"),
+                quantity=item_quantity,
+                attendant=f"{us.firstname} {us.lastname}",
+                created_by_id=us.id,
+                cashier=f"{cashier.firstname} {cashier.lastname}",
+                payment_date=datetime.now(),
+                session=session.open_date if session else None,
+                category=family,
+                cat=category,
+                customer=customer_name,
+                phone=phone
+            )
+            db.session.add(pos_payment)
+
+            income = Income(
+                name=item_name,
+                attendant=f"{us.firstname} {us.lastname}",
+                amount=total_price,
+                date=datetime.now(),
+                discount=data.get("discount", 0),
+                note="Pos Payment",
+                created_date=datetime.now(),
+                created_by_id=us.id,
+                cashier=f"{cashier.firstname} {cashier.lastname}",
+                session=session.open_date if session else None,
+                method=data.get("method", "Cash"),
+                category=family,
+                cat=category,
+                customer=customer_name,
+                phone=phone
+            )
+            db.session.add(income)
+
+            # Update held cart
+            held_cart_id = data.get("id")
+            if held_cart_id:
+                held_cart = HeldCart.query.filter_by(id=held_cart_id).first()
+                if held_cart:
+                    held_cart.status = "Confirmed"
+                    held_cart.paid_status = "Success"
+
         db.session.commit()
-  
 
-    return jsonify({
-        "id": new_order.id,
-        "company_name": new_order.company_name,
-        "created_at": new_order.created_at.strftime('%Y-%m-%d %H:%M:%S'),
-        "items": items,
-        "order_status": new_order.order_status,
-        "total": new_order.total,
-        "user_id": new_order.user_id,
-        "waiter": new_order.waiter
-    }), 201
+        return jsonify({
+            "id": new_order.id,
+            "company_name": new_order.company_name,
+            "created_at": new_order.created_at.strftime('%Y-%m-%d %H:%M:%S') if new_order.created_at else None,
+            "items": items,
+            "order_status": new_order.order_status,
+            "total": new_order.total,
+            "user_id": new_order.user_id,
+            "waiter": new_order.waiter
+        }), 201
 
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error in create_orders_two: {str(e)}")
+        return jsonify({"error": str(e)}), 500
 
 
 @guest.route('/create_orders_two_all', methods=['POST'])
 @flask_praetorian.auth_required
 def create_orders_two_all():
-    us = User.query.filter_by(id=flask_praetorian.current_user().id).first()
-    session = Session.query.filter_by(status="current").first()
-  
-    data = request.json
-    cash = ""
-    cashier = User.query.filter_by(username=request.json["cashier"]).first()
-    Customer.query.filter(or_(Customer.id == request.json["customer"], Customer.customer_id == request.json["customer"])).first()
-    if customer:
-        customer=customer.firstname+" "+customer.lastname
-    phon=""
-    phone= request.json["phone"]
-    if phone:
-        phon=phone
-    if cashier:
-        cash = cashier.firstname + " " + cashier.lastname
+    try:
+        us = User.query.filter_by(id=flask_praetorian.current_user().id).first()
+        session = Session.query.filter_by(status="current").first()
+        data = request.json
 
-    print("Incoming data:", data)  # ✅ Debug incoming request
+        if not data or 'cartItems' not in data or 'total' not in data:
+            return jsonify({"error": "Invalid request"}), 400
 
-    if not data or 'cartItems' not in data or 'total' not in data:
-        return jsonify({"error": "Invalid request"}), 400
+        # Get cashier
+        cashier = User.query.filter_by(username=data.get("cashier", "")).first()
+        if not cashier:
+            return jsonify({"error": "Cashier not found"}), 404
 
-    # ✅ Always store valid JSON
-    items = json.dumps(data.get('cartItems', []))
+        # Get customer - handle both ID and customer_id
+        customer_input = data.get("customer")
+        customer_name = None
+        if customer_input:
+            customer = None
+            if str(customer_input).isdigit():
+                customer = Customer.query.filter_by(id=int(customer_input)).first()
+            if not customer:
+                customer = Customer.query.filter_by(customer_id=str(customer_input)).first()
+            if customer:
+                customer_name = f"{customer.firstname} {customer.lastname}"
 
-    new_order = Order(
-        user_id=us.id,
-        items=items,
-        total=int(data['total']),
-        
-        waiter=us.firstname,
-        order_status="Pending",
-        status="paid", 
-        session=session.open_date,
-    )
-    db.session.add(new_order)
-    db.session.commit()
+        phone = data.get("phone", "")
+        items = json.dumps(data.get('cartItems', []))
 
-    # ✅ Deduct Stock & Create Order Items
-    for cart_item in data['cartItems']:
-        item_name = cart_item.get('name')
-        item_quantity = (cart_item.get('qty', 0))
-        category = cart_item.get('category')
-        family = cart_item.get('family')
-        price = cart_item.get('price')
-        total_price = float(price) * float(item_quantity)
-        item = Iteman.query.filter_by(name=item_name).first()
-        if not item:
-            return jsonify({"error": f"Item '{item_name}' not found"}), 404
-        # if int(item.quantity) < int(item_quantity):
-        #     return jsonify({"error": f"Not enough stock for {item_name}"}), 400
-        # old_quantity = float(item.quantity)
-
-        # item.quantity = old_quantity - item_quantity  # 🔻 Deduct stock
-
-        order_item = OrderItem(
-            item_name=item_name,
-            order_id=new_order.id,
-            item_id=item.id,
-            quantity=item_quantity,
-            category=category,
-            waiter=us.firstname + " " + us.lastname,
-            status="Pending",
-            
-            created_date=datetime.now(),
-            family=family,
-            session=session.open_date,  
-            table=data['table']
+        # Create new order
+        new_order = Order(
+            user_id=us.id,
+            items=items,
+            total=float(data['total']),
+            waiter=us.firstname,
+            order_status="Pending",
+            status="paid",
+            session=session.open_date if session else None
         )
+        db.session.add(new_order)
+        db.session.flush()
 
-        pos_payment = PosPayment(
+        # Process each cart item
+        for cart_item in data['cartItems']:
+            item_name = cart_item.get('name')
+            item_quantity = int(cart_item.get('qty', 0))
+            category = cart_item.get('category')
+            family = cart_item.get('family')
+            price = float(cart_item.get('price', 0))
+            total_price = price * item_quantity
             
-            name=item_name,
-            amount=total_price,
-            quantity=item_quantity,
-            attendant=us.firstname + " " + us.lastname,
-            created_by_id=us.id,
-            method=request.json["method"],
-            cashier=cashier.firstname + " " + cashier.lastname,
-            payment_date=datetime.now(),
-            session=session.open_date,category = cart_item.get('family'),cat=category,customer=customer,phone=phon
-        )
+            item = Iteman.query.filter_by(name=item_name).first()
+            if not item:
+                db.session.rollback()
+                return jsonify({"error": f"Item '{item_name}' not found"}), 404
 
-        income = Income(
-            name=item_name,
-            amount=total_price,
-            date=datetime.now(),
-            note="Pos Payment",
-            
-            created_date=datetime.now(),
-            created_by_id=us.id,
-            cashier=cashier.firstname + " " + cashier.lastname,
-            session=session.open_date,discount=request.json["discount"],
-            method=request.json["method"],category = cart_item.get('family'),cat=category,customer=customer,phone=phon
-        )
+            order_item = OrderItem(
+                item_name=item_name,
+                order_id=new_order.id,
+                item_id=item.id,
+                quantity=item_quantity,
+                category=category,
+                waiter=f"{us.firstname} {us.lastname}",
+                status="Pending",
+                created_date=datetime.now(),
+                family=family,
+                session=session.open_date if session else None,
+                table=data.get('table', '')
+            )
+            db.session.add(order_item)
 
-        # Query all held carts for the current user and update their paid_status
-        held_carts = HeldCart.query.filter_by(user_id=us.id).all()
+            pos_payment = PosPayment(
+                name=item_name,
+                amount=total_price,
+                method=data.get("method", "Cash"),
+                quantity=item_quantity,
+                attendant=f"{us.firstname} {us.lastname}",
+                created_by_id=us.id,
+                cashier=f"{cashier.firstname} {cashier.lastname}",
+                payment_date=datetime.now(),
+                session=session.open_date if session else None,
+                category=family,
+                cat=category,
+                customer=customer_name,
+                phone=phone
+            )
+            db.session.add(pos_payment)
+
+            income = Income(
+                name=item_name,
+                amount=total_price,
+                date=datetime.now(),
+                note="Pos Payment",
+                created_date=datetime.now(),
+                created_by_id=us.id,
+                cashier=f"{cashier.firstname} {cashier.lastname}",
+                session=session.open_date if session else None,
+                method=data.get("method", "Cash"),
+                category=family,
+                cat=category,
+                customer=customer_name,
+                phone=phone
+            )
+            db.session.add(income)
+
+        # Update ALL pending held carts for this user
+        held_carts = HeldCart.query.filter_by(user_id=us.id, paid_status="Pending").all()
         for held_cart in held_carts:
             held_cart.status = "Confirmed"
             held_cart.paid_status = "Success"
 
         db.session.commit()
 
-        db.session.add(pos_payment)
-        db.session.add(income)
-        db.session.add(order_item)
+        return jsonify({
+            "id": new_order.id,
+            "company_name": new_order.company_name,
+            "created_at": new_order.created_at.strftime('%Y-%m-%d %H:%M:%S') if new_order.created_at else None,
+            "items": items,
+            "order_status": new_order.order_status,
+            "total": new_order.total,
+            "user_id": new_order.user_id,
+            "waiter": new_order.waiter
+        }), 201
+
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error in create_orders_two_all: {str(e)}")
+        return jsonify({"error": str(e)}), 500
+
+
+@guest.route('/credit', methods=['POST'])
+@flask_praetorian.auth_required
+def credit():
+    try:
+        us = User.query.filter_by(id=flask_praetorian.current_user().id).first()
+        session = Session.query.filter_by(status="current").first()
+        data = request.json
+
+        if not data or 'cartItems' not in data or 'total' not in data:
+            return jsonify({"error": "Invalid request"}), 400
+
+        # Get cashier
+        cashier = User.query.filter_by(username=data.get("cashier", "")).first()
+        if not cashier:
+            return jsonify({"error": "Cashier not found"}), 404
+
+        # Get customer - handle both ID and customer_id
+        customer_input = data.get("customer")
+        customer_name = None
+        if customer_input:
+            customer = None
+            if str(customer_input).isdigit():
+                customer = Customer.query.filter_by(id=int(customer_input)).first()
+            if not customer:
+                customer = Customer.query.filter_by(customer_id=str(customer_input)).first()
+            if customer:
+                customer_name = f"{customer.firstname} {customer.lastname}"
+
+        phone = data.get("phone", "")
+        items = json.dumps(data.get('cartItems', []))
+
+        # Create new order
+        new_order = Order(
+            user_id=us.id,
+            items=items,
+            total=float(data['total']),
+            waiter=us.firstname,
+            order_status="Pending",
+            status="paid",
+            session=session.open_date if session else None
+        )
+        db.session.add(new_order)
+        db.session.flush()
+
+        # Create credit record
+        credit = Credit(
+            user_id=us.id,
+            items=items,
+            total=float(data['total']),
+            waiter=us.firstname,
+            order_status="Success",
+            status="credit",
+            customer=customer_name,
+            phone=phone,
+            session=session.open_date if session else None
+        )
+        db.session.add(credit)
+
+        # Process each cart item
+        for cart_item in data['cartItems']:
+            item_name = cart_item.get('name')
+            item_quantity = int(cart_item.get('qty', 0))
+            category = cart_item.get('category')
+            family = cart_item.get('family')
+            price = float(cart_item.get('price', 0))
+            total_price = price * item_quantity
+            
+            item = Iteman.query.filter_by(name=item_name).first()
+            if not item:
+                db.session.rollback()
+                return jsonify({"error": f"Item '{item_name}' not found"}), 404
+
+            order_item = OrderItem(
+                item_name=item_name,
+                order_id=new_order.id,
+                item_id=item.id,
+                quantity=item_quantity,
+                category=category,
+                waiter=f"{us.firstname} {us.lastname}",
+                status="Pending",
+                created_date=datetime.now(),
+                family=family,
+                session=session.open_date if session else None,
+                table=data.get('table', '')
+            )
+            db.session.add(order_item)
+
+            pos_payment = PosPayment(
+                name=item_name,
+                amount=total_price,
+                method="Credit",
+                quantity=item_quantity,
+                attendant=f"{us.firstname} {us.lastname}",
+                created_by_id=us.id,
+                cashier=f"{cashier.firstname} {cashier.lastname}",
+                payment_date=datetime.now(),
+                session=session.open_date if session else None,
+                category=family,
+                cat=category,
+                customer=customer_name,
+                phone=phone
+            )
+            db.session.add(pos_payment)
+
+        # Update ALL pending held carts for this user
+        held_carts = HeldCart.query.filter_by(user_id=us.id, paid_status="Pending").all()
+        for held_cart in held_carts:
+            held_cart.status = "Confirmed"
+            held_cart.paid_status = "Success"
+
         db.session.commit()
 
-    return jsonify({
-        "id": new_order.id,
-        "company_name": new_order.company_name,
-        "created_at": new_order.created_at.strftime('%Y-%m-%d %H:%M:%S'),
-        "items": items,
-        "order_status": new_order.order_status,
-        "total": new_order.total,
-        "user_id": new_order.user_id,
-        "waiter": new_order.waiter
-    }), 201
+        return jsonify({
+            "id": new_order.id,
+            "company_name": new_order.company_name,
+            "created_at": new_order.created_at.strftime('%Y-%m-%d %H:%M:%S') if new_order.created_at else None,
+            "items": items,
+            "order_status": new_order.order_status,
+            "total": new_order.total,
+            "user_id": new_order.user_id,
+            "waiter": new_order.waiter
+        }), 201
 
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error in credit: {str(e)}")
+        return jsonify({"error": str(e)}), 500
 
 
 
@@ -4753,29 +4812,34 @@ def update_order_status(order_id):
     db.session.commit()
 
     return jsonify({"message": f"Order {order_id} updated to {new_status}"}), 200
+
+
+
+
+
 @guest.route('/hold_order', methods=['POST'])
-@auth_required
+@flask_praetorian.auth_required
 def hold_order():
-    user = current_user()
-    data = request.get_json()
-    session = Session.query.filter_by(status="current").first()
-
-    if not data or 'cartItems' not in data or 'total' not in data:
-        return jsonify({"error": "Invalid request. 'cartItems' and 'total' are required."}), 400
-
-    hold_id = data.get('id')
-    existing_hold = None
-
-    if isinstance(hold_id, str) and hold_id.strip() == "":
-        hold_id = None
-    elif hold_id is not None:
-        try:
-            hold_id = int(hold_id)
-            existing_hold = HeldCart.query.filter_by(id=hold_id, user_id=user.id).first()
-        except ValueError:
-            return jsonify({"error": "Invalid hold ID"}), 400
-
     try:
+        user = current_user()
+        data = request.get_json()
+        session = Session.query.filter_by(status="current").first()
+
+        if not data or 'cartItems' not in data or 'total' not in data:
+            return jsonify({"error": "Invalid request. 'cartItems' and 'total' are required."}), 400
+
+        hold_id = data.get('id')
+        existing_hold = None
+
+        if isinstance(hold_id, str) and hold_id.strip() == "":
+            hold_id = None
+        elif hold_id is not None:
+            try:
+                hold_id = int(hold_id)
+                existing_hold = HeldCart.query.filter_by(id=hold_id, user_id=user.id).first()
+            except ValueError:
+                return jsonify({"error": "Invalid hold ID"}), 400
+
         if existing_hold:
             try:
                 existing_items = json.loads(existing_hold.items)
@@ -4830,8 +4894,9 @@ def hold_order():
             contain_digital_printing = any(item.get("family") == "digital_printing" for item in updated_items)
             contain_large_format = any(item.get("family") == "large_format" for item in updated_items)
             contain_label = any(item.get("family") == "label" for item in updated_items)
+            
             existing_hold.items = json.dumps(updated_items)
-            existing_hold.total = int(data['total'])
+            existing_hold.total = float(data['total'])
             existing_hold.contain_drink = "yes" if contain_drink else "no"
             existing_hold.contain_food = "yes" if contain_food else "no"
             existing_hold.contain_dtf = "yes" if contain_dtf else "no"
@@ -4839,7 +4904,6 @@ def hold_order():
             existing_hold.contain_large_format = "yes" if contain_large_format else "no"
             existing_hold.contain_label = "yes" if contain_label else "no"
 
-            print(f"Updated existing held order ID: {existing_hold.id}")
             order_id = existing_hold.id
 
         else:
@@ -4870,7 +4934,7 @@ def hold_order():
             existing_hold = HeldCart(
                 user_id=user.id,
                 items=json.dumps(cart_items),
-                total=int(data['total']),
+                total=float(data['total']),
                 customer=data.get('customer', ''),
                 company_name=user.company_name,
                 status="Pending",
@@ -4894,14 +4958,11 @@ def hold_order():
                 note=note
             )
             db.session.add(existing_hold)
-            db.session.flush()  # This assigns the ID
+            db.session.flush()
             order_id = existing_hold.id
-
-            print(f"Created new held order with ID: {order_id}")
 
         db.session.commit()
         
-        # Return the order ID in response
         return jsonify({
             "message": "Order held successfully",
             "id": order_id,
@@ -4910,7 +4971,10 @@ def hold_order():
 
     except Exception as e:
         db.session.rollback()
+        print(f"Error in hold_order: {str(e)}")
         return jsonify({"error": "An error occurred while holding the order", "details": str(e)}), 500
+
+
 @guest.route('/held_orders', methods=['GET'])
 @flask_praetorian.auth_required
 def get_held_orders():
@@ -5509,26 +5573,35 @@ def get_held_order_by_customer(customer_id):
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+
 @guest.route('/load_held_order_all', methods=['GET'])
 @flask_praetorian.auth_required
 def load_held_order_all():
-    us = flask_praetorian.current_user()
-    held_orders = HeldCart.query.filter_by(user_id=us.id,paid_status="Pending").all()
+    try:
+        us = flask_praetorian.current_user()
+        held_orders = HeldCart.query.filter_by(user_id=us.id, paid_status="Pending").all()
 
-    if not held_orders:
-        return jsonify({"error": "No held orders found"}), 404
+        if not held_orders:
+            return jsonify([]), 200
 
-    return jsonify([
-        {
-            "id": order.id,
-            "items": json.loads(order.items),
-            "total": order.total,
-            "customer":order.customer,
-            "created_at": order.created_at.strftime('%Y-%m-%d %H:%M:%S') if order.created_at else None
-        } for order in held_orders
-    ]), 200
+        result = []
+        for order in held_orders:
+            try:
+                items = json.loads(order.items) if order.items else []
+            except:
+                items = []
+            
+            result.append({
+                "id": order.id,
+                "items": items,
+                "total": order.total,
+                "customer": order.customer,
+                "created_at": order.created_at.strftime('%Y-%m-%d %H:%M:%S') if order.created_at else None
+            })
 
-
+        return jsonify(result), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 
 
