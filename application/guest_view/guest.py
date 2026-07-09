@@ -25,7 +25,7 @@ guest = Blueprint("guest", __name__)
 class OrderSchema(ma.Schema):
     class Meta:
         fields=("id","user_id","item_name","items","total","created_at","company_name","created_at","total","waiter","order_status","order_id","waiter","status",
-                "quantity","onetime","table","discount")
+                "quantity","onetime","table","discount","customer")
 
 
 
@@ -265,6 +265,7 @@ def confirm_order():
 
     # Update the order status to 'Confirmed'
     sub_data.status = "Confirmed"
+    sub_data.confirmed_by = request.json.get("confirmed_by")
     
     # Process the items and set their confirmation status
     try:
@@ -5934,7 +5935,7 @@ def add_customer():
         firstname = request.json.get("firstname", "").strip()
         lastname = request.json.get("lastname", "").strip()
         phone = request.json.get("phone", "").strip()
-        
+        email = request.json.get("phone", "").strip()
         # Validate required fields
         if not firstname or not lastname:
             resp = jsonify({"error": "Firstname and lastname are required"})
@@ -5947,6 +5948,7 @@ def add_customer():
             lastname=lastname,
             phone=phone,
             company_name=user.company_name,
+            email=email,
             created_date=datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         )
         
@@ -6325,7 +6327,9 @@ def get_cocktail_setup(item_id):
     item = Iteman.query.get_or_404(item_id)
     return jsonify(item.cocktail_setup or [])
 
-
+from datetime import datetime, timedelta
+from sqlalchemy import func
+import json
 @guest.route('/sales_report', methods=['POST'])
 @flask_praetorian.auth_required
 def sales_report():
@@ -6345,9 +6349,14 @@ def sales_report():
         
         # Apply date filter if provided
         if date_from:
-            query = query.filter(HeldCart.created_at >= date_from)
+            # Set to start of the day (00:00:00)
+            from_date = datetime.strptime(date_from, '%Y-%m-%d')
+            query = query.filter(HeldCart.created_at >= from_date)
+            
         if date_to:
-            query = query.filter(HeldCart.created_at <= date_to)
+            # Set to end of the day (23:59:59) to include all orders on that day
+            to_date = datetime.strptime(date_to, '%Y-%m-%d') + timedelta(days=1) - timedelta(seconds=1)
+            query = query.filter(HeldCart.created_at <= to_date)
         
         # Get all matching orders
         orders = query.all()
@@ -6382,6 +6391,7 @@ def sales_report():
                 'total_sales': total_sales,
                 'total_orders': total_orders,
                 'average_order': total_sales / total_orders if total_orders > 0 else 0,
+                'unique_customers': len(set(order.customer for order in orders if order.customer)),
                 'date_from': date_from,
                 'date_to': date_to
             },

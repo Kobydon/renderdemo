@@ -377,6 +377,7 @@ class HeldCart(db.Model):
     drink_confirm_at = db.Column(db.String(200))
     note= db.Column(db.String(200))
     customer=db.Column(db.String(200))
+    confirmed_by = db.Column(db.String(200))
     session = db.Column(db.String(200))
 
 
@@ -713,6 +714,7 @@ class Customer(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     customer_id = db.Column(db.String(20), unique=True, nullable=False)
     firstname = db.Column(db.Text)
+    email=  db.Column(db.String(400))
     company_name = db.Column(db.String(1000000))
     lastname = db.Column(db.Text)
     created_date = db.Column(db.String(400))
