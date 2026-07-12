@@ -377,7 +377,15 @@ class HeldCart(db.Model):
     drink_confirm_at = db.Column(db.String(200))
     note= db.Column(db.String(200))
     customer=db.Column(db.String(200))
+    delivery_status = db.Column(db.String(50), default='pending')  # pending, in_delivery, delivered
+    delivered_by = db.Column(db.String(200))
+    delivery_contact = db.Column(db.String(100))
+    delivery_address = db.Column(db.String(500))
+    delivery_note = db.Column(db.String(500))
+    delivery_date = db.Column(db.DateTime)
+
     confirmed_by = db.Column(db.String(200))
+    balance = db.Column(db.String(100))
     session = db.Column(db.String(200))
 
 
@@ -594,6 +602,7 @@ class Income(db.Model):
     category = db.Column(db.String(200))
     discount = db.Column(db.String(200))
     phone = db.Column(db.String(200))
+    balance = db.Column(db.String(200))
     
     def __repr__(self):
         return f"<Income(id={self.id}, name={self.name}, amount={self.amount}, date={self.date})>"
