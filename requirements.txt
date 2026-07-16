@@ -19,6 +19,6 @@ inflection
 marshmallow
 
 SQLAlchemy
-
+Flask-Mail
 
 psycopg2
