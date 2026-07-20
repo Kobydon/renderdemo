@@ -7072,7 +7072,8 @@ def get_helding_orders_givers():
                 "customer": order.customer,
                 "note": order.note,
                 "created_at": order.created_at.strftime('%Y-%m-%d %H:%M:%S') if order.created_at else None,
-                "dtf_confirm": order.dtf_confirm
+                "dtf_confirm": order.dtf_confirm,
+                "working_on": order.working_on
             })
 
         except (json.JSONDecodeError, TypeError) as e:
