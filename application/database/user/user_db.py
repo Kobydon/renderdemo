@@ -383,7 +383,7 @@ class HeldCart(db.Model):
     delivery_address = db.Column(db.String(500))
     delivery_note = db.Column(db.String(500))
     delivery_date = db.Column(db.DateTime)
-    working_on= db.Column(db.String(200))
+    working_on= db.Column(db.String(200),default='not_started')  # not_started, in_progress, completed  
     confirmed_by = db.Column(db.String(200))
     balance = db.Column(db.String(100))
     session = db.Column(db.String(200))

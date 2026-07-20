@@ -6696,7 +6696,9 @@ def get_helding_orders():
                     "waiter": order.waiter,
                     "company_name": order.company_name,
                     "status": order.status,
-                    "digital_printing_status": order.contain_digital_printing
+                    "digital_printing_status": order.contain_digital_printing,
+                    "working_on": order.working_on,
+                    "created_at": order.created_at.strftime('%Y-%m-%d %H:%M:%S')  # Format the datetime
                 })
 
         except (json.JSONDecodeError, TypeError) as e:
