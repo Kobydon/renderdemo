@@ -6744,6 +6744,7 @@ def get_helding_ordersa():
                     "total": order.total,
                     "note": order.note,
                     "waiter": order.waiter,
+                     "working_on_id": order.working_on_id,
                     "company_name": order.company_name,
                     "status": order.status,
                     "created_at": order.created_at.strftime('%Y-%m-%d %H:%M:%S')  # Format the datetime
@@ -6790,6 +6791,8 @@ def get_helding_orders_drinks():
                     "waiter": order.waiter,
                     "company_name": order.company_name,
                     "status": order.status,
+                     "working_on_id": order.working_on_id,
+                     "working_on": order.working_on,
                     "large_format_status": order.contain_large_format
                 })
 
@@ -6839,6 +6842,8 @@ def get_helding_orders_processed_drinks():
                     "note": order.note,
                     "waiter": order.waiter,
                     "company_name": order.company_name,
+                    "working_on": order.working_on,
+                    "working_on_id": order.working_on_id,
                     "status": order.status,
                     "created_at": order.created_at.strftime('%Y-%m-%d %H:%M:%S')  # Format the datetime
                 })
@@ -6889,6 +6894,8 @@ def get_helding_orders_label():
                     "waiter": order.waiter,
                     "company_name": order.company_name,
                     "status": order.status,
+                    "working_on": order.working_on,
+                    "working_on_id": order.working_on_id,
                     "label_status": order.contain_label
                 })
 
@@ -6938,6 +6945,8 @@ def get_helding_orders_label_processed():
                     "waiter": order.waiter,
                     "company_name": order.company_name,
                     "status": order.status,
+                    "working_on": order.working_on,
+                    "working_on_id": order.working_on_id,
                     "created_at": order.created_at.strftime('%Y-%m-%d %H:%M:%S')  # Format the datetime
                 })
 
@@ -6984,6 +6993,8 @@ def get_helding_orders_dtf():
                     "waiter": order.waiter,
                     "company_name": order.company_name,
                     "status": order.status,
+                    "working_on": order.working_on,
+                    "working_on_id": order.working_on_id,
                     "dtf_status": order.contain_dtf
                 })
 
@@ -7074,7 +7085,8 @@ def get_helding_orders_givers():
                 "note": order.note,
                 "created_at": order.created_at.strftime('%Y-%m-%d %H:%M:%S') if order.created_at else None,
                 "dtf_confirm": order.dtf_confirm,
-                "working_on": order.working_on
+                "working_on": order.working_on,
+                "working_on_id": order.working_on_id
             })
 
         except (json.JSONDecodeError, TypeError) as e:
@@ -7121,7 +7133,9 @@ def get_helding_orders_givers_processed():
                 "delivery_note": getattr(order, 'delivery_note', None),
                 "delivery_date": getattr(order, 'delivery_date', None),
                 "created_at": order.created_at.strftime('%Y-%m-%d %H:%M:%S') if order.created_at else None,
-                "dtf_confirm": order.dtf_confirm
+                "dtf_confirm": order.dtf_confirm,
+                "working_on": order.working_on,
+                "working_on_id": order.working_on_id
             })
 
         except (json.JSONDecodeError, TypeError) as e:
