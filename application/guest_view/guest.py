@@ -6752,7 +6752,7 @@ def get_helding_ordersa():
                 })
 
         except (json.JSONDecodeError, TypeError) as e:
-            print(f"Error decoding JSON for order {order.id}: {e}")  # Debugging
+            print(f"Error decoding JSON for orders {order.id}: {e}")  # Debugging
 
     return jsonify(orders_list), 200
 
