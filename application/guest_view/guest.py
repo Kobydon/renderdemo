@@ -6692,6 +6692,7 @@ def get_helding_orders():
                     "id": order.id,
                     "items": filtered_items,
                     "total": order.total,
+                    "balance":order.balance,
                     "note": order.note,
                     "waiter": order.waiter,
                     "company_name": order.company_name,
@@ -6741,6 +6742,7 @@ def get_helding_ordersa():
                 orders_list.append({
                     "id": order.id,
                     "items": filtered_items,
+                    "balance":order.balance,
                     "total": order.total,
                     "note": order.note,
                     "waiter": order.waiter,
@@ -6793,7 +6795,9 @@ def get_helding_orders_drinks():
                     "company_name": order.company_name,
                     "status": order.status,
                      "working_on_id": order.working_on_id,
+                     "balance":order.balance,
                      "working_on": order.working_on,
+                     "balance":order.balance,
                     "large_format_status": order.contain_large_format
                 })
 
@@ -6843,8 +6847,10 @@ def get_helding_orders_processed_drinks():
                     "note": order.note,
                     "waiter": order.waiter,
                     "company_name": order.company_name,
+                    "balance":order.balance,
                     "working_on": order.working_on,
                     "working_on_id": order.working_on_id,
+                    "balance":order.balance,
                     "status": order.status,
                     "created_at": order.created_at.strftime('%Y-%m-%d %H:%M:%S')  # Format the datetime
                 })
@@ -6897,7 +6903,8 @@ def get_helding_orders_label():
                     "status": order.status,
                     "working_on": order.working_on,
                     "working_on_id": order.working_on_id,
-                    "label_status": order.contain_label
+                    "label_status": order.contain_label,
+                    "balance":order.balance,
                 })
 
         except (json.JSONDecodeError, TypeError) as e:
@@ -6948,6 +6955,7 @@ def get_helding_orders_label_processed():
                     "status": order.status,
                     "working_on": order.working_on,
                     "working_on_id": order.working_on_id,
+                    "balance":order.balance,
                     "created_at": order.created_at.strftime('%Y-%m-%d %H:%M:%S')  # Format the datetime
                 })
 
@@ -6996,7 +7004,8 @@ def get_helding_orders_dtf():
                     "status": order.status,
                     "working_on": order.working_on,
                     "working_on_id": order.working_on_id,
-                    "dtf_status": order.contain_dtf
+                    "dtf_status": order.contain_dtf,
+                    "balance":order.balance,
                 })
 
         except (json.JSONDecodeError, TypeError) as e:
@@ -7081,6 +7090,7 @@ def get_helding_orders_givers():
                 "waiter": order.waiter,
                 "company_name": order.company_name,
                 "status": order.status,
+                "balance":order.balance,
                 "delivery_status": getattr(order, 'delivery_status', 'pending'),
                 "customer": order.customer,
                 "note": order.note,
@@ -7127,6 +7137,7 @@ def get_helding_orders_givers_processed():
                 "customer": order.customer,
                 "company_name": order.company_name,
                 "status": order.status,
+                "balance":order.balance,
                 "delivery_status": getattr(order, 'delivery_status', 'delivered'),
                 "delivered_by": getattr(order, 'delivered_by', None),
                 "delivery_contact": getattr(order, 'delivery_contact', None),
@@ -7180,6 +7191,7 @@ def get_helding_orders_dtf_processed():
                     "note": order.note,
                     "waiter": order.waiter,
                     "company_name": order.company_name,
+                    "balance":order.balance,
                     "status": order.status,
                     "created_at": order.created_at.strftime('%Y-%m-%d %H:%M:%S')  # Format the datetime
                 })
