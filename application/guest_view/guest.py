@@ -6745,6 +6745,7 @@ def get_helding_ordersa():
                     "note": order.note,
                     "waiter": order.waiter,
                      "working_on_id": order.working_on_id,
+                     "working_on": order.working_on,
                     "company_name": order.company_name,
                     "status": order.status,
                     "created_at": order.created_at.strftime('%Y-%m-%d %H:%M:%S')  # Format the datetime
