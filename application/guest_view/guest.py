@@ -6698,6 +6698,7 @@ def get_helding_orders():
                     "status": order.status,
                     "digital_printing_status": order.contain_digital_printing,
                     "working_on": order.working_on,
+                    "working_on_id": order.working_on_id,
                     "created_at": order.created_at.strftime('%Y-%m-%d %H:%M:%S')  # Format the datetime
                 })
 
@@ -8680,6 +8681,7 @@ def accept_order(order_id):
     try:
         order = HeldCart.query.get_or_404(order_id)
         order.working_on = flask_praetorian.current_user().firstname + " " + flask_praetorian.current_user().lastname
+        order.working_on_id = str(flask_praetorian.current_user().id)
         db.session.commit()
         return jsonify({"message": "Order accepted successfully"}), 200
     except Exception as e:
