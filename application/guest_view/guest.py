@@ -5384,6 +5384,7 @@ def hold_order():
                         "name": item["name"],
                         "price": item["price"],
                         "family": str(item.get("family", "")).strip(),
+                        "is_checked": str(item.get("is_checked", "no")).strip(),
                         "category": str(item.get("category", "")).strip(),
                         "confirmed": False,
                         "is_vip": item.get("is_vip", "no")
@@ -5440,6 +5441,8 @@ def hold_order():
                     "family": str(item.get("family", "")).strip(),
                     "category": str(item.get("category", "")).strip(),
                     "confirmed": False,
+                    "is_checked": str(item.get("is_checked", "no")).strip(),
+                     "checked_by": str(item.get("checked_by", "")).strip(),
                     "is_vip": item.get("is_vip", "no")
                 } for item in data["cartItems"]]
             except (ValueError, TypeError, KeyError):
