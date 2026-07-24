@@ -8718,3 +8718,60 @@ def accept_order(order_id):
     except Exception as e:
         print(f"Error in accept_order: {str(e)}")
         return jsonify({"error": str(e)}), 500
+
+
+
+@guest.route("/accept_order/<int:order_id>", methods=["POST", "PUT"])
+@flask_praetorian.auth_required
+def accept_order(order_id):
+    try:
+        order = HeldCart.query.get_or_404(order_id)
+        order.working_on = flask_praetorian.current_user().firstname + " " + flask_praetorian.current_user().lastname
+        order.working_on_id = str(flask_praetorian.current_user().id)
+        db.session.commit()
+        return jsonify({"message": "Order accepted successfully"}), 200
+    except Exception as e:
+        print(f"Error in accept_order: {str(e)}")
+        return jsonify({"error": str(e)}), 500
+
+
+
+@guest.route("/check_order_item/<int:order_id>/<int:item_id>", methods=["PUT"])
+@flask_praetorian.auth_required
+def check_order_item(order_id, item_id):
+    try:
+        order = HeldCart.query.get_or_404(order_id)
+        current_user = flask_praetorian.current_user()
+        
+        # Parse existing items
+        try:
+            items = json.loads(order.items) if order.items else []
+        except json.JSONDecodeError:
+            items = []
+        
+        # Find and update the specific item
+        item_found = False
+        for item in items:
+            if item.get('id') == item_id:
+                item['is_checked'] = "yes"
+                item['checked_by'] = str(current_user.id)
+                item_found = True
+                break
+        
+        if not item_found:
+            return jsonify({"error": "Item not found in order"}), 404
+        
+        # Update order items
+        order.items = json.dumps(items)
+        db.session.commit()
+        
+        return jsonify({
+            "message": "Item checked successfully",
+            "item_id": item_id,
+            "is_checked": "yes",
+            "checked_by": current_user.id
+        }), 200
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": str(e)}), 500
