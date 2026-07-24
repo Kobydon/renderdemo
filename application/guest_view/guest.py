@@ -8721,19 +8721,6 @@ def accept_order(order_id):
 
 
 
-@guest.route("/accept_order/<int:order_id>", methods=["POST", "PUT"])
-@flask_praetorian.auth_required
-def accept_order(order_id):
-    try:
-        order = HeldCart.query.get_or_404(order_id)
-        order.working_on = flask_praetorian.current_user().firstname + " " + flask_praetorian.current_user().lastname
-        order.working_on_id = str(flask_praetorian.current_user().id)
-        db.session.commit()
-        return jsonify({"message": "Order accepted successfully"}), 200
-    except Exception as e:
-        print(f"Error in accept_order: {str(e)}")
-        return jsonify({"error": str(e)}), 500
-
 
 
 @guest.route("/check_order_item/<int:order_id>/<int:item_id>", methods=["PUT"])
