@@ -5385,7 +5385,7 @@ def hold_order():
                         "price": item["price"],
                         "family": str(item.get("family", "")).strip(),
                         "is_checked": str(item.get("is_checked", "no")).strip(),
-                        "checked_by": str(flask_praetorian.current_user().id) if item.get("is_checked", "no") == "yes" else "",
+                        "checked_by": str(flask_praetorian.current_user().first_name+" "+flask_praetorian.current_user().last_name) if item.get("is_checked", "no") == "yes" else "",
                         "category": str(item.get("category", "")).strip(),
                         "confirmed": False,
                         "is_vip": item.get("is_vip", "no")
@@ -8754,7 +8754,7 @@ def check_order_item(order_id, item_id):
         for item in items:
             if item.get('id') == item_id:
                 item['is_checked'] = "yes"
-                item['checked_by'] = str(current_user.id)
+                item['checked_by'] = str(current_user.first_name + " " + current_user.last_name)
                 item_found = True
                 break
         
