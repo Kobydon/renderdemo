@@ -5385,6 +5385,7 @@ def hold_order():
                         "price": item["price"],
                         "family": str(item.get("family", "")).strip(),
                         "is_checked": str(item.get("is_checked", "no")).strip(),
+                        "checked_by": str(flask_praetorian.current_user().id) if item.get("is_checked", "no") == "yes" else "",
                         "category": str(item.get("category", "")).strip(),
                         "confirmed": False,
                         "is_vip": item.get("is_vip", "no")
@@ -5442,7 +5443,7 @@ def hold_order():
                     "category": str(item.get("category", "")).strip(),
                     "confirmed": False,
                     "is_checked": str(item.get("is_checked", "no")).strip(),
-                     "checked_by": str(item.get("checked_by", "")).strip(),
+                     "checked_by": str(flask_praetorian.current_user().id) if item.get("is_checked", "no") == "yes" else "",
                     "is_vip": item.get("is_vip", "no")
                 } for item in data["cartItems"]]
             except (ValueError, TypeError, KeyError):
