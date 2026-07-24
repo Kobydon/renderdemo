@@ -5385,7 +5385,7 @@ def hold_order():
                         "price": item["price"],
                         "family": str(item.get("family", "")).strip(),
                         "is_checked": str(item.get("is_checked", "no")).strip(),
-                        "checked_by": str(flask_praetorian.current_user().first_name+" "+flask_praetorian.current_user().last_name) if item.get("is_checked", "no") == "yes" else "",
+                        "checked_by": str(flask_praetorian.current_user().firstname+" "+flask_praetorian.current_user().lastname) if item.get("is_checked", "no") == "yes" else "",
                         "category": str(item.get("category", "")).strip(),
                         "confirmed": False,
                         "is_vip": item.get("is_vip", "no")
@@ -8741,7 +8741,7 @@ def check_order_item(order_id, item_id):
         for item in items:
             if item.get('id') == item_id:
                 item['is_checked'] = "yes"
-                item['checked_by'] = str(current_user.first_name + " " + current_user.last_name)
+                item['checked_by'] = str(current_user.firstname + " " + current_user.lastname)
                 item_found = True
                 break
         
@@ -8756,7 +8756,7 @@ def check_order_item(order_id, item_id):
             "message": "Item checked successfully",
             "item_id": item_id,
             "is_checked": "yes",
-            "checked_by": current_user.id
+            "checked_by": current_user.firstname + " " + current_user.lastname
         }), 200
         
     except Exception as e:
