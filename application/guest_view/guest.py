@@ -8720,42 +8720,43 @@ def accept_order(order_id):
         return jsonify({"error": str(e)}), 500
 
 
-
 @guest.route("/cutting_order/<int:order_id>", methods=["POST", "PUT"])
 @flask_praetorian.auth_required
 def cutting_order(order_id):
     try:
-           order = HeldCart.query.get_or_404(order_id)
-           current_user = flask_praetorian.current_user()
-           
-           # Parse existing items
-           try:
-               items = json.loads(order.items) if order.items else []
-           except json.JSONDecodeError:
-               items = []
-           
-           # Find and update the specific item
-           item_found = False
-           for item in items:
-             
-                   item['confirmed'] = "cutting"
-                #    item['checked_by'] = str(current_user.firstname + " " + current_user.lastname)
-                #    item_found = True
-                   break
-           
-           if not item_found:
-               return jsonify({"error": "Item not found in order"}), 404
-           
-           # Update order items
-           order.items = json.dumps(items)
-           db.session.commit()
-           
-           return jsonify({
-               "message": "Item checked successfully",
-             
-               "is_checked": "yes",
-               "checked_by": current_user.firstname + " " + current_user.lastname
-           }), 200
+        order = HeldCart.query.get_or_404(order_id)
+        current_user = flask_praetorian.current_user()
+        
+        # Parse existing items
+        try:
+            items = json.loads(order.items) if order.items else []
+        except json.JSONDecodeError:
+            items = []
+        
+        # Log what we have
+        print(f"Order ID: {order_id}")
+        print(f"Items found: {len(items)}")
+        print(f"Items: {items}")
+        
+        # If items exist, update the first one for testing
+        if items:
+            items[0]['confirmed'] = "cutting"
+            # items[0]['checked_by'] = str(current_user.firstname + " " + current_user.lastname)
+            
+            # Update order items
+            order.items = json.dumps(items)
+            db.session.commit()
+            
+            return jsonify({
+                "message": "Item checked successfully",
+                
+            }), 200
+        else:
+            return jsonify({"error": "No items found in order"}), 404
+            
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": str(e)}), 500
            
     except Exception as e:
            db.session.rollback()
