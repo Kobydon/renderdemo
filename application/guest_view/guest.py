@@ -7075,8 +7075,10 @@ def get_helding_orders_givers():
         return jsonify({"error": "User not found"}), 404
 
     # Get only pending delivery orders
-    held_orders = HeldCart.query.filter_by(
-        delivery_status="pending"
+    held_orders = HeldCart.query.filter(
+        or_(
+            HeldCart.delivery_status == "pending", HeldCart.delivery_status == "Cutting"
+        )
     ).all()
 
     orders_list = []
