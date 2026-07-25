@@ -8728,7 +8728,7 @@ def cutting_order(order_id):
     try:
         order = HeldCart.query.get_or_404(order_id)
         current_user = flask_praetorian.current_user()
-        order.ddelivery_status="Cutting"
+        order.delivery_status="Cutting"
         
         # Parse existing items
         try:
