@@ -9906,7 +9906,7 @@ def cutting_order(order_id):
         
         return jsonify({
             "message": "Item checked successfully",
-            "is_checked": "yes",
+           
             "checked_by": current_user.firstname + " " + current_user.lastname,
             "cutting_status": "printed",
             "email_sent": bool(customer_email) and 'email_sent' in locals()
