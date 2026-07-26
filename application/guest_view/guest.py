@@ -5300,6 +5300,7 @@ def load_held_order_all():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+
 @guest.route('/hold_order', methods=['POST'])
 @flask_praetorian.auth_required
 def hold_order():
@@ -5307,6 +5308,7 @@ def hold_order():
         user = current_user()
         data = request.get_json()
         session = Session.query.filter_by(status="current").first()
+        customer = Customer.query.filter_by(id=data.get('customer')).first() if data.get('customer') else None
 
         if not data or 'cartItems' not in data or 'total' not in data:
             return jsonify({"error": "Invalid request. 'cartItems' and 'total' are required."}), 400
@@ -5342,18 +5344,14 @@ def hold_order():
                 existing_balance = 0
 
         # Calculate new balance
-        # If amount_paid is provided, subtract it from total
         if amount_paid > 0:
             new_balance = total - amount_paid
         else:
-            # If no payment, balance is the total (full amount owed)
             new_balance = total
 
-        # If there was an existing balance, add it to the new balance
         if existing_balance > 0:
             new_balance = new_balance + existing_balance
 
-        # Ensure balance is not negative
         if new_balance < 0:
             new_balance = 0
 
@@ -5366,7 +5364,6 @@ def hold_order():
             existing_items_dict = {int(item['id']): item for item in existing_items}
             updated_items = []
 
-            # Keep confirmed items and add/update unconfirmed items
             for item in data['cartItems']:
                 try:
                     item_id = int(item["id"])
@@ -5400,7 +5397,7 @@ def hold_order():
             
             existing_hold.items = json.dumps(updated_items)
             existing_hold.total = total
-            existing_hold.balance = str(new_balance)  # ✅ Update balance
+            existing_hold.balance = str(new_balance)
             existing_hold.contain_drink = "yes" if contain_drink else "no"
             existing_hold.contain_food = "yes" if contain_food else "no"
             existing_hold.contain_dtf = "yes" if contain_dtf else "no"
@@ -5408,7 +5405,6 @@ def hold_order():
             existing_hold.contain_large_format = "yes" if contain_large_format else "no"
             existing_hold.contain_label = "yes" if contain_label else "no"
 
-            # Update status based on balance
             if new_balance <= 0:
                 existing_hold.status = "Confirmed"
                 existing_hold.paid_status = "Success"
@@ -5416,15 +5412,12 @@ def hold_order():
                 existing_hold.status = "Pending"
                 existing_hold.paid_status = "Pending"
 
-            # Update customer if provided
             if data.get('customer'):
                 existing_hold.customer = data.get('customer')
             
-            # Update note if provided
             if data.get('note'):
                 existing_hold.note = data.get('note')
             
-            # Update table if provided
             if data.get('table'):
                 existing_hold.table = data.get('table')
 
@@ -5443,7 +5436,7 @@ def hold_order():
                     "category": str(item.get("category", "")).strip(),
                     "confirmed": False,
                     "is_checked": "no",
-                     "checked_by": "",
+                    "checked_by": "",
                     "is_vip": item.get("is_vip", "no")
                 } for item in data["cartItems"]]
             except (ValueError, TypeError, KeyError):
@@ -5461,7 +5454,7 @@ def hold_order():
                 user_id=user.id,
                 items=json.dumps(cart_items),
                 total=total,
-                balance="0",  # ✅ Set initial balance
+                balance="0",
                 customer=data.get('customer', ''),
                 company_name=user.company_name,
                 status="Pending" if new_balance > 0 else "Confirmed",
@@ -5490,19 +5483,463 @@ def hold_order():
 
         db.session.commit()
         
+        # --- SEND EMAIL IF CUSTOMER HAS EMAIL ---
+        customer_email = None
+        customer_name = "Valued Customer"
+        
+        if customer:
+            customer_email = getattr(customer, 'email', None)
+            customer_name = getattr(customer, 'firstname', '') + ' ' + getattr(customer, 'lastname', '')
+            if not customer_name or customer_name.strip() == '':
+                customer_name = "Valued Customer"
+        
+        # Also check if customer data was passed directly in request
+        if not customer_email and data.get('customer_email'):
+            customer_email = data.get('customer_email')
+        
+        if not customer_name and data.get('customer_name'):
+            customer_name = data.get('customer_name')
+        
+        # Send email if we have a customer email
+        if customer_email:
+            try:
+                # Prepare order items for email
+                order_items = []
+                if existing_hold:
+                    try:
+                        items_list = json.loads(existing_hold.items)
+                        for item in items_list:
+                            order_items.append({
+                                'name': item.get('name', 'Item'),
+                                'qty': item.get('qty', 0),
+                                'price': item.get('price', 0),
+                                'family': item.get('family', ''),
+                                'category': item.get('category', '')
+                            })
+                    except:
+                        order_items = []
+                
+                # Determine order type
+                order_type = "Order"
+                if contain_food and contain_drink:
+                    order_type = "Food & Drink Order"
+                elif contain_food:
+                    order_type = "Food Order"
+                elif contain_drink:
+                    order_type = "Drink Order"
+                elif contain_dtf:
+                    order_type = "DTF Print Order"
+                elif contain_digital_printing:
+                    order_type = "Digital Printing Order"
+                elif contain_large_format:
+                    order_type = "Large Format Order"
+                elif contain_label:
+                    order_type = "Label Order"
+                
+                # Build email HTML
+                html_content = f"""
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <meta charset="UTF-8">
+                    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                    <title>Order Confirmation - Asempahfie Graphics</title>
+                    <style>
+                        body {{
+                            font-family: 'Segoe UI', Arial, sans-serif;
+                            margin: 0;
+                            padding: 0;
+                            background-color: #f8f9fa;
+                            color: #333;
+                        }}
+                        .email-container {{
+                            max-width: 600px;
+                            margin: 20px auto;
+                            background-color: #ffffff;
+                            border-radius: 12px;
+                            overflow: hidden;
+                            box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+                        }}
+                        .header {{
+                            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+                            padding: 30px 20px;
+                            text-align: center;
+                            border-bottom: 4px solid #e94560;
+                        }}
+                        .header img {{
+                            max-width: 120px;
+                            height: auto;
+                            border-radius: 50%;
+                            border: 3px solid rgba(255,255,255,0.2);
+                            margin-bottom: 10px;
+                        }}
+                        .header h1 {{
+                            color: #ffffff;
+                            font-size: 24px;
+                            margin: 5px 0 0;
+                            font-weight: 700;
+                            letter-spacing: 1px;
+                        }}
+                        .header .subtitle {{
+                            color: #e0e0e0;
+                            font-size: 14px;
+                            margin: 5px 0 0;
+                            opacity: 0.9;
+                        }}
+                        .content {{
+                            padding: 30px;
+                        }}
+                        .greeting {{
+                            font-size: 18px;
+                            color: #1a1a2e;
+                            margin-bottom: 15px;
+                            font-weight: 600;
+                        }}
+                        .greeting span {{
+                            color: #e94560;
+                        }}
+                        .order-status {{
+                            background: linear-gradient(135deg, #fff5f5 0%, #fff0f0 100%);
+                            border-left: 4px solid #e94560;
+                            padding: 12px 18px;
+                            border-radius: 6px;
+                            margin: 20px 0;
+                            display: flex;
+                            align-items: center;
+                            justify-content: space-between;
+                        }}
+                        .order-status .label {{
+                            font-weight: 600;
+                            color: #1a1a2e;
+                        }}
+                        .order-status .value {{
+                            background: #e94560;
+                            color: white;
+                            padding: 4px 14px;
+                            border-radius: 20px;
+                            font-size: 13px;
+                            font-weight: 600;
+                            text-transform: uppercase;
+                            letter-spacing: 0.5px;
+                        }}
+                        .order-details {{
+                            background: #f8f9fa;
+                            border-radius: 8px;
+                            padding: 15px 20px;
+                            margin: 20px 0;
+                            border: 1px solid #e9ecef;
+                        }}
+                        .order-details p {{
+                            margin: 6px 0;
+                            font-size: 14px;
+                            color: #555;
+                        }}
+                        .order-details strong {{
+                            color: #1a1a2e;
+                            font-weight: 600;
+                        }}
+                        .items-table {{
+                            width: 100%;
+                            border-collapse: collapse;
+                            margin: 20px 0;
+                            font-size: 14px;
+                        }}
+                        .items-table th {{
+                            background: #1a1a2e;
+                            color: white;
+                            padding: 12px 15px;
+                            text-align: left;
+                            font-weight: 600;
+                            font-size: 13px;
+                            text-transform: uppercase;
+                            letter-spacing: 0.5px;
+                        }}
+                        .items-table td {{
+                            padding: 12px 15px;
+                            border-bottom: 1px solid #e9ecef;
+                            color: #333;
+                        }}
+                        .items-table tr:last-child td {{
+                            border-bottom: none;
+                        }}
+                        .items-table tr:hover {{
+                            background-color: #f8f9fa;
+                        }}
+                        .items-table .family-badge {{
+                            display: inline-block;
+                            background: #e9ecef;
+                            padding: 2px 10px;
+                            border-radius: 12px;
+                            font-size: 11px;
+                            color: #555;
+                            font-weight: 600;
+                            text-transform: uppercase;
+                        }}
+                        .items-table .category-badge {{
+                            display: inline-block;
+                            background: #f8f9fa;
+                            padding: 2px 10px;
+                            border-radius: 12px;
+                            font-size: 11px;
+                            color: #888;
+                        }}
+                        .total-section {{
+                            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+                            color: white;
+                            padding: 20px;
+                            border-radius: 8px;
+                            margin: 20px 0;
+                            display: flex;
+                            justify-content: space-between;
+                            align-items: center;
+                        }}
+                        .total-section .total-label {{
+                            font-size: 16px;
+                            font-weight: 600;
+                            opacity: 0.9;
+                        }}
+                        .total-section .total-amount {{
+                            font-size: 24px;
+                            font-weight: 700;
+                            color: #ffd700;
+                        }}
+                        .payment-info {{
+                            background: #f0f7ff;
+                            border-radius: 8px;
+                            padding: 15px 20px;
+                            margin: 15px 0;
+                            border: 1px solid #d4e4ff;
+                        }}
+                        .payment-info p {{
+                            margin: 4px 0;
+                            font-size: 14px;
+                            color: #1a3a5c;
+                        }}
+                        .footer {{
+                            background: #f8f9fa;
+                            padding: 25px 30px;
+                            text-align: center;
+                            border-top: 1px solid #e9ecef;
+                            font-size: 13px;
+                            color: #888;
+                        }}
+                        .footer .shop-name {{
+                            font-size: 16px;
+                            font-weight: 700;
+                            color: #1a1a2e;
+                            margin-bottom: 5px;
+                        }}
+                        .footer .shop-info {{
+                            color: #666;
+                            margin: 3px 0;
+                        }}
+                        .footer .social-links {{
+                            margin-top: 10px;
+                        }}
+                        .footer .social-links a {{
+                            color: #1a1a2e;
+                            text-decoration: none;
+                            margin: 0 10px;
+                            font-size: 13px;
+                        }}
+                        .status-badge {{
+                            display: inline-block;
+                            padding: 4px 12px;
+                            border-radius: 20px;
+                            font-size: 12px;
+                            font-weight: 600;
+                            text-transform: uppercase;
+                            letter-spacing: 0.5px;
+                        }}
+                        .status-processing {{
+                            background: #fff3cd;
+                            color: #856404;
+                            border: 1px solid #ffc107;
+                        }}
+                        .status-confirmed {{
+                            background: #d4edda;
+                            color: #155724;
+                            border: 1px solid #28a745;
+                        }}
+                        .status-pending {{
+                            background: #cce5ff;
+                            color: #004085;
+                            border: 1px solid #007bff;
+                        }}
+                        @media (max-width: 600px) {{
+                            .content {{
+                                padding: 20px 15px;
+                            }}
+                            .items-table th,
+                            .items-table td {{
+                                padding: 8px 10px;
+                                font-size: 12px;
+                            }}
+                            .header h1 {{
+                                font-size: 20px;
+                            }}
+                            .total-section {{
+                                flex-direction: column;
+                                text-align: center;
+                            }}
+                            .total-section .total-amount {{
+                                margin-top: 5px;
+                                font-size: 22px;
+                            }}
+                        }}
+                    </style>
+                </head>
+                <body>
+                    <div class="email-container">
+                        <div class="header">
+                            <img src="https://yourdomain.com/static/img/asempa.jpg" alt="Asempahfie Graphics Logo" onerror="this.style.display='none'">
+                            <h1>Asempahfie Graphics</h1>
+                            <div class="subtitle">📍 Kokomlemle, Accra • 📞 0243210009</div>
+                        </div>
+                        
+                        <div class="content">
+                            <div class="greeting">Dear <span>{customer_name}</span>,</div>
+                            
+                            <p style="color: #555; font-size: 15px; line-height: 1.6;">
+                                Thank you for choosing <strong>Asempahfie Graphics</strong>! 🎉
+                                We are delighted to confirm that your <strong>{order_type}</strong> has been received 
+                                and is currently being processed.
+                            </p>
+                            
+                            <div class="order-status">
+                                <span class="label">📋 Order Status:</span>
+                                <span class="value status-processing">Processing</span>
+                            </div>
+                            
+                            <div class="order-details">
+                                <p><strong>🆔 Order ID:</strong> #{order_id}</p>
+                                <p><strong>📅 Date:</strong> {datetime.now().strftime('%A, %B %d, %Y at %I:%M %p')}</p>
+                                <p><strong>👤 Prepared By:</strong> {user.firstname} {user.lastname}</p>
+                                <p><strong>📋 Order Type:</strong> {order_type}</p>
+                                <p><strong>💰 Balance:</strong> {'GHS ' + str(new_balance) if new_balance > 0 else 'Fully Paid ✅'}</p>
+                            </div>
+                            
+                            <h3 style="color: #1a1a2e; margin: 25px 0 15px; font-size: 16px;">🛒 Order Items</h3>
+                            
+                            <table class="items-table">
+                                <thead>
+                                    <tr>
+                                        <th>Item</th>
+                                        <th>Category</th>
+                                        <th style="text-align: center;">Qty</th>
+                                        <th style="text-align: right;">Price</th>
+                                        <th style="text-align: right;">Total</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                """
+                
+                subtotal = 0
+                for item in order_items:
+                    item_total = item['qty'] * item['price']
+                    subtotal += item_total
+                    html_content += f"""
+                                    <tr>
+                                        <td><strong>{item['name']}</strong></td>
+                                        <td><span class="family-badge">{item.get('family', 'General')}</span></td>
+                                        <td style="text-align: center;">{item['qty']}</td>
+                                        <td style="text-align: right;">GHS {item['price']:.2f}</td>
+                                        <td style="text-align: right;">GHS {item_total:.2f}</td>
+                                    </tr>
+                    """
+                
+                html_content += f"""
+                                </tbody>
+                            </table>
+                            
+                            <div class="total-section">
+                                <span class="total-label">Order Total</span>
+                                <span class="total-amount">GHS {total:.2f}</span>
+                            </div>
+                            
+                            <div class="payment-info">
+                                <p><strong>💳 Payment Status:</strong> {'Paid in Full ✅' if new_balance <= 0 else 'Pending - Balance of GHS ' + str(new_balance)}</p>
+                                <p><strong>📝 Note:</strong> {data.get('note', 'No special instructions')}</p>
+                            </div>
+                            
+                            <p style="color: #555; font-size: 14px; line-height: 1.6; margin-top: 20px;">
+                                💖 We truly appreciate your business! Our team is working diligently to ensure 
+                                your order is prepared with the utmost care and quality. You will receive another 
+                                notification when your order is ready for pickup or delivery.
+                            </p>
+                            
+                            <p style="color: #1a1a2e; font-size: 14px; margin: 15px 0 5px; font-weight: 600;">
+                                📢 Need assistance? Reach out to us!
+                            </p>
+                            <p style="color: #666; font-size: 13px; margin: 0;">
+                                📞 Call: 0243210009 • 📧 Email: info@asempahfiegraphics.com
+                            </p>
+                            <p style="color: #666; font-size: 13px; margin: 5px 0;">
+                                📍 Visit us: Kokomlemle, Accra (Opposite the Police Station)
+                            </p>
+                        </div>
+                        
+                        <div class="footer">
+                            <div class="shop-name">✨ Asempahfie Graphics ✨</div>
+                            <div class="shop-info">📍 Kokomlemle, Accra</div>
+                            <div class="shop-info">📞 0243210009</div>
+                            <div class="shop-info">📧 info@asempahfiegraphics.com</div>
+                            <div class="social-links">
+                                <a href="#">Facebook</a> • 
+                                <a href="#">Instagram</a> • 
+                                <a href="#">WhatsApp</a>
+                            </div>
+                            <p style="margin-top: 15px; font-size: 12px; color: #aaa;">
+                                © {datetime.now().year} Asempahfie Graphics. All rights reserved.
+                            </p>
+                            <p style="font-size: 11px; color: #bbb; margin: 5px 0 0;">
+                                This is an automated confirmation. Please do not reply to this email.
+                            </p>
+                        </div>
+                    </div>
+                </body>
+                </html>
+                """
+                
+                # Send email - configure your email settings
+                from flask_mail import Mail, Message
+                from flask import current_app
+                
+              
+                
+                msg = Message(
+                    subject=f"🎉 Order Confirmed! #{order_id} - Asempahfie Graphics",
+                    recipients=[customer_email],
+                    html=html_content
+                )
+                
+                mail.send(msg)
+                
+                # Log email sent
+                print(f"✅ Order confirmation email sent to {customer_email} for order #{order_id}")
+                
+            except Exception as email_error:
+                # Log the error but don't fail the request
+                print(f"⚠️ Failed to send email to {customer_email}: {str(email_error)}")
+                # Continue execution - email failure shouldn't break the order
+        else:
+            # No email provided - just continue silently
+            print(f"ℹ️ No email provided for order #{order_id}, skipping email notification")
+        
         return jsonify({
             "message": "Order held successfully",
             "id": order_id,
             "order_id": order_id,
-            "balance": str(new_balance),  # ✅ Return balance in response
+            "balance": str(new_balance),
             "total": str(total),
-            "amount_paid": str(amount_paid)
+            "amount_paid": str(amount_paid),
+            "email_sent": bool(customer_email) and 'email_sent' in locals()
         }), 200
 
     except Exception as e:
         db.session.rollback()
-        print(f"Error in hold_order: {str(e)}")
-        return jsonify({"error": "An error occurred while holding the order", "details": str(e)}), 500
+        print(f"❌ Error in hold_order: {str(e)}")
+        return jsonify({"error": str(e)}), 500
 
 
 # ========# ===================== CREATE ORDERS WITH BALANCE =====================
@@ -8756,15 +9193,12 @@ def accept_order(order_id):
     except Exception as e:
         print(f"Error in accept_order: {str(e)}")
         return jsonify({"error": str(e)}), 500
-
-
 @guest.route("/cutting_order/<int:order_id>", methods=["POST", "PUT"])
 @flask_praetorian.auth_required
 def cutting_order(order_id):
     try:
         order = HeldCart.query.get_or_404(order_id)
         current_user = flask_praetorian.current_user()
-        order.delivery_status="Cutting"
         
         # Parse existing items
         try:
@@ -8772,36 +9206,353 @@ def cutting_order(order_id):
         except json.JSONDecodeError:
             items = []
         
-        # Log what we have
-        print(f"Order ID: {order_id}")
-        print(f"Items found: {len(items)}")
-        print(f"Items: {items}")
+        # Get the item index from request (if you're updating a specific item)
+        data = request.get_json()
+        item_index = data.get('item_index') if data else None
         
-        # If items exist, update the first one for testing
-        if items:
-            items[0]['confirmed'] = "cutting"
-            # items[0]['checked_by'] = str(current_user.firstname + " " + current_user.lastname)
-            
-            # Update order items
-            order.items = json.dumps(items)
-            db.session.commit()
-            
-            return jsonify({
-                "message": "Item checked successfully",
-                
-            }), 200
+        # Find and update the specific item
+        item_found = False
+        updated_item = None
+        
+        if item_index is not None:
+            # Update by index
+            if 0 <= item_index < len(items):
+                items[item_index]['confirmed'] = "cutting"
+                items[item_index]['checked_by'] = str(current_user.firstname + " " + current_user.lastname)
+                items[item_index]['cutting_status'] = "printed"  # Add printed status
+                item_found = True
+                updated_item = items[item_index]
         else:
-            return jsonify({"error": "No items found in order"}), 404
-            
+            # Update all items in the order
+            for item in items:
+                item['confirmed'] = "cutting"
+                # item['checked_by'] = str(current_user.firstname + " " + current_user.lastname)
+                item['cutting_status'] = "printed"  # Add printed status
+                item_found = True
+                updated_item = item  # Keep reference to last updated item
+        
+        if not item_found:
+            return jsonify({"error": "Item not found in order"}), 404
+        
+        # Update order items
+        order.items = json.dumps(items)
+        db.session.commit()
+        
+        # --- SEND SIMPLE EMAIL IF CUSTOMER HAS EMAIL ---
+        customer_email = None
+        customer_name = "Valued Customer"
+        
+        # Get customer from order
+        if order.customer:
+            customer = Customer.query.filter_by(id=order.customer).first()
+            if customer:
+                customer_email = getattr(customer, 'email', None)
+                customer_name = getattr(customer, 'firstname', '') + ' ' + getattr(customer, 'lastname', '')
+                if not customer_name or customer_name.strip() == '':
+                    customer_name = "Valued Customer"
+        
+        # Send simple email if we have a customer email
+        if customer_email:
+            try:
+                # Build simple email HTML
+                html_content = f"""
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <meta charset="UTF-8">
+                    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                    <title>Order Update - Asempahfie Graphics</title>
+                    <style>
+                        body {{
+                            font-family: 'Segoe UI', Arial, sans-serif;
+                            margin: 0;
+                            padding: 0;
+                            background-color: #f8f9fa;
+                            color: #333;
+                        }}
+                        .email-container {{
+                            max-width: 500px;
+                            margin: 20px auto;
+                            background-color: #ffffff;
+                            border-radius: 12px;
+                            overflow: hidden;
+                            box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+                        }}
+                        .header {{
+                            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+                            padding: 25px 20px;
+                            text-align: center;
+                            border-bottom: 4px solid #e94560;
+                        }}
+                        .header h1 {{
+                            color: #ffffff;
+                            font-size: 22px;
+                            margin: 0;
+                            font-weight: 700;
+                            letter-spacing: 1px;
+                        }}
+                        .header .subtitle {{
+                            color: #e0e0e0;
+                            font-size: 13px;
+                            margin: 5px 0 0;
+                            opacity: 0.9;
+                        }}
+                        .content {{
+                            padding: 25px 30px;
+                        }}
+                        .greeting {{
+                            font-size: 17px;
+                            color: #1a1a2e;
+                            margin-bottom: 15px;
+                            font-weight: 600;
+                        }}
+                        .greeting span {{
+                            color: #e94560;
+                        }}
+                        .status-card {{
+                            background: linear-gradient(135deg, #fff5f5 0%, #fff0f0 100%);
+                            border-left: 4px solid #e94560;
+                            padding: 15px 20px;
+                            border-radius: 8px;
+                            margin: 20px 0;
+                        }}
+                        .status-card .stage {{
+                            font-size: 14px;
+                            color: #555;
+                            margin: 3px 0;
+                        }}
+                        .status-card .stage strong {{
+                            color: #1a1a2e;
+                        }}
+                        .status-badge {{
+                            display: inline-block;
+                            padding: 4px 14px;
+                            border-radius: 20px;
+                            font-size: 13px;
+                            font-weight: 600;
+                            text-transform: uppercase;
+                            letter-spacing: 0.5px;
+                            background: #28a745;
+                            color: white;
+                            margin: 5px 0;
+                        }}
+                        .order-ref {{
+                            background: #f8f9fa;
+                            border-radius: 8px;
+                            padding: 15px 20px;
+                            margin: 20px 0;
+                            text-align: center;
+                            border: 2px dashed #dee2e6;
+                        }}
+                        .order-ref .order-number {{
+                            font-size: 28px;
+                            font-weight: 700;
+                            color: #1a1a2e;
+                            letter-spacing: 2px;
+                        }}
+                        .order-ref .order-label {{
+                            font-size: 13px;
+                            color: #888;
+                            text-transform: uppercase;
+                            letter-spacing: 1px;
+                        }}
+                        .progress-steps {{
+                            display: flex;
+                            justify-content: space-between;
+                            margin: 25px 0;
+                            position: relative;
+                        }}
+                        .progress-steps::before {{
+                            content: '';
+                            position: absolute;
+                            top: 15px;
+                            left: 10%;
+                            right: 10%;
+                            height: 2px;
+                            background: #dee2e6;
+                            z-index: 0;
+                        }}
+                        .step {{
+                            text-align: center;
+                            flex: 1;
+                            position: relative;
+                            z-index: 1;
+                        }}
+                        .step .step-icon {{
+                            width: 30px;
+                            height: 30px;
+                            border-radius: 50%;
+                            background: #dee2e6;
+                            display: inline-flex;
+                            align-items: center;
+                            justify-content: center;
+                            color: white;
+                            font-size: 14px;
+                            font-weight: 700;
+                            margin-bottom: 5px;
+                        }}
+                        .step.active .step-icon {{
+                            background: #e94560;
+                        }}
+                        .step.completed .step-icon {{
+                            background: #28a745;
+                        }}
+                        .step .step-label {{
+                            font-size: 11px;
+                            color: #888;
+                            text-transform: uppercase;
+                            letter-spacing: 0.5px;
+                        }}
+                        .step.active .step-label {{
+                            color: #e94560;
+                            font-weight: 600;
+                        }}
+                        .step.completed .step-label {{
+                            color: #28a745;
+                            font-weight: 600;
+                        }}
+                        .footer {{
+                            background: #f8f9fa;
+                            padding: 20px 30px;
+                            text-align: center;
+                            border-top: 1px solid #e9ecef;
+                            font-size: 12px;
+                            color: #888;
+                        }}
+                        .footer .shop-name {{
+                            font-size: 15px;
+                            font-weight: 700;
+                            color: #1a1a2e;
+                            margin-bottom: 3px;
+                        }}
+                        .footer .shop-info {{
+                            color: #666;
+                            margin: 2px 0;
+                            font-size: 12px;
+                        }}
+                        @media (max-width: 600px) {{
+                            .content {{
+                                padding: 20px 15px;
+                            }}
+                            .order-ref .order-number {{
+                                font-size: 22px;
+                            }}
+                            .progress-steps {{
+                                flex-wrap: wrap;
+                            }}
+                            .step {{
+                                flex: 0 0 33%;
+                                margin-bottom: 10px;
+                            }}
+                        }}
+                    </style>
+                </head>
+                <body>
+                    <div class="email-container">
+                        <div class="header">
+                            <h1>🎨 Asempahfie Graphics</h1>
+                            <div class="subtitle">📍 Kokomlemle, Accra • 📞 0243210009</div>
+                        </div>
+                        
+                        <div class="content">
+                            <div class="greeting">Dear <span>{customer_name}</span>,</div>
+                            
+                            <p style="color: #555; font-size: 14px; line-height: 1.6;">
+                                We're happy to let you know that your order is progressing well!
+                            </p>
+                            
+                            <div class="status-card">
+                                <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap;">
+                                    <div>
+                                        <div class="stage"><strong>📋 Status:</strong> <span class="status-badge">Printed</span></div>
+                                        <div class="stage" style="margin-top: 5px;"><strong>✂️ Stage:</strong> Cutting</div>
+                                        <div class="stage" style="margin-top: 5px;"><strong>👤 Prepared By:</strong> {current_user.firstname} {current_user.lastname}</div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="order-ref">
+                                <div class="order-label">📦 Order Reference</div>
+                                <div class="order-number">#{order_id}</div>
+                            </div>
+                            
+                            <div class="progress-steps">
+                                <div class="step completed">
+                                    <div class="step-icon">✓</div>
+                                    <div class="step-label">Order Placed</div>
+                                </div>
+                                <div class="step completed">
+                                    <div class="step-icon">✓</div>
+                                    <div class="step-label">Printed</div>
+                                </div>
+                                <div class="step active">
+                                    <div class="step-icon">✂</div>
+                                    <div class="step-label">Cutting</div>
+                                </div>
+                                <div class="step">
+                                    <div class="step-icon">📦</div>
+                                    <div class="step-label">Ready</div>
+                                </div>
+                            </div>
+                            
+                            <p style="color: #666; font-size: 13px; line-height: 1.6; margin-top: 20px; text-align: center;">
+                                Your order is currently being cut. We'll notify you when it's ready for pickup.
+                            </p>
+                            
+                            <p style="color: #1a1a2e; font-size: 13px; margin: 15px 0 5px; font-weight: 600; text-align: center;">
+                                📢 Questions? Call us: 0243210009
+                            </p>
+                        </div>
+                        
+                        <div class="footer">
+                            <div class="shop-name">✨ Asempahfie Graphics ✨</div>
+                            <div class="shop-info">📍 Kokomlemle, Accra • 📞 0243210009</div>
+                            <div class="shop-info">📧 info@asempahfiegraphics.com</div>
+                            <p style="margin-top: 10px; font-size: 11px; color: #bbb;">
+                                © {datetime.now().year} Asempahfie Graphics. All rights reserved.
+                            </p>
+                        </div>
+                    </div>
+                </body>
+                </html>
+                """
+                
+                # Send email
+                from flask_mail import Mail, Message
+                from flask import current_app
+                
+                mail = Mail(current_app)
+                
+                msg = Message(
+                    subject=f"✂️ Order #{order_id} - Printed & Cutting Stage - Asempahfie Graphics",
+                    recipients=[customer_email],
+                    html=html_content
+                )
+                
+                mail.send(msg)
+                
+                print(f"✅ Cutting stage email sent to {customer_email} for order #{order_id}")
+                
+            except Exception as email_error:
+                # Log the error but don't fail the request
+                print(f"⚠️ Failed to send cutting email to {customer_email}: {str(email_error)}")
+                # Continue execution - email failure shouldn't break the order
+        else:
+            # No email provided - just continue silently
+            print(f"ℹ️ No email provided for order #{order_id}, skipping email notification")
+        
+        return jsonify({
+            "message": "Item checked successfully",
+            "is_checked": "yes",
+            "checked_by": current_user.firstname + " " + current_user.lastname,
+            "cutting_status": "printed",
+            "email_sent": bool(customer_email) and 'email_sent' in locals()
+        }), 200
+        
     except Exception as e:
         db.session.rollback()
+        print(f"❌ Error in cutting_order: {str(e)}")
         return jsonify({"error": str(e)}), 500
-           
-    except Exception as e:
-           db.session.rollback()
-           return jsonify({"error": str(e)}), 500
-
-
 
 
 

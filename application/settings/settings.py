@@ -14,9 +14,9 @@ app.config['MAIL_SERVER'] = 'smtp.gmail.com'
 app.config['MAIL_PORT'] = 587
 app.config['MAIL_USE_TLS'] = True
 app.config['MAIL_USE_SSL'] = False
-app.config['MAIL_USERNAME'] = 'jxkalmhefacbuk@gmail.com'
+app.config['MAIL_USERNAME'] = 'afgghana@gmail.com'
 # app.config['MAIL_PASSWORD'] = 'Kwabena0541570527'
-app.config['MAIL_PASSWORD'] = 'qhsf mguh pzuh dcmx'
+app.config['MAIL_PASSWORD'] = 'kakd vhut ojpc bvoi'
 
  
  
