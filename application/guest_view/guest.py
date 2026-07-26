@@ -7455,10 +7455,6 @@ def get_helding_orders_dtf():
     return jsonify(orders_list), 200
 
 
-
-
-
-
 @guest.route('/update_delivery_status', methods=['POST'])
 @flask_praetorian.auth_required
 def update_delivery_status():
@@ -7476,6 +7472,7 @@ def update_delivery_status():
         if order_ids and isinstance(order_ids, list):
             updated_orders = []
             not_found_orders = []
+            email_sent_count = 0
             
             for order_id in order_ids:
                 held_cart = HeldCart.query.filter_by(id=order_id).first()
@@ -7490,8 +7487,31 @@ def update_delivery_status():
                     
                     if status == 'delivered':
                         held_cart.delivery_date = datetime.now()
+                        held_cart.status = "Delivered"  # Update main status
                     
                     updated_orders.append(order_id)
+                    
+                    # --- SEND DELIVERY EMAIL FOR THIS ORDER ---
+                    if status == 'delivered':
+                        customer_email = None
+                        customer_name = "Valued Customer"
+                        
+                        # Get customer from order
+                        if held_cart.customer:
+                            customer = Customer.query.filter_by(id=held_cart.customer).first()
+                            if customer:
+                                customer_email = getattr(customer, 'email', None)
+                                customer_name = getattr(customer, 'firstname', '') + ' ' + getattr(customer, 'lastname', '')
+                                if not customer_name or customer_name.strip() == '':
+                                    customer_name = "Valued Customer"
+                        
+                        # Send delivery email if we have a customer email
+                        if customer_email:
+                            try:
+                                send_delivery_email(order_id, customer_name, customer_email, delivered_by, contact, address, note)
+                                email_sent_count += 1
+                            except Exception as email_error:
+                                print(f"⚠️ Failed to send delivery email to {customer_email}: {str(email_error)}")
                 else:
                     not_found_orders.append(order_id)
             
@@ -7502,7 +7522,8 @@ def update_delivery_status():
                 "message": f"Updated {len(updated_orders)} orders",
                 "updated_orders": updated_orders,
                 "not_found_orders": not_found_orders,
-                "status": status
+                "status": status,
+                "email_sent_count": email_sent_count
             }), 200
         
         # Handle single update (original functionality)
@@ -7521,14 +7542,39 @@ def update_delivery_status():
             
             if status == 'delivered':
                 held_cart.delivery_date = datetime.now()
+                held_cart.status = "Delivered"  # Update main status
 
             db.session.commit()
+            
+            # --- SEND DELIVERY EMAIL FOR SINGLE ORDER ---
+            email_sent = False
+            if status == 'delivered':
+                customer_email = None
+                customer_name = "Valued Customer"
+                
+                # Get customer from order
+                if held_cart.customer:
+                    customer = Customer.query.filter_by(id=held_cart.customer).first()
+                    if customer:
+                        customer_email = getattr(customer, 'email', None)
+                        customer_name = getattr(customer, 'firstname', '') + ' ' + getattr(customer, 'lastname', '')
+                        if not customer_name or customer_name.strip() == '':
+                            customer_name = "Valued Customer"
+                
+                # Send delivery email if we have a customer email
+                if customer_email:
+                    try:
+                        send_delivery_email(order_id, customer_name, customer_email, delivered_by, contact, address, note)
+                        email_sent = True
+                    except Exception as email_error:
+                        print(f"⚠️ Failed to send delivery email to {customer_email}: {str(email_error)}")
 
             return jsonify({
                 "success": True,
                 "message": "Delivery status updated",
                 "order_id": order_id,
-                "status": status
+                "status": status,
+                "email_sent": email_sent
             }), 200
         
         else:
@@ -7536,7 +7582,324 @@ def update_delivery_status():
 
     except Exception as e:
         db.session.rollback()
+        print(f"❌ Error in update_delivery_status: {str(e)}")
         return jsonify({"error": str(e)}), 500
+
+
+# Helper function to send delivery email
+def send_delivery_email(order_id, customer_name, customer_email, delivered_by, contact, address, note):
+    """Send a delivery confirmation email for an order"""
+    
+    html_content = f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Order Delivered - Asempahfie Graphics</title>
+        <style>
+            body {{
+                font-family: 'Segoe UI', Arial, sans-serif;
+                margin: 0;
+                padding: 0;
+                background-color: #f8f9fa;
+                color: #333;
+            }}
+            .email-container {{
+                max-width: 500px;
+                margin: 20px auto;
+                background-color: #ffffff;
+                border-radius: 12px;
+                overflow: hidden;
+                box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+            }}
+            .header {{
+                background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+                padding: 25px 20px;
+                text-align: center;
+                border-bottom: 4px solid #28a745;
+            }}
+            .header h1 {{
+                color: #ffffff;
+                font-size: 22px;
+                margin: 0;
+                font-weight: 700;
+                letter-spacing: 1px;
+            }}
+            .header .subtitle {{
+                color: #e0e0e0;
+                font-size: 13px;
+                margin: 5px 0 0;
+                opacity: 0.9;
+            }}
+            .content {{
+                padding: 25px 30px;
+            }}
+            .greeting {{
+                font-size: 17px;
+                color: #1a1a2e;
+                margin-bottom: 15px;
+                font-weight: 600;
+            }}
+            .greeting span {{
+                color: #28a745;
+            }}
+            .delivery-badge {{
+                background: linear-gradient(135deg, #d4edda 0%, #c3e6cb 100%);
+                border: 2px solid #28a745;
+                padding: 15px 20px;
+                border-radius: 10px;
+                text-align: center;
+                margin: 20px 0;
+            }}
+            .delivery-badge .status-icon {{
+                font-size: 40px;
+                display: block;
+                margin-bottom: 5px;
+            }}
+            .delivery-badge .status-text {{
+                font-size: 20px;
+                font-weight: 700;
+                color: #155724;
+                letter-spacing: 1px;
+            }}
+            .delivery-badge .status-sub {{
+                font-size: 13px;
+                color: #155724;
+                opacity: 0.8;
+            }}
+            .order-ref {{
+                background: #f8f9fa;
+                border-radius: 8px;
+                padding: 15px 20px;
+                margin: 20px 0;
+                text-align: center;
+                border: 2px dashed #dee2e6;
+            }}
+            .order-ref .order-number {{
+                font-size: 28px;
+                font-weight: 700;
+                color: #1a1a2e;
+                letter-spacing: 2px;
+            }}
+            .order-ref .order-label {{
+                font-size: 13px;
+                color: #888;
+                text-transform: uppercase;
+                letter-spacing: 1px;
+            }}
+            .delivery-details {{
+                background: #f8f9fa;
+                border-radius: 8px;
+                padding: 15px 20px;
+                margin: 20px 0;
+                border-left: 4px solid #28a745;
+            }}
+            .delivery-details p {{
+                margin: 6px 0;
+                font-size: 13px;
+                color: #555;
+            }}
+            .delivery-details strong {{
+                color: #1a1a2e;
+                font-weight: 600;
+            }}
+            .delivery-details .detail-icon {{
+                margin-right: 5px;
+            }}
+            .progress-steps {{
+                display: flex;
+                justify-content: space-between;
+                margin: 25px 0;
+                position: relative;
+            }}
+            .progress-steps::before {{
+                content: '';
+                position: absolute;
+                top: 15px;
+                left: 10%;
+                right: 10%;
+                height: 2px;
+                background: #dee2e6;
+                z-index: 0;
+            }}
+            .step {{
+                text-align: center;
+                flex: 1;
+                position: relative;
+                z-index: 1;
+            }}
+            .step .step-icon {{
+                width: 30px;
+                height: 30px;
+                border-radius: 50%;
+                background: #dee2e6;
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                color: white;
+                font-size: 14px;
+                font-weight: 700;
+                margin-bottom: 5px;
+            }}
+            .step.active .step-icon {{
+                background: #28a745;
+            }}
+            .step.completed .step-icon {{
+                background: #28a745;
+            }}
+            .step .step-label {{
+                font-size: 11px;
+                color: #888;
+                text-transform: uppercase;
+                letter-spacing: 0.5px;
+            }}
+            .step.active .step-label {{
+                color: #28a745;
+                font-weight: 600;
+            }}
+            .step.completed .step-label {{
+                color: #28a745;
+                font-weight: 600;
+            }}
+            .thank-you {{
+                background: linear-gradient(135deg, #fff5f5 0%, #fff0f0 100%);
+                border-radius: 8px;
+                padding: 15px 20px;
+                margin: 20px 0;
+                text-align: center;
+                border: 1px solid #f5c6cb;
+            }}
+            .thank-you p {{
+                margin: 5px 0;
+                color: #721c24;
+                font-size: 14px;
+            }}
+            .footer {{
+                background: #f8f9fa;
+                padding: 20px 30px;
+                text-align: center;
+                border-top: 1px solid #e9ecef;
+                font-size: 12px;
+                color: #888;
+            }}
+            .footer .shop-name {{
+                font-size: 15px;
+                font-weight: 700;
+                color: #1a1a2e;
+                margin-bottom: 3px;
+            }}
+            .footer .shop-info {{
+                color: #666;
+                margin: 2px 0;
+                font-size: 12px;
+            }}
+            @media (max-width: 600px) {{
+                .content {{
+                    padding: 20px 15px;
+                }}
+                .order-ref .order-number {{
+                    font-size: 22px;
+                }}
+                .progress-steps {{
+                    flex-wrap: wrap;
+                }}
+                .step {{
+                    flex: 0 0 33%;
+                    margin-bottom: 10px;
+                }}
+            }}
+        </style>
+    </head>
+    <body>
+        <div class="email-container">
+            <div class="header">
+                <h1>🎨 Asempahfie Graphics</h1>
+                <div class="subtitle">📍 Kokomlemle, Accra • 📞 0243210009</div>
+            </div>
+            
+            <div class="content">
+                <div class="greeting">Dear <span>{customer_name}</span>,</div>
+                
+                <p style="color: #555; font-size: 14px; line-height: 1.6;">
+                    Great news! 🎉 Your order has been successfully delivered!
+                </p>
+                
+                <div class="delivery-badge">
+                    <span class="status-icon">✅</span>
+                    <div class="status-text">DELIVERED</div>
+                    <div class="status-sub">Status: Delivered</div>
+                </div>
+                
+                <div class="order-ref">
+                    <div class="order-label">📦 Order Reference</div>
+                    <div class="order-number">#{order_id}</div>
+                </div>
+                
+                <div class="delivery-details">
+                    <p><strong><span class="detail-icon">👤</span> Delivered By:</strong> {delivered_by if delivered_by else 'N/A'}</p>
+                    <p><strong><span class="detail-icon">📞</span> Contact:</strong> {contact if contact else 'N/A'}</p>
+                    <p><strong><span class="detail-icon">📍</span> Delivery Address:</strong> {address if address else 'N/A'}</p>
+                    <p><strong><span class="detail-icon">📝</span> Delivery Note:</strong> {note if note else 'No special instructions'}</p>
+                    <p><strong><span class="detail-icon">📅</span> Delivered On:</strong> {datetime.now().strftime('%A, %B %d, %Y at %I:%M %p')}</p>
+                </div>
+                
+                <div class="progress-steps">
+                    <div class="step completed">
+                        <div class="step-icon">✓</div>
+                        <div class="step-label">Order Placed</div>
+                    </div>
+                    <div class="step completed">
+                        <div class="step-icon">✓</div>
+                        <div class="step-label">Printed</div>
+                    </div>
+                    <div class="step completed">
+                        <div class="step-icon">✂</div>
+                        <div class="step-label">Cutting</div>
+                    </div>
+                    <div class="step active">
+                        <div class="step-icon">📦</div>
+                        <div class="step-label">Delivered</div>
+                    </div>
+                </div>
+                
+                <div class="thank-you">
+                    <p>🙏 Thank you for choosing <strong>Asempahfie Graphics</strong>!</p>
+                    <p style="font-size: 13px; margin-top: 8px;">We hope you love your order. We look forward to serving you again!</p>
+                </div>
+                
+                <p style="color: #1a1a2e; font-size: 13px; margin: 15px 0 5px; font-weight: 600; text-align: center;">
+                    📢 Questions or feedback? Call us: 0243210009
+                </p>
+            </div>
+            
+            <div class="footer">
+                <div class="shop-name">✨ Asempahfie Graphics ✨</div>
+                <div class="shop-info">📍 Kokomlemle, Accra • 📞 0243210009</div>
+                <div class="shop-info">📧 info@asempahfiegraphics.com</div>
+                <p style="margin-top: 10px; font-size: 11px; color: #bbb;">
+                    © {datetime.now().year} Asempahfie Graphics. All rights reserved.
+                </p>
+            </div>
+        </div>
+    </body>
+    </html>
+    """
+    
+    # Send email
+    from flask_mail import Mail, Message
+    from flask import current_app
+    
+    # mail = Mail(current_app)
+    
+    msg = Message(
+        subject=f"✅ Order #{order_id} Delivered! - Asempahfie Graphics",
+        recipients=[customer_email],
+        html=html_content
+    )
+    
+    mail.send(msg)
+    print(f"✅ Delivery email sent to {customer_email} for order #{order_id}")
 
 @guest.route('/get_helding_orders_givers', methods=['GET'])
 @flask_praetorian.auth_required
@@ -9521,7 +9884,7 @@ def cutting_order(order_id):
                 from flask_mail import Mail, Message
                 from flask import current_app
                 
-                mail = Mail(current_app)
+                # mail = Mail(current_app)
                 
                 msg = Message(
                     subject=f"✂️ Order #{order_id} - Printed & Cutting Stage - Asempahfie Graphics",
