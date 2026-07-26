@@ -7027,42 +7027,78 @@ def get_helding_orders_dtf():
 def update_delivery_status():
     try:
         data = request.json
-        order_id = data.get('id')
+        order_ids = data.get('order_ids')  # For bulk update
+        order_id = data.get('id')  # For single update
         delivered_by = data.get('delivered_by')
         contact = data.get('contact')
         address = data.get('address')
         note = data.get('note')
-        status = data.get('status', 'in_delivery')
+        status = data.get('status', 'delivered')  # Default to delivered
 
-        if not order_id:
-            return jsonify({"error": "Order ID required"}), 400
-
-        held_cart = HeldCart.query.filter_by(id=order_id).first()
-        if not held_cart:
-            return jsonify({"error": "Order not found"}), 404
-
-        # Update delivery fields
-        held_cart.delivered_by = delivered_by
-        held_cart.delivery_contact = contact
-        held_cart.delivery_address = address
-        held_cart.delivery_note = note
-        held_cart.delivery_status = status
+        # Handle bulk update
+        if order_ids and isinstance(order_ids, list):
+            updated_orders = []
+            not_found_orders = []
+            
+            for order_id in order_ids:
+                held_cart = HeldCart.query.filter_by(id=order_id).first()
+                
+                if held_cart:
+                    # Update delivery fields
+                    held_cart.delivered_by = delivered_by
+                    held_cart.delivery_contact = contact
+                    held_cart.delivery_address = address
+                    held_cart.delivery_note = note
+                    held_cart.delivery_status = status
+                    
+                    if status == 'delivered':
+                        held_cart.delivery_date = datetime.now()
+                    
+                    updated_orders.append(order_id)
+                else:
+                    not_found_orders.append(order_id)
+            
+            db.session.commit()
+            
+            return jsonify({
+                "success": True,
+                "message": f"Updated {len(updated_orders)} orders",
+                "updated_orders": updated_orders,
+                "not_found_orders": not_found_orders,
+                "status": status
+            }), 200
         
-        if status == 'delivered':
-            held_cart.delivery_date = datetime.now()
+        # Handle single update (original functionality)
+        elif order_id:
+            held_cart = HeldCart.query.filter_by(id=order_id).first()
+            
+            if not held_cart:
+                return jsonify({"error": "Order not found"}), 404
 
-        db.session.commit()
+            # Update delivery fields
+            held_cart.delivered_by = delivered_by
+            held_cart.delivery_contact = contact
+            held_cart.delivery_address = address
+            held_cart.delivery_note = note
+            held_cart.delivery_status = status
+            
+            if status == 'delivered':
+                held_cart.delivery_date = datetime.now()
 
-        return jsonify({
-            "success": True,
-            "message": "Delivery status updated",
-            "order_id": order_id,
-            "status": status
-        }), 200
+            db.session.commit()
+
+            return jsonify({
+                "success": True,
+                "message": "Delivery status updated",
+                "order_id": order_id,
+                "status": status
+            }), 200
+        
+        else:
+            return jsonify({"error": "Order ID or Order IDs required"}), 400
 
     except Exception as e:
         db.session.rollback()
-        print(f"Error updating delivery: {str(e)}")
         return jsonify({"error": str(e)}), 500
 
 @guest.route('/get_helding_orders_givers', methods=['GET'])
