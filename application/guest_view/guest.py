@@ -7607,7 +7607,7 @@ def send_delivery_email(order_id, customer_name, customer_email, delivered_by, c
     msg = Message(
         subject=f"✅ Order #{order_id} Delivered! - Asempahfie Graphics", html=html_content, sender="afgghana@gmail.com",
         recipients=[customer_email], 
-        html=html_content
+       
     )
     
     mail.send(msg)
@@ -9601,8 +9601,8 @@ def cutting_order(order_id):
                 msg = Message(
                     subject=f"✂️ Order #{order_id} - Printed & Cutting Stage - Asempahfie Graphics",
                     html=html_content, sender="afgghana@gmail.com",
-                    recipients=[customer_email],
-                    html=html_content
+                    recipients=[customer_email]
+                   
                 )
                 
                 mail.send(msg)
