@@ -5856,7 +5856,7 @@ def hold_order():
                 from flask import current_app
                 
                 # Initialize mail with current app context
-                mail = Mail(current_app)
+                # mail = Mail(current_app)
                 
                 msg = Message(
                     subject=f"🎉 Order Confirmed! #{order_id} - Asempahfie Graphics",
