@@ -8293,7 +8293,7 @@ def add_customer():
         firstname = request.json.get("firstname", "").strip()
         lastname = request.json.get("lastname", "").strip()
         phone = request.json.get("phone", "").strip()
-        email = request.json.get("phone", "").strip()
+        email = request.json.get("email", "").strip()
         # Validate required fields
         if not firstname or not lastname:
             resp = jsonify({"error": "Firstname and lastname are required"})
