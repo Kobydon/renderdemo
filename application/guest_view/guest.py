@@ -7113,7 +7113,7 @@ def get_helding_orders_givers():
     # Get only pending delivery orders
     held_orders = HeldCart.query.filter(
         or_(
-            HeldCart.delivery_status == "pending", HeldCart.delivery_status == "Cutting"
+            HeldCart.delivery_status == "pending", HeldCart.delivery_status == "Cutting",HeldCart.delivery_status == "in_delivery"
         )
     ).all()
 
