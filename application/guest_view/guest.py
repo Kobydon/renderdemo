@@ -5861,7 +5861,7 @@ def hold_order():
                 msg = Message(
                     subject=f"🎉 Order Confirmed! #{order_id} - Asempahfie Graphics",
                     recipients=[str(customer_email)],
-                    html=html_content
+                    html=html_content, sender="afgghana@gmail.com"
                 )
                 
                 mail.send(msg)
@@ -7605,8 +7605,8 @@ def send_delivery_email(order_id, customer_name, customer_email, delivered_by, c
     # mail = Mail(current_app)
     
     msg = Message(
-        subject=f"✅ Order #{order_id} Delivered! - Asempahfie Graphics",
-        recipients=[customer_email],
+        subject=f"✅ Order #{order_id} Delivered! - Asempahfie Graphics", html=html_content, sender="afgghana@gmail.com",
+        recipients=[customer_email], 
         html=html_content
     )
     
@@ -9600,6 +9600,7 @@ def cutting_order(order_id):
                 
                 msg = Message(
                     subject=f"✂️ Order #{order_id} - Printed & Cutting Stage - Asempahfie Graphics",
+                    html=html_content, sender="afgghana@gmail.com",
                     recipients=[customer_email],
                     html=html_content
                 )
