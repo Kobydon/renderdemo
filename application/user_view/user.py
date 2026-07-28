@@ -172,7 +172,7 @@ def update_logout():
     db.session.commit()
     
     # Optional: no need to call db.session.close manually here
-    return jsonify({"message": "Logout time updated successfully"}), 200
+    return jsonify({"message": "Logout timse updated successfully"}), 200
 
 
 
