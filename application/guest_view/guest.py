@@ -5905,7 +5905,7 @@ def hold_order():
 
 
 
-# Updated hold_order_customer endpoint with email + attachment support
+# Fixed hold_order_customer endpoint with proper email HTML
 
 @guest.route('/hold_order_customer', methods=['POST'])
 @flask_praetorian.auth_required
@@ -5930,7 +5930,7 @@ def hold_order_customer():
             except ValueError:
                 return jsonify({"error": "Invalid hold ID"}), 400
 
-        # Get amount paid from request (for Pending payments)
+        # Get amount paid from request
         amount_paid = data.get('amount_paid', 0)
         try:
             amount_paid = float(amount_paid) if amount_paid else 0
@@ -5997,11 +5997,11 @@ def hold_order_customer():
                         "price": item["price"],
                         "family": str(item.get("family", "")).strip(),
                         "is_checked": str(item.get("is_checked", "no")).strip(),
-                        "checked_by": str(flask_praetorian.current_user().firstname+" "+flask_praetorian.current_user().lastname) if item.get("is_checked", "no") == "yes" else "",
+                        "checked_by": str(flask_praetorian.current_user().firstname + " " + flask_praetorian.current_user().lastname) if item.get("is_checked", "no") == "yes" else "",
                         "category": str(item.get("category", "")).strip(),
                         "confirmed": False,
                         "is_vip": item.get("is_vip", "no"),
-                        "attachment": attachment_data  # Add attachment to item
+                        "attachment": attachment_data
                     })
 
             contain_drink = any(item.get("family") == "drink" for item in updated_items)
@@ -6037,7 +6037,6 @@ def hold_order_customer():
             if data.get('table'):
                 existing_hold.table = data.get('table')
             
-            # Store payment method
             if data.get('payment_method'):
                 existing_hold.payment_method = data.get('payment_method')
 
@@ -6057,22 +6056,31 @@ def hold_order_customer():
                             "size": item['attachment'].get('size', 0)
                         }
                     
+                    # Ensure we use the correct ID
+                    item_id = item.get("id")
+                    if isinstance(item_id, str) and item_id.isdigit():
+                        item_id = int(item_id)
+                    elif not isinstance(item_id, int):
+                        # If ID is not a number, use a fallback
+                        item_id = hash(item.get("name", "")) % 1000000
+                    
                     cart_items.append({
-                        "id": int(item["id"]),
-                        "qty": int(item["qty"]),
-                        "name": item["name"],
-                        "price": item["price"],
-                        "description": item.get("description", ""),
+                        "id": item_id,
+                        "qty": int(item.get("qty", 1)),
+                        "name": str(item.get("name", "")),
+                        "price": float(item.get("price", 0)),
+                        "description": str(item.get("description", "")),
                         "family": str(item.get("family", "")).strip(),
                         "category": str(item.get("category", "")).strip(),
                         "confirmed": False,
                         "is_checked": "no",
                         "checked_by": "",
                         "is_vip": item.get("is_vip", "no"),
-                        "attachment": attachment_data  # Add attachment to item
+                        "attachment": attachment_data
                     })
-            except (ValueError, TypeError, KeyError):
-                return jsonify({"error": "Invalid cart items format"}), 400
+            except Exception as e:
+                print(f"Error processing cart items: {str(e)}")
+                return jsonify({"error": f"Invalid cart items format: {str(e)}"}), 400
 
             contain_drink = any(item.get("family") == "drink" for item in cart_items)
             contain_food = any(item.get("family") == "food" for item in cart_items)
@@ -6082,13 +6090,16 @@ def hold_order_customer():
             contain_label = any(item.get("family") == "label" for item in cart_items)
             note = data.get("note", "")
 
+            # Get customer name from request or use user's name
+            customer_name = data.get('customer', f"{user.firstname} {user.lastname}")
+
             existing_hold = HeldCart(
                 user_id=user.id,
                 items=json.dumps(cart_items),
                 total=total,
-                balance="0",
-                customer=str(user.id),
-                company_name=user.company_name,
+                balance=str(new_balance),
+                customer=customer_name,
+                company_name=user.company_name if hasattr(user, 'company_name') else '',
                 status="Pending" if new_balance > 0 else "Confirmed",
                 paid_status="Pending" if new_balance > 0 else "Success",
                 onetime="yes",
@@ -6108,7 +6119,7 @@ def hold_order_customer():
                 session=session.open_date if session else None,
                 table=data.get('table', ''),
                 note=note,
-                payment_method=data.get('payment_method', '')  # Store payment method
+                payment_method=data.get('payment_method', '')
             )
             db.session.add(existing_hold)
             db.session.flush()
@@ -6118,18 +6129,15 @@ def hold_order_customer():
         
         # ===================== SEND EMAIL =====================
         customer_email = None
-        customer_name = "Valued Customer"
+        customer_name = data.get('customer', f"{user.firstname} {user.lastname}")
         
         # Try to get email from user
-        if user and user.email:
+        if user and hasattr(user, 'email') and user.email:
             customer_email = user.email
         
         # Also check if customer email was passed directly in request
-        # if data.get('customer_email'):
-        #     customer_email = data.get('customer_email')
-        
-        if data.get('customer'):
-            customer_name = data.get('customer')
+        if data.get('customer_email'):
+            customer_email = data.get('customer_email')
         
         # Send email if we have a customer email and it's a valid email address
         email_sent = False
@@ -6141,7 +6149,6 @@ def hold_order_customer():
                     try:
                         items_list = json.loads(existing_hold.items)
                         for item in items_list:
-                            # Ensure price and qty are numbers
                             price = float(item.get('price', 0))
                             qty = int(item.get('qty', 0))
                             order_items.append({
@@ -6176,6 +6183,7 @@ def hold_order_customer():
                 from datetime import datetime
                 now = datetime.now()
                 
+                # Define html_content here
                 html_content = f"""
                 <!DOCTYPE html>
                 <html>
@@ -6527,13 +6535,12 @@ def hold_order_customer():
                 """
                 
                 # Send email
-                from flask_mail import Mail, Message
+                from flask_mail import Message
                 from flask import current_app
                 
-                # Get mail instance from current app
                 mail = current_app.extensions.get('mail')
                 if mail is None:
-                    # Initialize mail if not available
+                    from flask_mail import Mail
                     mail = Mail(current_app)
                 
                 msg = Message(
@@ -6544,23 +6551,16 @@ def hold_order_customer():
                 )
                 
                 mail.send(msg)
-                
-                # Log email sent
                 print(f"✅ Order confirmation email sent to {customer_email} for order #{order_id}")
                 email_sent = True
                 
             except Exception as email_error:
-                # Log the error but don't fail the request
                 print(f"⚠️ Failed to send email to {customer_email}: {str(email_error)}")
-                print(f"⚠️ Email error details: {type(email_error).__name__}")
-                # Continue execution - email failure shouldn't break the order
+                import traceback
+                traceback.print_exc()
                 email_sent = False
         else:
-            # No email provided - just continue silently
-            if customer_email:
-                print(f"ℹ️ Invalid email format for order #{order_id}: {customer_email}")
-            else:
-                print(f"ℹ️ No email provided for order #{order_id}, skipping email notification")
+            print(f"ℹ️ No valid email provided for order #{order_id}, skipping email notification")
             email_sent = False
         
         # ===================== RETURN RESPONSE =====================
@@ -6579,7 +6579,6 @@ def hold_order_customer():
     except Exception as e:
         db.session.rollback()
         print(f"❌ Error in hold_order: {str(e)}")
-        print(f"❌ Error details: {type(e).__name__}")
         import traceback
         traceback.print_exc()
         return jsonify({"error": str(e)}), 500
