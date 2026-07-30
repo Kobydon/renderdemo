@@ -5905,8 +5905,6 @@ def hold_order():
 
 
 
-# Fixed hold_order_customer endpoint with proper email HTML
-
 @guest.route('/hold_order_customer', methods=['POST'])
 @flask_praetorian.auth_required
 def hold_order_customer():
@@ -6043,7 +6041,7 @@ def hold_order_customer():
             order_id = existing_hold.id
 
         else:
-            # New held order with attachments
+            # NEW HELD ORDER - FIXED CUSTOMER HANDLING
             try:
                 cart_items = []
                 for item in data["cartItems"]:
@@ -6090,15 +6088,16 @@ def hold_order_customer():
             contain_label = any(item.get("family") == "label" for item in cart_items)
             note = data.get("note", "")
 
-            # Get customer name from request or use user's name
+            # ✅ FIX: Use the authenticated user's ID, NOT the customer name
+            # The customer name is stored as a string field, not as the ID
             customer_name = data.get('customer', f"{user.firstname} {user.lastname}")
 
             existing_hold = HeldCart(
-                user_id=user.id,
+                user_id=user.id,  # This is the authenticated user's ID (integer)
                 items=json.dumps(cart_items),
                 total=total,
                 balance=str(new_balance),
-                customer=customer_name,
+                customer=customer_name,  # This is the customer NAME (string)
                 company_name=user.company_name if hasattr(user, 'company_name') else '',
                 status="Pending" if new_balance > 0 else "Confirmed",
                 paid_status="Pending" if new_balance > 0 else "Success",
@@ -6183,7 +6182,6 @@ def hold_order_customer():
                 from datetime import datetime
                 now = datetime.now()
                 
-                # Define html_content here
                 html_content = f"""
                 <!DOCTYPE html>
                 <html>
@@ -6449,13 +6447,11 @@ def hold_order_customer():
                     subtotal = subtotal + item_total
                     
                     # Check if this item has an attachment
-                    item_has_attachment = False
                     if existing_hold:
                         try:
                             items_list = json.loads(existing_hold.items)
                             for cart_item in items_list:
                                 if cart_item.get('name') == item['name'] and cart_item.get('attachment'):
-                                    item_has_attachment = True
                                     has_attachments = True
                                     break
                         except:
