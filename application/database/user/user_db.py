@@ -389,6 +389,7 @@ class HeldCart(db.Model):
     balance = db.Column(db.String(100))
     session = db.Column(db.String(200))
 
+    payment_method = db.Column(db.String(200))
 
 
 class Payment(db.Model):
