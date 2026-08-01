@@ -5473,6 +5473,7 @@ def hold_order():
                 dtf_confirm="no",
                 large_format_confirm="no",
                 digital_printing_confirm="no",
+                customer_id=customer.id,
                 session=session.open_date if session else None,
                 table=data.get('table', ''),
                 note=note
@@ -6098,7 +6099,8 @@ def hold_order_customer():
                 items=json.dumps(cart_items),
                 total=total,
                 balance=str(new_balance),
-                customer=customer_name,  # This is the customer NAME (string)
+                customer=customer_name, 
+                customer_id=user.id,  # This is the customer ID (string)
                 company_name=user.company_name if hasattr(user, 'company_name') else '',
                 status="Pending" if new_balance > 0 else "Confirmed",
                 paid_status="Pending" if new_balance > 0 else "Success",
@@ -10370,7 +10372,7 @@ def get_helding_orders_customers():
 
     # Query for held orders belonging to this user
     held_orders = HeldCart.query.filter_by(
-    user_id=user.id
+    customer_id=user.id
 ).order_by(HeldCart.created_at.desc()).all()
 
     orders_list = []
