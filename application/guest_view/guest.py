@@ -10363,14 +10363,14 @@ def check_order_item(order_id, item_id):
 @flask_praetorian.auth_required
 def get_helding_orders_customers():
     user = flask_praetorian.current_user()
-    us = User.query.filter_by(customer=user.id).first()
+    us = User.query.filter_by(id=user.id).first()
 
     if not us:
         return jsonify({"error": "User not found"}), 404
 
     # Query for held orders belonging to this user
     held_orders = HeldCart.query.filter_by(
-        user_id=user.id  # ✅ FIX: Use user.id (integer), not customer name
+        customer=user.id  # ✅ FIX: Use user.id (integer), not customer name
     ).order_by(HeldCart.created_at.desc()).all()
 
     orders_list = []
