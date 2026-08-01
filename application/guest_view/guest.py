@@ -10357,3 +10357,73 @@ def check_order_item(order_id, item_id):
     except Exception as e:
         db.session.rollback()
         return jsonify({"error": str(e)}), 500
+
+
+@guest.route('/get_helding_orders_customers', methods=['GET'])
+@flask_praetorian.auth_required
+def get_helding_orders_customers():
+    user = flask_praetorian.current_user()
+    us = User.query.filter_by(customer=user.id).first()
+
+    if not us:
+        return jsonify({"error": "User not found"}), 404
+
+    # Query for held orders belonging to this user
+    held_orders = HeldCart.query.filter_by(
+        user_id=user.id  # ✅ FIX: Use user.id (integer), not customer name
+    ).order_by(HeldCart.created_at.desc()).all()
+
+    orders_list = []
+
+    for order in held_orders:
+        try:
+            items = json.loads(order.items)  # Convert JSON string to list
+            
+            # Determine order status based on items
+            order_status = order.status or "Pending"
+            
+            # Check if all items are confirmed
+            all_confirmed = all(item.get('confirmed', False) for item in items)
+            any_confirmed = any(item.get('confirmed', False) for item in items)
+            
+            if all_confirmed and len(items) > 0:
+                order_status = "Completed"
+            elif any_confirmed:
+                order_status = "Partially Completed"
+            elif order.status == "Confirmed":
+                order_status = "Confirmed"
+            else:
+                order_status = "Processing"
+
+            orders_list.append({
+                "id": order.id,
+                "items": items,
+                "total": float(order.total) if order.total else 0,
+                "balance": float(order.balance) if order.balance else 0,
+                "note": order.note or "",
+                "waiter": order.waiter or "",
+                "customer": order.customer or "",
+                "company_name": order.company_name or "",
+                "status": order_status,
+                "paid_status": order.paid_status or "Pending",
+                "payment_method": order.payment_method or "",
+                "contain_drink": order.contain_drink,
+                "contain_food": order.contain_food,
+                "contain_dtf": order.contain_dtf,
+                "contain_digital_printing": order.contain_digital_printing,
+                "contain_large_format": order.contain_large_format,
+                "contain_label": order.contain_label,
+                "food_confirm": order.food_confirm,
+                "drink_confirm": order.drink_confirm,
+                "label_confirm": order.label_confirm,
+                "dtf_confirm": order.dtf_confirm,
+                "large_format_confirm": order.large_format_confirm,
+                "digital_printing_confirm": order.digital_printing_confirm,
+                "created_at": order.created_at.strftime('%Y-%m-%d %H:%M:%S') if order.created_at else "",
+                "updated_at": order.updated_at.strftime('%Y-%m-%d %H:%M:%S') if hasattr(order, 'updated_at') and order.updated_at else ""
+            })
+
+        except (json.JSONDecodeError, TypeError) as e:
+            print(f"Error decoding JSON for order {order.id}: {e}")
+
+    return jsonify(orders_list), 200
