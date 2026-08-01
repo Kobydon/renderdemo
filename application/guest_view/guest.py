@@ -10370,7 +10370,7 @@ def get_helding_orders_customers():
 
     # Query for held orders belonging to this user
     held_orders = HeldCart.query.filter_by(
-        customer=user.id  # ✅ FIX: Use user.id (integer), not customer name
+        int(customer)=user.id  # ✅ FIX: Use user.id (integer), not customer name
     ).order_by(HeldCart.created_at.desc()).all()
 
     orders_list = []
