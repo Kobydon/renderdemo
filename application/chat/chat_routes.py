@@ -24,7 +24,7 @@ from datetime import datetime
 import json
 
 
-chat_bp = Blueprint('chat', __name__, url_prefix='/api/chat')
+chat_bp = Blueprint('chat', __name__)
 
 # Store online users (in production, use Redis)
 online_users = {}
