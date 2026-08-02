@@ -10429,3 +10429,79 @@ def get_helding_orders_customers():
             print(f"Error decoding JSON for order {order.id}: {e}")
 
     return jsonify(orders_list), 200
+
+
+
+@guest.route('/get_customer_payments', methods=['GET'])
+@flask_praetorian.auth_required
+def get_customer_payments():
+    try:
+        user = flask_praetorian.current_user()
+        
+        # Query for all orders belonging to this customer
+        # Using customer_id field (which stores the user's ID)
+        held_orders = HeldCart.query.filter_by(
+            customer_id=user.id
+        ).order_by(HeldCart.created_at.desc()).all()
+        
+        payments_list = []
+        
+        for order in held_orders:
+            try:
+                items = json.loads(order.items) if order.items else []
+                
+                # Determine payment status
+                payment_status = "Completed"
+                if order.paid_status == "Pending":
+                    payment_status = "Pending"
+                elif order.paid_status == "Success":
+                    payment_status = "Completed"
+                elif order.paid_status == "Failed":
+                    payment_status = "Failed"
+                
+                # Get balance as float
+                balance = float(order.balance) if order.balance else 0
+                total = float(order.total) if order.total else 0
+                
+                # Calculate amount paid
+                amount_paid = total - balance if balance > 0 else total
+                
+                payments_list.append({
+                    "id": order.id,
+                    "order_id": order.id,
+                    "items": items,
+                    "total": total,
+                    "amount_paid": amount_paid,
+                    "balance": balance,
+                    "status": order.status or "Processing",
+                    "payment_status": payment_status,
+                    "payment_method": order.payment_method or "Not specified",
+                    "created_at": order.created_at.strftime('%Y-%m-%d %H:%M:%S') if order.created_at else "",
+                    "customer": order.customer or "Walk-in",
+                    "waiter": order.waiter or "",
+                    "note": order.note or "",
+                    "contain_food": order.contain_food,
+                    "contain_drink": order.contain_drink,
+                    "contain_dtf": order.contain_dtf,
+                    "contain_digital_printing": order.contain_digital_printing,
+                    "contain_large_format": order.contain_large_format,
+                    "contain_label": order.contain_label,
+                    "item_count": len(items)
+                })
+                
+            except (json.JSONDecodeError, TypeError) as e:
+                print(f"Error decoding JSON for order {order.id}: {e}")
+                continue
+        
+        return jsonify({
+            "success": True,
+            "payments": payments_list,
+            "total_count": len(payments_list)
+        }), 200
+        
+    except Exception as e:
+        print(f"Error in get_customer_payments: {str(e)}")
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
