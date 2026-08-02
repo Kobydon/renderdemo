@@ -41,7 +41,7 @@ def get_online_users():
         
         # Query users with role 'online' or 'admin'
         online_users_list = User.query.filter(
-            User.role.in_(['online', 'admin']),
+            User.roles.in_(['online','customer','admin']),
             User.id.in_(online_user_ids) if online_user_ids else False
         ).all()
         
@@ -52,13 +52,13 @@ def get_online_users():
                 'firstname': u.firstname,
                 'lastname': u.lastname,
                 'email': u.email,
-                'role': u.role,
+                'role': u.roles,
                 'online': True
             })
         
         # Also get offline users with role 'online' or 'admin'
         offline_users = User.query.filter(
-            User.role.in_(['online', 'admin']),
+            User.roles.in_(['online','customer','admin']),
             ~User.id.in_(online_user_ids) if online_user_ids else True
         ).all()
         
@@ -68,7 +68,7 @@ def get_online_users():
                 'firstname': u.firstname,
                 'lastname': u.lastname,
                 'email': u.email,
-                'role': u.role,
+                'role': u.roles,
                 'online': False
             })
         
@@ -98,22 +98,29 @@ def get_chat_messages(receiver_id):
     except Exception as e:
         print(f"❌ Error getting messages: {str(e)}")
         return jsonify({'error': str(e)}), 500
-
+    
 @chat_bp.route('/messages', methods=['POST'])
 @auth_required
 def send_chat_message():
-    """Send a message via HTTP (fallback)"""
+    """Send a message with optional attachment"""
     try:
         user = current_user()
         data = request.get_json()
         
         receiver_id = data.get('receiver_id')
-        message = data.get('message')
+        message = data.get('message', '')
+        attachment_data = data.get('attachment_data')  # Base64 data
+        attachment_name = data.get('attachment_name')
+        attachment_type = data.get('attachment_type')
+        attachment_size = data.get('attachment_size')
         
-        if not receiver_id or not message:
-            return jsonify({'error': 'receiver_id and message are required'}), 400
+        if not receiver_id:
+            return jsonify({'error': 'receiver_id is required'}), 400
         
-        # Create room ID (sorted to ensure consistency)
+        if not message and not attachment_data:
+            return jsonify({'error': 'Either message or attachment is required'}), 400
+        
+        # Create room ID
         room = f"chat_{min(user.id, receiver_id)}_{max(user.id, receiver_id)}"
         
         # Save message to database
@@ -123,7 +130,12 @@ def send_chat_message():
             message=message,
             room=room,
             timestamp=datetime.utcnow(),
-            read=False
+            read=False,
+            attachment_name=attachment_name,
+            attachment_type=attachment_type,
+            attachment_data=attachment_data,  # Store Base64 data
+            attachment_size=attachment_size,
+            is_attachment=bool(attachment_data)
         )
         db.session.add(chat_message)
         db.session.commit()

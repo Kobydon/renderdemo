@@ -394,6 +394,10 @@ class HeldCart(db.Model):
 # models.py
 # models.py
 
+# models.py - Updated ChatMessage with attachment support
+from datetime import datetime
+from flask_sqlalchemy import SQLAlchemy
+from sqlalchemy import Text
 
 class ChatMessage(db.Model):
     __tablename__ = 'chat_messages'
@@ -401,10 +405,17 @@ class ChatMessage(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     sender_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     receiver_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
-    message = db.Column(db.Text, nullable=False)
+    message = db.Column(db.Text, nullable=True)  # ✅ Made nullable for file-only messages
     room = db.Column(db.String(100))
     timestamp = db.Column(db.DateTime, default=datetime.utcnow)
     read = db.Column(db.Boolean, default=False)
+    
+    # ✅ New attachment fields
+    attachment_name = db.Column(db.String(500), nullable=True)
+    attachment_type = db.Column(db.String(100), nullable=True)  # image/png, application/pdf, etc.
+    attachment_data = db.Column(db.Text, nullable=True)  # Base64 encoded data
+    attachment_size = db.Column(db.Integer, nullable=True)
+    is_attachment = db.Column(db.Boolean, default=False)
     
     # Relationships
     sender = db.relationship('User', foreign_keys=[sender_id], backref='sent_messages')
@@ -415,12 +426,16 @@ class ChatMessage(db.Model):
             'id': self.id,
             'sender_id': self.sender_id,
             'receiver_id': self.receiver_id,
-            'message': self.message,
+            'message': self.message or '',
             'room': self.room,
             'timestamp': self.timestamp.isoformat() if self.timestamp else None,
-            'read': self.read
+            'read': self.read,
+            'attachment_name': self.attachment_name,
+            'attachment_type': self.attachment_type,
+            'attachment_data': self.attachment_data,  # Base64 data
+            'attachment_size': self.attachment_size,
+            'is_attachment': self.is_attachment
         }
-
 class Payment(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     company_name = db.Column(db.String(1000000))

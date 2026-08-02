@@ -83,38 +83,59 @@ def register_socket_handlers(socketio):
 
     @socketio.on('send_message')
     def handle_send_message(data):
-        """Send and store message"""
+        """Send and store message with optional attachment"""
         try:
             room = data.get('room')
             sender_id = data.get('sender_id')
             receiver_id = data.get('receiver_id')
-            message = data.get('message')
+            message = data.get('message', '')  # ✅ Made optional for file-only messages
             timestamp = datetime.now().isoformat()
             
-            if not all([room, sender_id, receiver_id, message]):
+            # ✅ Get attachment data if present
+            attachment_data = data.get('attachment_data')
+            attachment_name = data.get('attachment_name')
+            attachment_type = data.get('attachment_type')
+            attachment_size = data.get('attachment_size')
+            
+            # ✅ Validate: either message or attachment is required
+            if not all([room, sender_id, receiver_id]):
                 emit('error', {'error': 'Missing required fields'})
                 return
             
-            # Save message to database
+            if not message and not attachment_data:
+                emit('error', {'error': 'Either message or attachment is required'})
+                return
+            
+            # ✅ Save message to database with attachment fields
             chat_message = ChatMessage(
                 sender_id=sender_id,
                 receiver_id=receiver_id,
                 message=message,
                 room=room,
                 timestamp=datetime.utcnow(),
-                read=False
+                read=False,
+                attachment_name=attachment_name,
+                attachment_type=attachment_type,
+                attachment_data=attachment_data,  # ✅ Store Base64 data
+                attachment_size=attachment_size,
+                is_attachment=bool(attachment_data)  # ✅ Flag if attachment exists
             )
             db.session.add(chat_message)
             db.session.commit()
             
-            # Prepare response data
+            # ✅ Prepare response data with attachment info
             response_data = {
                 'id': chat_message.id,
                 'sender_id': sender_id,
                 'receiver_id': receiver_id,
                 'message': message,
                 'timestamp': timestamp,
-                'read': False
+                'read': False,
+                'attachment_name': attachment_name,
+                'attachment_type': attachment_type,
+                'attachment_data': attachment_data,
+                'attachment_size': attachment_size,
+                'is_attachment': bool(attachment_data)
             }
             
             # Emit message to room
@@ -123,7 +144,11 @@ def register_socket_handlers(socketio):
             # Also emit to sender (for confirmation)
             emit('message_sent', response_data, room=request.sid)
             
-            print(f"💬 Message sent from {sender_id} to {receiver_id} in room {room}")
+            if attachment_data:
+                print(f"💬 Message with attachment sent from {sender_id} to {receiver_id} in room {room}")
+                print(f"📎 Attachment: {attachment_name} ({attachment_size} bytes)")
+            else:
+                print(f"💬 Message sent from {sender_id} to {receiver_id} in room {room}")
             
         except Exception as e:
             db.session.rollback()
