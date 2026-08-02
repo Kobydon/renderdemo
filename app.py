@@ -54,7 +54,7 @@ app.register_blueprint(user, url_prefix="/user")
 app.register_blueprint(room, url_prefix="/room")
 app.register_blueprint(guest, url_prefix="/guest")
 app.register_blueprint(employee, url_prefix="/employee")
-app.register_blueprint(chat_bp, url_prefix="/chat")
+app.register_blueprint(chat_bp)
 
 # ===================== HEALTH CHECK =====================
 
