@@ -1,11 +1,6 @@
-
-
-
 Flask
 flask-buzz
 Flask-Cors
-
-
 flask-marshmallow
 Flask-Migrate
 flask-praetorian
@@ -13,12 +8,13 @@ Flask-RESTful
 Flask-SQLAlchemy
 Flask-WTF
 gunicorn
-
 inflection
-
 marshmallow
-
 SQLAlchemy
 Flask-Mail
-
 psycopg2
+
+# Socket.IO for real-time chat
+python-socketio
+Flask-SocketIO
+eventlet
