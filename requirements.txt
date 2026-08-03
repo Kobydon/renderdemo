@@ -16,3 +16,4 @@ psycopg2
 
 # Socket.IO for real-time chat
 python-socketio
+Flask-SocketIO
