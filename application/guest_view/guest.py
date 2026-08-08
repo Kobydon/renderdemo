@@ -4512,157 +4512,217 @@ import json
 
 
 # ===================== CREATE ORDERS WITH BALANCE =====================
+@guest.route('/create_orders', methods=['POST'])
+@flask_praetorian.auth_required
+def create_orders():
+    try:
+        us = User.query.filter_by(id=flask_praetorian.current_user().id).first()
+        session = Session.query.filter_by(status="current").first()
+        data = request.json
 
-# @guest.route('/create_orders', methods=['POST'])
-# @flask_praetorian.auth_required
-# def create_orders():
-#     try:
-#         us = User.query.filter_by(id=flask_praetorian.current_user().id).first()
-#         session = Session.query.filter_by(status="current").first()
-#         data = request.json
+        if not data or 'cartItems' not in data or 'total' not in data:
+            return jsonify({"error": "Invalid request"}), 400
 
-#         if not data or 'cartItems' not in data or 'total' not in data:
-#             return jsonify({"error": "Invalid request"}), 400
+        # Get cashier
+        cashier = User.query.filter_by(username=data.get("cashier", "")).first()
+        if not cashier:
+            return jsonify({"error": "Cashier not found"}), 404
 
-#         # Get cashier
-#         cashier = User.query.filter_by(username=data.get("cashier", "")).first()
-#         if not cashier:
-#             return jsonify({"error": "Cashier not found"}), 404
+        # Get customer - handle both ID and customer_id
+        customer_input = data.get("customer")
+        customer_name = None
+        customer_obj = None
+        if customer_input:
+            if str(customer_input).isdigit():
+                customer_obj = Customer.query.filter_by(id=int(customer_input)).first()
+            if not customer_obj:
+                customer_obj = Customer.query.filter_by(customer_id=str(customer_input)).first()
+            if customer_obj:
+                customer_name = f"{customer_obj.firstname} {customer_obj.lastname}"
 
-#         # Get customer - handle both ID and customer_id
-#         customer_input = data.get("customer")
-#         customer_name = None
-#         if customer_input:
-#             customer = None
-#             if str(customer_input).isdigit():
-#                 customer = Customer.query.filter_by(id=int(customer_input)).first()
-#             if not customer:
-#                 customer = Customer.query.filter_by(customer_id=str(customer_input)).first()
-#             if customer:
-#                 customer_name = f"{customer.firstname} {customer.lastname}"
-
-#         phone = data.get("phone", "")
-#         items = json.dumps(data.get('cartItems', []))
+        phone = data.get("phone", "")
+        items = json.dumps(data.get('cartItems', []))
         
-#         # Get amount paid and calculate balance
-#         total_amount = float(data['total'])
-#         amount_paid = float(data.get('amount_paid', total_amount))
-#         balance = total_amount - amount_paid
+        # Get amount paid from request
+        amount_paid = float(data.get('amount_paid', 0))
         
-#         # Ensure amount_paid doesn't exceed total
-#         if amount_paid > total_amount:
-#             amount_paid = total_amount
-#             balance = 0
+        # ✅ Check if this is a balance payment
+        is_balance_payment = data.get('is_balance_payment', False)
+        balance_to_pay = float(data.get('balance_to_pay', 0))
+        
+        # Get held cart ID if exists
+        held_cart_id = data.get("id")
+        held_cart = None
+        existing_balance = 0
+        held_cart_total = 0
+        
+        # Check if this is a held order with existing balance
+        if held_cart_id:
+            held_cart = HeldCart.query.filter_by(id=held_cart_id).first()
+            if held_cart:
+                held_cart_total = float(held_cart.total) if held_cart.total else 0
+                
+                try:
+                    existing_balance = float(held_cart.balance) if held_cart.balance else 0
+                    print(f"🔍 DEBUG: existing_balance={existing_balance}")
+                except (ValueError, TypeError):
+                    existing_balance = 0
+                
+                # ✅ CORRECT BALANCE CALCULATION WITH BALANCE PAYMENT SUPPORT
+                if is_balance_payment and existing_balance > 0:
+                    total_amount = existing_balance
+                    new_balance = existing_balance - amount_paid
+                    if new_balance < 0:
+                        new_balance = 0
+                    balance = new_balance
+                    print(f"🔍 BALANCE PAYMENT: existing_balance={existing_balance}, amount_paid={amount_paid}, new_balance={new_balance}")
+                else:
+                    if existing_balance > 0:
+                        new_balance = existing_balance - amount_paid
+                    else:
+                        new_balance = held_cart_total - amount_paid
+                    
+                    if new_balance < 0:
+                        new_balance = 0
+                    
+                    total_amount = held_cart_total
+                    balance = new_balance
+                
+                print(f"🔍 DEBUG create_orders: held_cart_id={held_cart_id}, held_cart_total={held_cart_total}, existing_balance={existing_balance}, amount_paid={amount_paid}, new_balance={new_balance}")
+            else:
+                total_amount = float(data['total'])
+                balance = total_amount - amount_paid
+                if balance < 0:
+                    balance = 0
+        else:
+            total_amount = float(data['total'])
+            balance = total_amount - amount_paid
+            if balance < 0:
+                balance = 0
 
-#         # Create new order
-#         new_order = Order(
-#             user_id=us.id,
-#             items=items,
-#             total=total_amount,
-#             waiter=us.firstname,
-#             order_status="Pending",
-#             status="paid" if balance <= 0 else "Pending",
-#             session=session.open_date if session else None
-#         )
-#         db.session.add(new_order)
-#         db.session.flush()
+        # Create new order
+        new_order = Order(
+            user_id=us.id,
+            items=items,
+            total=total_amount,
+            waiter=us.firstname,
+            order_status="Pending",
+            status="paid" if balance <= 0 else "pending",
+            session=session.open_date if session else None
+        )
+        db.session.add(new_order)
+        db.session.flush()
 
-#         # Process each cart item
-#         for cart_item in data['cartItems']:
-#             item_name = cart_item.get('name')
-#             item_quantity = int(cart_item.get('qty', 0))
-#             category = cart_item.get('category')
-#             family = cart_item.get('family')
-#             price = float(cart_item.get('price', 0))
-#             total_price = price * item_quantity
+        # Process each cart item
+        for cart_item in data['cartItems']:
+            item_name = cart_item.get('name')
+            item_quantity = int(cart_item.get('qty', 0))
+            category = cart_item.get('category')
+            family = cart_item.get('family')
+            price = float(cart_item.get('price', 0))
+            total_price = price * item_quantity
             
-#             item = Iteman.query.filter_by(name=item_name).first()
-#             if not item:
-#                 db.session.rollback()
-#                 return jsonify({"error": f"Item '{item_name}' not found"}), 404
+            item = Iteman.query.filter_by(name=item_name).first()
+            if not item:
+                db.session.rollback()
+                return jsonify({"error": f"Item '{item_name}' not found"}), 404
 
-#             order_item = OrderItem(
-#                 item_name=item_name,
-#                 order_id=new_order.id,
-#                 item_id=item.id,
-#                 quantity=item_quantity,
-#                 category=category,
-#                 waiter=f"{us.firstname} {us.lastname}",
-#                 status="Pending",
-#                 table=data.get('table', '')
-#             )
-#             db.session.add(order_item)
+            order_item = OrderItem(
+                item_name=item_name,
+                order_id=new_order.id,
+                item_id=item.id,
+                quantity=item_quantity,
+                category=category,
+                waiter=f"{us.firstname} {us.lastname}",
+                status="Pending",
+                created_date=datetime.now(),
+                family=family,
+                session=session.open_date if session else None,
+                table=data.get('table', '')
+            )
+            db.session.add(order_item)
 
-#             # Calculate prorated amount for each item based on payment ratio
-#             if total_amount > 0:
-#                 item_amount_paid = (amount_paid / total_amount) * total_price
-#             else:
-#                 item_amount_paid = 0
+            # Calculate prorated amount for each item based on payment ratio
+            if total_amount > 0:
+                item_amount_paid = (amount_paid / total_amount) * total_price
+            else:
+                item_amount_paid = 0
 
-#             pos_payment = PosPayment(
-#                 name=item_name,
-#                 amount=item_amount_paid,
-#                 method=data.get("method", "Cash"),
-#                 quantity=item_quantity,
-#                 attendant=f"{us.firstname} {us.lastname}",
-#                 created_by_id=us.id,
-#                 cashier=f"{cashier.firstname} {cashier.lastname}",
-#                 payment_date=datetime.now(),
-#                 session=session.open_date if session else None,
-#                 category=family,
-#                 cat=category,
-#                 customer=customer_name,
-#                 phone=phone
-#             )
-#             db.session.add(pos_payment)
+            pos_payment = PosPayment(
+                name=item_name,
+                amount=item_amount_paid,
+                method=data.get("method", "Cash"),
+                quantity=item_quantity,
+                attendant=f"{us.firstname} {us.lastname}",
+                created_by_id=us.id,
+                cashier=f"{cashier.firstname} {cashier.lastname}",
+                payment_date=datetime.now(),
+                session=session.open_date if session else None,
+                category=family,
+                cat=category,
+                customer=customer_name,
+                phone=phone
+            )
+            db.session.add(pos_payment)
 
-#             income = Income(
-#                 name=item_name,
-#                 attendant=f"{us.firstname} {us.lastname}",
-#                 amount=item_amount_paid,
-#                 date=datetime.now(),
-#                 discount=data.get("discount", 0),
-#                 note="Pos Payment" + (" (Pending)" if balance > 0 else ""),
-#                 created_date=datetime.now(),
-#                 created_by_id=us.id,
-#                 cashier=f"{cashier.firstname} {cashier.lastname}",
-#                 session=session.open_date if session else None,
-#                 method=data.get("method", "Cash"),
-#                 category=family,
-#                 cat=category,
-#                 customer=customer_name,
-#                 phone=phone
-#             )
-#             db.session.add(income)
+            income = Income(
+                name=item_name,
+                attendant=f"{us.firstname} {us.lastname}",
+                amount=item_amount_paid,
+                date=datetime.now(),
+                discount=data.get("discount", 0),
+                note="Pos Payment" + (" (Pending)" if balance > 0 else ""),
+                created_date=datetime.now(),
+                created_by_id=us.id,
+                cashier=f"{cashier.firstname} {cashier.lastname}",
+                session=session.open_date if session else None,
+                method=data.get("method", "Cash"),
+                category=family,
+                cat=category,
+                customer=customer_name,
+                phone=phone
+            )
+            db.session.add(income)
 
-#             # Update held cart if exists
-#             held_cart_id = data.get("id")
-#             if held_cart_id:
-#                 held_cart = HeldCart.query.filter_by(id=held_cart_id).first()
-#                 if held_cart:
-#                     held_cart.status = "Confirmed" if balance <= 0 else "Pending"
-#                     held_cart.paid_status = "Success" if balance <= 0 else "Pending"
-#                     held_cart.balance = str(balance) if balance > 0 else "0"
+        # ✅ UPDATE ALL pending held carts for this user
+        held_carts = HeldCart.query.filter_by(user_id=us.id, paid_status="Pending").all()
+        for held_cart in held_carts:
+            if balance <= 0:
+                held_cart.status = "Confirmed"
+                held_cart.paid_status = "Success"
+                held_cart.balance = "0"
+                print(f"✅ Held cart {held_cart.id} marked as SUCCESS (balance: {balance})")
+            else:
+                held_cart.status = "Pending"
+                held_cart.paid_status = "Pending"
+                held_cart.balance = str(balance)
+                print(f"⏳ Held cart {held_cart.id} marked as PENDING (balance: {balance})")
+            
+            if customer_obj:
+                held_cart.customer = customer_name
 
-#         db.session.commit()
+        db.session.commit()
 
-#         return jsonify({
-#             "id": new_order.id,
-#             "company_name": new_order.company_name,
-#             "created_at": new_order.created_at.strftime('%Y-%m-%d %H:%M:%S') if new_order.created_at else None,
-#             "items": items,
-#             "order_status": new_order.order_status,
-#             "total": new_order.total,
-#             "balance": balance,
-#             "amount_paid": amount_paid,
-#             "user_id": new_order.user_id,
-#             "waiter": new_order.waiter
-#         }), 201
+        return jsonify({
+            "id": new_order.id,
+            "company_name": new_order.company_name,
+            "created_at": new_order.created_at.strftime('%Y-%m-%d %H:%M:%S') if new_order.created_at else None,
+            "items": items,
+            "order_status": new_order.order_status,
+            "total": total_amount,
+            "balance": balance,
+            "amount_paid": amount_paid,
+            "existing_balance": existing_balance,
+            "held_cart_total": held_cart_total,
+            "user_id": new_order.user_id,
+            "waiter": new_order.waiter,
+            "is_balance_payment": is_balance_payment
+        }), 201
 
-#     except Exception as e:
-#         db.session.rollback()
-#         print(f"Error in create_orders: {str(e)}")
-#         return jsonify({"error": str(e)}), 500
+    except Exception as e:
+        db.session.rollback()
+        print(f"❌ Error in create_orders: {str(e)}")
+        return jsonify({"error": str(e)}), 500
 
 
 # @guest.route('/create_orders_all', methods=['POST'])
