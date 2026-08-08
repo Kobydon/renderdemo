@@ -57,19 +57,19 @@ def register_quick():
     password = request.json["password"]
     lastname =request.json["lastname"]
     about = request.json["about"]
-    country = request.json["country"]
+    # country = request.json["country"]
     city = request.json["city"]
 
     email = request.json["email"]
     address = request.json["address"]
 
 
-    role = request.json["role"]
+    role = "customer"
     phone = request.json["phone"]
     # confirm_password= request.json["confirm_password"]
     hashed_password= guard.hash_password(password)
     # if password == confirm_password:
-    owner = User(firstname=firstname,lastname=lastname,about=about,country=country,company_name=us.company_name,
+    owner = User(firstname=firstname,lastname=lastname,company_name=us.company_name,
                     city=city ,phone=phone,username=username,hashed_password=hashed_password,roles=role,address=address,
                     email=email,created_date=datetime.now())
     db.session.add(owner)
@@ -83,7 +83,7 @@ def register_quick():
 @user.route("/find_cashier", methods=["POST"])
 def find_cashier():
     # password = request.json["password"]
-    user = User.query.filter_by(username=request.json["username"],roles="sales").first()  # Use username or email
+    user = User.query.filter_by(username=request.json["username"],roles="online").first()  # Use username or email
 
     if user:
         return jsonify({"message": "success"}), 200  # ✅ Password is correct
