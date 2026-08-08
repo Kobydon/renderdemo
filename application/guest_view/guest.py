@@ -4688,7 +4688,7 @@ def create_orders():
         held_carts = HeldCart.query.filter_by(user_id=us.id, paid_status="Pending").all()
         for held_cart in held_carts:
             if balance <= 0:
-                held_cart.status = "Confirmed"
+                # held_cart.status = "Confirmed"
                 held_cart.paid_status = "Success"
                 held_cart.balance = "0"
                 print(f"✅ Held cart {held_cart.id} marked as SUCCESS (balance: {balance})")
