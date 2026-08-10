@@ -10570,17 +10570,12 @@ def get_customer_payments():
 
 
     # guest.py - Complete unified hold and pay endpoint
-
 @guest.route('/hold_and_pay', methods=['POST'])
 @flask_praetorian.auth_required
 def hold_and_pay():
     """
     Unified endpoint to hold order and process payment simultaneously
-    Supports:
-    1. Hold order with full payment
-    2. Hold order with partial payment
-    3. Hold order without payment
-    4. Update existing held order with payments
+    Works with existing HeldCart model (no amount_paid field needed)
     """
     try:
         user = current_user()
@@ -10592,7 +10587,7 @@ def hold_and_pay():
             return jsonify({"error": "Invalid request. 'cartItems' and 'total' are required."}), 400
 
         # Get parameters
-        hold_id = data.get('id')  # Optional: for updating existing hold
+        hold_id = data.get('id')
         amount_paid = float(data.get('amount_paid', 0))
         total = float(data.get('total', 0))
         payment_method = data.get('method', 'Cash')
@@ -10635,7 +10630,6 @@ def hold_and_pay():
                 except (ValueError, TypeError):
                     return jsonify({"error": f"Invalid item ID or quantity: {item}"}), 400
                 
-                # Keep confirmed items, update others
                 if item_id in existing_items_dict and existing_items_dict[item_id].get("confirmed", False):
                     updated_items.append(existing_items_dict[item_id])
                 else:
@@ -10679,16 +10673,18 @@ def hold_and_pay():
                 existing_hold.customer = f"{customer.firstname} {customer.lastname}"
                 existing_hold.customer_id = customer.id
             
-            if note:
-                existing_hold.note = note
+            # Update note with payment info if amount paid > 0
+            if amount_paid > 0:
+                payment_note = f"Amount Paid: GHS {amount_paid:.2f}"
+                if existing_hold.note:
+                    existing_hold.note = f"{existing_hold.note} | {payment_note}"
+                else:
+                    existing_hold.note = payment_note
+            
             if table:
                 existing_hold.table = table
             if payment_method:
                 existing_hold.payment_method = payment_method
-            
-            # Track amount paid
-            if amount_paid > 0:
-                existing_hold.amount_paid = amount_paid
             
             order = existing_hold
             order_id = existing_hold.id
@@ -10725,6 +10721,12 @@ def hold_and_pay():
             contain_large_format = any(item.get("family") == "large_format" for item in cart_items)
             contain_label = any(item.get("family") == "label" for item in cart_items)
             
+            # Prepare note with payment info
+            final_note = note
+            if amount_paid > 0:
+                payment_info = f"Amount Paid: GHS {amount_paid:.2f}"
+                final_note = f"{note} | {payment_info}" if note else payment_info
+            
             # Create held cart
             order = HeldCart(
                 user_id=user.id,
@@ -10752,9 +10754,8 @@ def hold_and_pay():
                 digital_printing_confirm="no",
                 session=session.open_date if session else None,
                 table=table,
-                note=note,
-                payment_method=payment_method,
-                amount_paid=amount_paid if amount_paid > 0 else None
+                note=final_note,
+                payment_method=payment_method
             )
             db.session.add(order)
             db.session.flush()
@@ -10766,7 +10767,7 @@ def hold_and_pay():
         customer_email = None
         customer_name = "Valued Customer"
         
-        if customer and customer.email:
+        if customer and hasattr(customer, 'email') and customer.email:
             customer_email = customer.email
             customer_name = f"{customer.firstname} {customer.lastname}"
         elif data.get('customer_email'):
@@ -10776,7 +10777,6 @@ def hold_and_pay():
         email_sent = False
         if customer_email and '@' in str(customer_email):
             try:
-                # Prepare email content
                 from datetime import datetime
                 now = datetime.now()
                 
@@ -10805,9 +10805,6 @@ def hold_and_pay():
                         .total-section .total-amount {{ font-size: 24px; font-weight: 700; color: #ffd700; }}
                         .payment-info {{ background: #f0f7ff; border-radius: 8px; padding: 15px 20px; margin: 15px 0; }}
                         .footer {{ background: #f8f9fa; padding: 25px 30px; text-align: center; border-top: 1px solid #e9ecef; color: #888; }}
-                        .badge {{ display: inline-block; padding: 3px 10px; border-radius: 12px; font-size: 12px; font-weight: 600; }}
-                        .badge-success {{ background: #d4edda; color: #155724; }}
-                        .badge-warning {{ background: #fff3cd; color: #856404; }}
                     </style>
                 </head>
                 <body>
@@ -10840,11 +10837,9 @@ def hold_and_pay():
                                 <tbody>
                 """
                 
-                subtotal = 0
                 items_list = json.loads(order.items)
                 for item in items_list:
                     item_total = float(item['qty']) * float(item['price'])
-                    subtotal += item_total
                     html_content += f"""
                                     <tr>
                                         <td><strong>{item['name']}</strong></td>
@@ -10886,7 +10881,6 @@ def hold_and_pay():
                 </html>
                 """
                 
-                # Send email
                 from flask_mail import Message
                 msg = Message(
                     subject=f"🎉 Order Confirmed! #{order_id} - Asempahfie Graphics",
