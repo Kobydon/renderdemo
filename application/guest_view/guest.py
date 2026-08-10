@@ -10565,3 +10565,361 @@ def get_customer_payments():
             "success": False,
             "error": str(e)
         }), 500
+
+
+
+
+    # guest.py - Complete unified hold and pay endpoint
+
+@guest.route('/hold_and_pay', methods=['POST'])
+@flask_praetorian.auth_required
+def hold_and_pay():
+    """
+    Unified endpoint to hold order and process payment simultaneously
+    Supports:
+    1. Hold order with full payment
+    2. Hold order with partial payment
+    3. Hold order without payment
+    4. Update existing held order with payment
+    """
+    try:
+        user = current_user()
+        data = request.get_json()
+        session = Session.query.filter_by(status="current").first()
+        
+        # Validate required fields
+        if not data or 'cartItems' not in data or 'total' not in data:
+            return jsonify({"error": "Invalid request. 'cartItems' and 'total' are required."}), 400
+
+        # Get parameters
+        hold_id = data.get('id')  # Optional: for updating existing hold
+        amount_paid = float(data.get('amount_paid', 0))
+        total = float(data.get('total', 0))
+        payment_method = data.get('method', 'Cash')
+        note = data.get('note', '')
+        table = data.get('table', '')
+        customer_id = data.get('customer')
+        
+        # Get customer
+        customer = None
+        if customer_id:
+            customer = Customer.query.filter_by(id=customer_id).first()
+        
+        # Parse hold_id
+        existing_hold = None
+        if hold_id:
+            try:
+                hold_id = int(hold_id)
+                existing_hold = HeldCart.query.filter_by(id=hold_id, user_id=user.id).first()
+            except (ValueError, TypeError):
+                return jsonify({"error": "Invalid hold ID"}), 400
+
+        # Calculate balance
+        if existing_hold:
+            # Update existing order
+            try:
+                existing_balance = float(existing_hold.balance) if existing_hold.balance else 0
+                existing_items = json.loads(existing_hold.items) if existing_hold.items else []
+            except (ValueError, TypeError):
+                existing_balance = 0
+                existing_items = []
+            
+            # Merge existing and new items
+            existing_items_dict = {int(item['id']): item for item in existing_items}
+            updated_items = []
+            
+            for item in data['cartItems']:
+                try:
+                    item_id = int(item["id"])
+                    item_qty = int(item["qty"])
+                except (ValueError, TypeError):
+                    return jsonify({"error": f"Invalid item ID or quantity: {item}"}), 400
+                
+                # Keep confirmed items, update others
+                if item_id in existing_items_dict and existing_items_dict[item_id].get("confirmed", False):
+                    updated_items.append(existing_items_dict[item_id])
+                else:
+                    updated_items.append({
+                        "id": item_id,
+                        "qty": item_qty,
+                        "description": item.get("description", ""),
+                        "name": item["name"],
+                        "price": float(item["price"]),
+                        "family": str(item.get("family", "")).strip(),
+                        "is_checked": "yes" if amount_paid >= total else "no",
+                        "checked_by": f"{user.firstname} {user.lastname}" if amount_paid >= total else "",
+                        "category": str(item.get("category", "")).strip(),
+                        "confirmed": True if amount_paid >= total else False,
+                        "is_vip": item.get("is_vip", "no")
+                    })
+            
+            # Calculate new balance
+            new_balance = existing_balance + total - amount_paid
+            if new_balance < 0:
+                new_balance = 0
+            
+            # Update order
+            existing_hold.items = json.dumps(updated_items)
+            existing_hold.total = existing_balance + total
+            existing_hold.balance = str(new_balance)
+            
+            # Update status
+            if new_balance <= 0:
+                existing_hold.status = "Confirmed"
+                existing_hold.paid_status = "Success"
+            elif amount_paid > 0:
+                existing_hold.status = "Pending"
+                existing_hold.paid_status = "Partial"
+            else:
+                existing_hold.status = "Pending"
+                existing_hold.paid_status = "Pending"
+            
+            # Update customer info
+            if customer:
+                existing_hold.customer = f"{customer.firstname} {customer.lastname}"
+                existing_hold.customer_id = customer.id
+            
+            if note:
+                existing_hold.note = note
+            if table:
+                existing_hold.table = table
+            if payment_method:
+                existing_hold.payment_method = payment_method
+            
+            # Track amount paid
+            if amount_paid > 0:
+                existing_hold.amount_paid = amount_paid
+            
+            order = existing_hold
+            order_id = existing_hold.id
+            
+        else:
+            # Create new order
+            try:
+                cart_items = [{
+                    "id": int(item["id"]),
+                    "qty": int(item["qty"]),
+                    "name": item["name"],
+                    "price": float(item["price"]),
+                    "description": item.get("description", ""),
+                    "family": str(item.get("family", "")).strip(),
+                    "category": str(item.get("category", "")).strip(),
+                    "confirmed": True if amount_paid >= total else False,
+                    "is_checked": "yes" if amount_paid >= total else "no",
+                    "checked_by": f"{user.firstname} {user.lastname}" if amount_paid >= total else "",
+                    "is_vip": item.get("is_vip", "no")
+                } for item in data["cartItems"]]
+            except (ValueError, TypeError, KeyError) as e:
+                return jsonify({"error": f"Invalid cart items format: {str(e)}"}), 400
+            
+            # Calculate balance
+            new_balance = total - amount_paid
+            if new_balance < 0:
+                new_balance = 0
+            
+            # Check item categories
+            contain_drink = any(item.get("family") == "drink" for item in cart_items)
+            contain_food = any(item.get("family") == "food" for item in cart_items)
+            contain_dtf = any(item.get("family") == "dtf" for item in cart_items)
+            contain_digital_printing = any(item.get("family") == "digital_printing" for item in cart_items)
+            contain_large_format = any(item.get("family") == "large_format" for item in cart_items)
+            contain_label = any(item.get("family") == "label" for item in cart_items)
+            
+            # Create held cart
+            order = HeldCart(
+                user_id=user.id,
+                items=json.dumps(cart_items),
+                total=total,
+                balance=str(new_balance),
+                customer=f"{customer.firstname} {customer.lastname}" if customer else data.get('customer', ''),
+                customer_id=customer.id if customer else None,
+                company_name=user.company_name,
+                status="Confirmed" if new_balance <= 0 else "Pending",
+                paid_status="Success" if new_balance <= 0 else ("Partial" if amount_paid > 0 else "Pending"),
+                onetime="no",
+                waiter=f"{user.firstname} {user.lastname}",
+                contain_drink="yes" if contain_drink else "no",
+                contain_food="yes" if contain_food else "no",
+                contain_dtf="yes" if contain_dtf else "no",
+                contain_digital_printing="yes" if contain_digital_printing else "no",
+                contain_large_format="yes" if contain_large_format else "no",
+                contain_label="yes" if contain_label else "no",
+                food_confirm="no",
+                drink_confirm="no",
+                label_confirm="no",
+                dtf_confirm="no",
+                large_format_confirm="no",
+                digital_printing_confirm="no",
+                session=session.open_date if session else None,
+                table=table,
+                note=note,
+                payment_method=payment_method,
+                amount_paid=amount_paid if amount_paid > 0 else None
+            )
+            db.session.add(order)
+            db.session.flush()
+            order_id = order.id
+        
+        db.session.commit()
+        
+        # ========== SEND EMAIL CONFIRMATION ==========
+        customer_email = None
+        customer_name = "Valued Customer"
+        
+        if customer and customer.email:
+            customer_email = customer.email
+            customer_name = f"{customer.firstname} {customer.lastname}"
+        elif data.get('customer_email'):
+            customer_email = data.get('customer_email')
+            customer_name = data.get('customer_name', 'Valued Customer')
+        
+        email_sent = False
+        if customer_email and '@' in str(customer_email):
+            try:
+                # Prepare email content
+                from datetime import datetime
+                now = datetime.now()
+                
+                html_content = f"""
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <meta charset="UTF-8">
+                    <title>Order Confirmation - Asempahfie Graphics</title>
+                    <style>
+                        body {{ font-family: Arial, sans-serif; margin: 0; padding: 0; background-color: #f8f9fa; }}
+                        .email-container {{ max-width: 600px; margin: 20px auto; background: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.08); }}
+                        .header {{ background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%); padding: 30px 20px; text-align: center; border-bottom: 4px solid #e94560; }}
+                        .header h1 {{ color: #ffffff; font-size: 24px; margin: 0; }}
+                        .content {{ padding: 30px; }}
+                        .greeting {{ font-size: 18px; color: #1a1a2e; margin-bottom: 15px; font-weight: 600; }}
+                        .greeting span {{ color: #e94560; }}
+                        .order-status {{ background: #f0f7ff; border-left: 4px solid #e94560; padding: 12px 18px; border-radius: 6px; margin: 20px 0; display: flex; justify-content: space-between; align-items: center; }}
+                        .order-status .value {{ background: #e94560; color: white; padding: 4px 14px; border-radius: 20px; font-size: 13px; font-weight: 600; }}
+                        .order-details {{ background: #f8f9fa; border-radius: 8px; padding: 15px 20px; margin: 20px 0; }}
+                        .order-details p {{ margin: 6px 0; font-size: 14px; color: #555; }}
+                        .items-table {{ width: 100%; border-collapse: collapse; margin: 20px 0; }}
+                        .items-table th {{ background: #1a1a2e; color: white; padding: 12px 15px; text-align: left; }}
+                        .items-table td {{ padding: 12px 15px; border-bottom: 1px solid #e9ecef; }}
+                        .total-section {{ background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); color: white; padding: 20px; border-radius: 8px; margin: 20px 0; display: flex; justify-content: space-between; align-items: center; }}
+                        .total-section .total-amount {{ font-size: 24px; font-weight: 700; color: #ffd700; }}
+                        .payment-info {{ background: #f0f7ff; border-radius: 8px; padding: 15px 20px; margin: 15px 0; }}
+                        .footer {{ background: #f8f9fa; padding: 25px 30px; text-align: center; border-top: 1px solid #e9ecef; color: #888; }}
+                        .badge {{ display: inline-block; padding: 3px 10px; border-radius: 12px; font-size: 12px; font-weight: 600; }}
+                        .badge-success {{ background: #d4edda; color: #155724; }}
+                        .badge-warning {{ background: #fff3cd; color: #856404; }}
+                    </style>
+                </head>
+                <body>
+                    <div class="email-container">
+                        <div class="header">
+                            <h1>Asempahfie Graphics</h1>
+                            <div style="color: #e0e0e0; font-size: 14px;">📍 Kokomlemle, Accra • 📞 0243210009</div>
+                        </div>
+                        <div class="content">
+                            <div class="greeting">Dear <span>{customer_name}</span>,</div>
+                            <p style="color: #555; font-size: 15px; line-height: 1.6;">
+                                Thank you for choosing <strong>Asempahfie Graphics</strong>! 🎉
+                                Your order has been {'confirmed' if new_balance <= 0 else 'received and is being processed'}.
+                            </p>
+                            <div class="order-status">
+                                <span style="font-weight: 600;">📋 Order Status:</span>
+                                <span class="value">{'Confirmed ✅' if new_balance <= 0 else 'Processing ⏳'}</span>
+                            </div>
+                            <div class="order-details">
+                                <p><strong>🆔 Order ID:</strong> #{order_id}</p>
+                                <p><strong>📅 Date:</strong> {now.strftime('%A, %B %d, %Y at %I:%M %p')}</p>
+                                <p><strong>👤 Prepared By:</strong> {user.firstname} {user.lastname}</p>
+                                <p><strong>💰 Balance:</strong> {'Fully Paid ✅' if new_balance <= 0 else f'GHS {new_balance:.2f}'}</p>
+                            </div>
+                            <h3 style="color: #1a1a2e; margin: 25px 0 15px;">🛒 Order Items</h3>
+                            <table class="items-table">
+                                <thead>
+                                    <tr><th>Item</th><th>Qty</th><th style="text-align: right;">Price</th><th style="text-align: right;">Total</th></tr>
+                                </thead>
+                                <tbody>
+                """
+                
+                subtotal = 0
+                items_list = json.loads(order.items)
+                for item in items_list:
+                    item_total = float(item['qty']) * float(item['price'])
+                    subtotal += item_total
+                    html_content += f"""
+                                    <tr>
+                                        <td><strong>{item['name']}</strong></td>
+                                        <td>{item['qty']}</td>
+                                        <td style="text-align: right;">GHS {float(item['price']):.2f}</td>
+                                        <td style="text-align: right;">GHS {item_total:.2f}</td>
+                                    </tr>
+                    """
+                
+                html_content += f"""
+                                </tbody>
+                            </table>
+                            <div class="total-section">
+                                <span style="font-size: 16px; font-weight: 600; opacity: 0.9;">Order Total</span>
+                                <span class="total-amount">GHS {total:.2f}</span>
+                            </div>
+                            <div class="payment-info">
+                                <p><strong>💳 Payment Status:</strong> {'Paid in Full ✅' if new_balance <= 0 else f'Partial Payment - Balance: GHS {new_balance:.2f}'}</p>
+                                <p><strong>💰 Amount Paid:</strong> GHS {amount_paid:.2f}</p>
+                                <p><strong>💳 Payment Method:</strong> {payment_method}</p>
+                                <p><strong>📝 Note:</strong> {note if note else 'No special instructions'}</p>
+                            </div>
+                            <p style="color: #555; font-size: 14px; line-height: 1.6; margin-top: 20px;">
+                                💖 We truly appreciate your business! Our team is working diligently to ensure 
+                                your order is prepared with the utmost care and quality.
+                            </p>
+                        </div>
+                        <div class="footer">
+                            <div style="font-size: 16px; font-weight: 700; color: #1a1a2e;">✨ Asempahfie Graphics ✨</div>
+                            <div style="color: #666; margin: 3px 0;">📍 Kokomlemle, Accra</div>
+                            <div style="color: #666; margin: 3px 0;">📞 0243210009</div>
+                            <div style="color: #666; margin: 3px 0;">📧 info@asempahfiegraphics.com</div>
+                            <p style="margin-top: 15px; font-size: 12px; color: #aaa;">
+                                © {now.year} Asempahfie Graphics. All rights reserved.
+                            </p>
+                        </div>
+                    </div>
+                </body>
+                </html>
+                """
+                
+                # Send email
+                from flask_mail import Message
+                msg = Message(
+                    subject=f"🎉 Order Confirmed! #{order_id} - Asempahfie Graphics",
+                    recipients=[str(customer_email)],
+                    html=html_content,
+                    sender="afgghana@gmail.com"
+                )
+                mail.send(msg)
+                email_sent = True
+                print(f"✅ Email sent to {customer_email}")
+                
+            except Exception as e:
+                print(f"⚠️ Failed to send email: {str(e)}")
+                email_sent = False
+
+        # ========== RETURN RESPONSE ==========
+        return jsonify({
+            "success": True,
+            "message": "Order processed successfully",
+            "id": order_id,
+            "order_id": order_id,
+            "total": f"{total:.2f}",
+            "balance": f"{new_balance:.2f}",
+            "amount_paid": f"{amount_paid:.2f}",
+            "status": order.status,
+            "paid_status": order.paid_status,
+            "is_held": new_balance > 0,
+            "is_paid": new_balance <= 0,
+            "email_sent": email_sent,
+            "items": json.loads(order.items) if order.items else []
+        }), 200
+
+    except Exception as e:
+        db.session.rollback()
+        print(f"❌ Error: {str(e)}")
+        return jsonify({"error": str(e)}), 500
