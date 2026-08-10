@@ -10580,7 +10580,7 @@ def hold_and_pay():
     1. Hold order with full payment
     2. Hold order with partial payment
     3. Hold order without payment
-    4. Update existing held order with payment
+    4. Update existing held order with payments
     """
     try:
         user = current_user()
