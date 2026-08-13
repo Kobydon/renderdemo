@@ -10568,14 +10568,11 @@ def get_customer_payments():
 
 
 
-
-    # guest.py - Complete unified hold and pay endpoint
 @guest.route('/hold_and_pay', methods=['POST'])
 @flask_praetorian.auth_required
 def hold_and_pay():
     """
     Unified endpoint to hold order and process payment simultaneously
-    Works with existing HeldCart model (no amount_paid field needed)
     """
     try:
         user = current_user()
@@ -10609,7 +10606,7 @@ def hold_and_pay():
             except (ValueError, TypeError):
                 return jsonify({"error": "Invalid hold ID"}), 400
 
-        # Calculate balance
+        # Calculate balance - FIXED
         if existing_hold:
             # Update existing order
             try:
@@ -10647,15 +10644,25 @@ def hold_and_pay():
                         "is_vip": item.get("is_vip", "no")
                     })
             
-            # Calculate new balance
-            new_balance = existing_balance + total - amount_paid
-            if new_balance < 0:
+            # ========== FIXED BALANCE CALCULATION ==========
+            # Check if full payment was made
+            is_full_payment = amount_paid >= total
+            
+            if is_full_payment:
+                # Full payment - balance should be 0
                 new_balance = 0
+            else:
+                # Partial payment - calculate remaining balance
+                new_balance = existing_balance + total - amount_paid
+                if new_balance < 0:
+                    new_balance = 0
             
             # Update order
             existing_hold.items = json.dumps(updated_items)
             existing_hold.total = existing_balance + total
-            existing_hold.balance = str(new_balance)
+            
+            # ========== FIXED: Set balance as string ==========
+            existing_hold.balance = f"{new_balance:.2f}"
             
             # Update status
             if new_balance <= 0:
@@ -10673,9 +10680,13 @@ def hold_and_pay():
                 existing_hold.customer = f"{customer.firstname} {customer.lastname}"
                 existing_hold.customer_id = customer.id
             
-            # Update note with payment info if amount paid > 0
+            # Update note with payment info
             if amount_paid > 0:
-                payment_note = f"Amount Paid: GHS {amount_paid:.2f}"
+                if is_full_payment:
+                    payment_note = f"💰 PAID IN FULL: GHS {amount_paid:.2f}"
+                else:
+                    payment_note = f"💰 Amount Paid: GHS {amount_paid:.2f} | Balance: GHS {new_balance:.2f}"
+                
                 if existing_hold.note:
                     existing_hold.note = f"{existing_hold.note} | {payment_note}"
                 else:
@@ -10708,10 +10719,18 @@ def hold_and_pay():
             except (ValueError, TypeError, KeyError) as e:
                 return jsonify({"error": f"Invalid cart items format: {str(e)}"}), 400
             
-            # Calculate balance
-            new_balance = total - amount_paid
-            if new_balance < 0:
+            # ========== FIXED BALANCE CALCULATION ==========
+            # Check if full payment was made
+            is_full_payment = amount_paid >= total
+            
+            if is_full_payment:
+                # Full payment - balance should be 0
                 new_balance = 0
+            else:
+                # Partial payment - calculate remaining balance
+                new_balance = total - amount_paid
+                if new_balance < 0:
+                    new_balance = 0
             
             # Check item categories
             contain_drink = any(item.get("family") == "drink" for item in cart_items)
@@ -10724,7 +10743,10 @@ def hold_and_pay():
             # Prepare note with payment info
             final_note = note
             if amount_paid > 0:
-                payment_info = f"Amount Paid: GHS {amount_paid:.2f}"
+                if is_full_payment:
+                    payment_info = f"💰 PAID IN FULL: GHS {amount_paid:.2f}"
+                else:
+                    payment_info = f"💰 Amount Paid: GHS {amount_paid:.2f} | Balance: GHS {new_balance:.2f}"
                 final_note = f"{note} | {payment_info}" if note else payment_info
             
             # Create held cart
@@ -10732,7 +10754,7 @@ def hold_and_pay():
                 user_id=user.id,
                 items=json.dumps(cart_items),
                 total=total,
-                balance=str(new_balance),
+                balance=f"{new_balance:.2f}",  # FIXED: Store as string
                 customer=f"{customer.firstname} {customer.lastname}" if customer else data.get('customer', ''),
                 customer_id=customer.id if customer else None,
                 company_name=user.company_name,
@@ -10817,17 +10839,17 @@ def hold_and_pay():
                             <div class="greeting">Dear <span>{customer_name}</span>,</div>
                             <p style="color: #555; font-size: 15px; line-height: 1.6;">
                                 Thank you for choosing <strong>Asempahfie Graphics</strong>! 🎉
-                                Your order has been {'confirmed' if new_balance <= 0 else 'received and is being processed'}.
+                                Your order has been {'confirmed and paid in full' if new_balance <= 0 else 'received and is being processed'}.
                             </p>
                             <div class="order-status">
                                 <span style="font-weight: 600;">📋 Order Status:</span>
-                                <span class="value">{'Confirmed ✅' if new_balance <= 0 else 'Processing ⏳'}</span>
+                                <span class="value">{'✅ PAID IN FULL' if new_balance <= 0 else '⏳ Processing - Partial Payment'}</span>
                             </div>
                             <div class="order-details">
                                 <p><strong>🆔 Order ID:</strong> #{order_id}</p>
                                 <p><strong>📅 Date:</strong> {now.strftime('%A, %B %d, %Y at %I:%M %p')}</p>
                                 <p><strong>👤 Prepared By:</strong> {user.firstname} {user.lastname}</p>
-                                <p><strong>💰 Balance:</strong> {'Fully Paid ✅' if new_balance <= 0 else f'GHS {new_balance:.2f}'}</p>
+                                <p><strong>💰 Balance:</strong> {'✅ Fully Paid' if new_balance <= 0 else f'GHS {new_balance:.2f}'}</p>
                             </div>
                             <h3 style="color: #1a1a2e; margin: 25px 0 15px;">🛒 Order Items</h3>
                             <table class="items-table">
@@ -10857,7 +10879,7 @@ def hold_and_pay():
                                 <span class="total-amount">GHS {total:.2f}</span>
                             </div>
                             <div class="payment-info">
-                                <p><strong>💳 Payment Status:</strong> {'Paid in Full ✅' if new_balance <= 0 else f'Partial Payment - Balance: GHS {new_balance:.2f}'}</p>
+                                <p><strong>💳 Payment Status:</strong> {'✅ Paid in Full' if new_balance <= 0 else f'⏳ Partial Payment - Balance: GHS {new_balance:.2f}'}</p>
                                 <p><strong>💰 Amount Paid:</strong> GHS {amount_paid:.2f}</p>
                                 <p><strong>💳 Payment Method:</strong> {payment_method}</p>
                                 <p><strong>📝 Note:</strong> {note if note else 'No special instructions'}</p>
@@ -10883,7 +10905,7 @@ def hold_and_pay():
                 
                 from flask_mail import Message
                 msg = Message(
-                    subject=f"🎉 Order Confirmed! #{order_id} - Asempahfie Graphics",
+                    subject=f"🎉 {'Order Paid in Full' if new_balance <= 0 else 'Order Confirmed'} #{order_id} - Asempahfie Graphics",
                     recipients=[str(customer_email)],
                     html=html_content,
                     sender="afgghana@gmail.com"
@@ -10909,6 +10931,7 @@ def hold_and_pay():
             "paid_status": order.paid_status,
             "is_held": new_balance > 0,
             "is_paid": new_balance <= 0,
+            "is_full_payment": is_full_payment,
             "email_sent": email_sent,
             "items": json.loads(order.items) if order.items else []
         }), 200
