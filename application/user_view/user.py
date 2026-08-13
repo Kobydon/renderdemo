@@ -201,7 +201,7 @@ def get_users():
 @flask_praetorian.auth_required
 def get_users_waiter():
     us = User.query.filter_by(id = flask_praetorian.current_user().id).first()
-    info = db.session.query(User).filter_by(company_name=us.company_name,roles="waiter")
+    info = db.session.query(User).filter_by(company_name=us.company_name,roles="online")
     results =user_schema.dump(info)
     return jsonify(results)
 
