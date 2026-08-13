@@ -7508,8 +7508,9 @@ def get_held_orders():
         
         # Get all pending held orders with balance
         held_orders = HeldCart.query.filter(
-            HeldCart.user_id == user_id,
-            HeldCart.paid_status == "Pending"
+            HeldCart.user_id == user_id
+        ).filter(
+            or_(HeldCart.paid_status == "Partial", HeldCart.paid_status == "Pending")
         ).all()
         
         # Format response with balance information
@@ -9777,8 +9778,10 @@ def sales_report():
                     'customer': order.customer or 'Walk-in',
                     'created_at': order.created_at.isoformat() if order.created_at else None,
                     'paid_status': order.paid_status,
+                    'status': order.status,
                     'table': order.table,
                     'waiter': order.waiter,
+                    "working_on": order.working_on,
                     'items': json.loads(order.items) if order.items else []
                 }
                 for order in orders
@@ -10675,7 +10678,7 @@ def hold_and_pay():
                 existing_hold.paid_status = "Pending"
             else:
                 existing_hold.status = "Pending"
-                existing_hold.paid_status = "Pending"
+                existing_hold.paid_status = "Partial"
             
             # Update customer info
             if customer:
