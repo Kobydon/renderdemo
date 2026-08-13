@@ -10672,7 +10672,7 @@ def hold_and_pay():
                 existing_hold.paid_status = "Success"
             elif amount_paid > 0:
                 existing_hold.status = "Pending"
-                existing_hold.paid_status = "Partial"
+                existing_hold.paid_status = "Pending"
             else:
                 existing_hold.status = "Pending"
                 existing_hold.paid_status = "Pending"
