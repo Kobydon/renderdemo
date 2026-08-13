@@ -7957,7 +7957,7 @@ def update_delivery_status():
                         
                         # Get customer from order
                         if held_cart.customer:
-                            customer = Customer.query.filter_by(id=held_cart.customer).first()
+                            customer = Customer.query.filter_by(id=held_cart.customer_id).first()
                             if customer:
                                 customer_email = getattr(customer, 'email', None)
                                 customer_name = getattr(customer, 'firstname', '') + ' ' + getattr(customer, 'lastname', '')
