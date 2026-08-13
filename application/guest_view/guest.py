@@ -1224,7 +1224,7 @@ def search_waiter_dates():
     date = request.json["date"]
     waiter =request.json["waiter"]
     
-    # print(date)
+    print(date)
     pay = PosPayment.query.filter(PosPayment.session.contains(date),PosPayment.attendant.contains(waiter),
                                   )
     lst = pay.order_by(desc(PosPayment.payment_date))
