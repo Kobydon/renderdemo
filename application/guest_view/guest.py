@@ -10606,9 +10606,12 @@ def hold_and_pay():
             except (ValueError, TypeError):
                 return jsonify({"error": "Invalid hold ID"}), 400
 
-        # Calculate balance - FIXED
+        # Check if full payment was made
+        is_full_payment = amount_paid >= total
+        
+        # ========== FIXED: Handle existing order ==========
         if existing_hold:
-            # Update existing order
+            # Get existing balance
             try:
                 existing_balance = float(existing_hold.balance) if existing_hold.balance else 0
                 existing_items = json.loads(existing_hold.items) if existing_hold.items else []
@@ -10637,31 +10640,30 @@ def hold_and_pay():
                         "name": item["name"],
                         "price": float(item["price"]),
                         "family": str(item.get("family", "")).strip(),
-                        "is_checked": "yes" if amount_paid >= total else "no",
-                        "checked_by": f"{user.firstname} {user.lastname}" if amount_paid >= total else "",
+                        "is_checked": "yes" if is_full_payment else "no",
+                        "checked_by": f"{user.firstname} {user.lastname}" if is_full_payment else "",
                         "category": str(item.get("category", "")).strip(),
-                        "confirmed": True if amount_paid >= total else False,
+                        "confirmed": True if is_full_payment else False,
                         "is_vip": item.get("is_vip", "no")
                     })
             
-            # ========== FIXED BALANCE CALCULATION ==========
-            # Check if full payment was made
-            is_full_payment = amount_paid >= total
+            # ========== FIXED: Calculate new total and balance ==========
+            # New total = existing balance + new items total
+            new_total = existing_balance + total
             
             if is_full_payment:
                 # Full payment - balance should be 0
                 new_balance = 0
+                new_total = existing_balance + total  # Keep total as sum
             else:
                 # Partial payment - calculate remaining balance
-                new_balance = existing_balance + total - amount_paid
+                new_balance = new_total - amount_paid
                 if new_balance < 0:
                     new_balance = 0
             
             # Update order
             existing_hold.items = json.dumps(updated_items)
-            existing_hold.total = existing_balance + total
-            
-            # ========== FIXED: Set balance as string ==========
+            existing_hold.total = new_total
             existing_hold.balance = f"{new_balance:.2f}"
             
             # Update status
@@ -10701,7 +10703,7 @@ def hold_and_pay():
             order_id = existing_hold.id
             
         else:
-            # Create new order
+            # ========== FIXED: Create new order ==========
             try:
                 cart_items = [{
                     "id": int(item["id"]),
@@ -10711,23 +10713,18 @@ def hold_and_pay():
                     "description": item.get("description", ""),
                     "family": str(item.get("family", "")).strip(),
                     "category": str(item.get("category", "")).strip(),
-                    "confirmed": True if amount_paid >= total else False,
-                    "is_checked": "yes" if amount_paid >= total else "no",
-                    "checked_by": f"{user.firstname} {user.lastname}" if amount_paid >= total else "",
+                    "confirmed": True if is_full_payment else False,
+                    "is_checked": "yes" if is_full_payment else "no",
+                    "checked_by": f"{user.firstname} {user.lastname}" if is_full_payment else "",
                     "is_vip": item.get("is_vip", "no")
                 } for item in data["cartItems"]]
             except (ValueError, TypeError, KeyError) as e:
                 return jsonify({"error": f"Invalid cart items format: {str(e)}"}), 400
             
-            # ========== FIXED BALANCE CALCULATION ==========
-            # Check if full payment was made
-            is_full_payment = amount_paid >= total
-            
+            # ========== FIXED: Calculate balance ==========
             if is_full_payment:
-                # Full payment - balance should be 0
                 new_balance = 0
             else:
-                # Partial payment - calculate remaining balance
                 new_balance = total - amount_paid
                 if new_balance < 0:
                     new_balance = 0
@@ -10754,7 +10751,7 @@ def hold_and_pay():
                 user_id=user.id,
                 items=json.dumps(cart_items),
                 total=total,
-                balance=f"{new_balance:.2f}",  # FIXED: Store as string
+                balance=f"{new_balance:.2f}",
                 customer=f"{customer.firstname} {customer.lastname}" if customer else data.get('customer', ''),
                 customer_id=customer.id if customer else None,
                 company_name=user.company_name,
