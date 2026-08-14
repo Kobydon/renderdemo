@@ -10023,9 +10023,27 @@ def search_most_attendant_two():
 @flask_praetorian.auth_required
 def accept_order(order_id):
     try:
+        user = User.query.filter_by(id=flask_praetorian.current_user().id).first()
         order = HeldCart.query.get_or_404(order_id)
-        order.working_on = flask_praetorian.current_user().firstname + " " + flask_praetorian.current_user().lastname
-        order.working_on_id = str(flask_praetorian.current_user().id)
+        if user.roles=="label":
+      
+            order.working_on_label = flask_praetorian.current_user().firstname + " " + flask_praetorian.current_user().lastname
+            order.working_on_id_label = str(flask_praetorian.current_user().id)
+
+
+        elif user.roles=="dtf":
+            order.working_on_dtf = flask_praetorian.current_user().firstname + " " + flask_praetorian.current_user().lastname
+            order.working_on_id_dtf = str(flask_praetorian.current_user().id)
+
+        elif user.roles=="digital_printing":
+            order.working_on_digital_printing = flask_praetorian.current_user().firstname + " " + flask_praetorian.current_user().lastname
+            order.working_on_id_digital_printing = str(flask_praetorian.current_user().id) 
+
+        elif user.roles=="large_format":
+            order.working_on_large_format = flask_praetorian.current_user().firstname + " " + flask_praetorian.current_user().lastname
+            order.working_on_id_large_format = str(flask_praetorian.current_user().id)
+            
+
         db.session.commit()
         return jsonify({"message": "Order accepted successfully"}), 200
     except Exception as e:
@@ -10411,8 +10429,8 @@ def check_order_item(order_id, item_id):
         # Find and update the specific item
         item_found = False
         for item in items:
-            if item.get('id') == item_id:
-                item['is_checked'] = "yes"
+            if item.get('id') == item_id and current_user.roles == "label":
+                item['is_checked_label'] = "yes"
                 item['checked_by'] = str(current_user.firstname + " " + current_user.lastname)
                 item_found = True
                 break
@@ -10655,7 +10673,10 @@ def hold_and_pay():
                                            "name": item["name"],
                                            "price": item["price"],
                                            "family": str(item.get("family", "")).strip(),
-                                           "is_checked": str(item.get("is_checked", "no")).strip(),
+                                           "is_checked_label": str(item.get("is_checked_label", "no")).strip(),
+                                           "is_checked_dtf": str(item.get("is_checked_dtf", "no")).strip(),
+                                             "is_checked_large_format": str(item.get("is_checked_large_format", "no")).strip(),
+                                             "is_checked_digital_printing": str(item.get("is_checked_digital_printing", "no")).strip(),
                                            "checked_by": str(flask_praetorian.current_user().firstname+" "+flask_praetorian.current_user().lastname) if item.get("is_checked", "no") == "yes" else "",
                                            "category": str(item.get("category", "")).strip(),
                                            "confirmed": False,
@@ -10728,7 +10749,11 @@ def hold_and_pay():
                     "family": str(item.get("family", "")).strip(),
                     "category": str(item.get("category", "")).strip(),
                     "confirmed": False ,
-                    "is_checked": "no",
+                    "is_checked_label   ": "no",
+                    "is_checked_dtf": "no",
+                    "is_checked_large_format": "no",
+                    "is_checked_digital_printing": "no",
+
                     
                     "is_vip": item.get("is_vip", "no")
                 } for item in data["cartItems"]]
