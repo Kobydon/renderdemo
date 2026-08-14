@@ -4351,7 +4351,7 @@ import json
 @flask_praetorian.auth_required
 def get_orders():
     user = flask_praetorian.current_user()
-    orders = OrderItem.query.filter_by(company_name=user.company_name,family="digital",status="Pending").order_by(OrderItem.id.desc()).all()
+    orders = OrderItem.query.filter_by(company_name=user.company_name,family="food",status="Pending").order_by(OrderItem.id.desc()).all()
     return jsonify(orders_schema.dump(orders))
 
 
@@ -10648,20 +10648,19 @@ def hold_and_pay():
                 if item_id in existing_items_dict and existing_items_dict[item_id].get("confirmed", False):
                     updated_items.append(existing_items_dict[item_id])
                 else:
-                    updated_items.append({
-                        "id": item_id,
-                        "qty": item_qty,
-                        "description": item.get("description", ""),
-                        "name": item["name"],
-                        "price": float(item["price"]),
-                        "family": str(item.get("family", "")).strip(),
-                        "is_checked": "yes" if is_full_payment else "no",
-                        "checked_by": f"{user.firstname} {user.lastname}" if is_full_payment else "",
-                        "category": str(item.get("category", "")).strip(),
-                        "confirmed": True if is_full_payment else False,
-                        "is_vip": item.get("is_vip", "no")
-                    })
-            
+                     updated_items.append({
+                                           "id": item_id,
+                                           "qty": item_qty,
+                                           "description": item.get("description", ""),
+                                           "name": item["name"],
+                                           "price": item["price"],
+                                           "family": str(item.get("family", "")).strip(),
+                                           "is_checked": str(item.get("is_checked", "no")).strip(),
+                                           "checked_by": str(flask_praetorian.current_user().firstname+" "+flask_praetorian.current_user().lastname) if item.get("is_checked", "no") == "yes" else "",
+                                           "category": str(item.get("category", "")).strip(),
+                                           "confirmed": False,
+                                           "is_vip": item.get("is_vip", "no")
+                                       })
             # ========== FIXED: Calculate new total and balance ==========
             # New total = existing balance + new items total
             new_total = existing_balance + total
@@ -10728,9 +10727,9 @@ def hold_and_pay():
                     "description": item.get("description", ""),
                     "family": str(item.get("family", "")).strip(),
                     "category": str(item.get("category", "")).strip(),
-                    "confirmed": True if is_full_payment else False,
-                    "is_checked": "yes" if is_full_payment else "no",
-                    "checked_by": f"{user.firstname} {user.lastname}" if is_full_payment else "",
+                    "confirmed": False ,
+                    "is_checked": "no",
+                    
                     "is_vip": item.get("is_vip", "no")
                 } for item in data["cartItems"]]
             except (ValueError, TypeError, KeyError) as e:
@@ -10770,7 +10769,7 @@ def hold_and_pay():
                 customer=f"{customer.firstname} {customer.lastname}" if customer else data.get('customer', ''),
                 customer_id=customer.id if customer else None,
                 company_name=user.company_name,
-                status="Pending" if new_balance <= 0 else "Pending",
+                status="Confirmed" if new_balance <= 0 else "Pending",
                 paid_status="Success" if new_balance <= 0 else ("Partial" if amount_paid > 0 else "Pending"),
                 onetime="no",
                 waiter=f"{user.firstname} {user.lastname}",
