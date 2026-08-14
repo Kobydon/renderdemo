@@ -1079,6 +1079,7 @@ def search_held_order_dates_two():
 
     except Exception as e:
         print(f"Error occurred: {e}")
+        db.session.rollback()
         return jsonify({"error": "An error occurred while fetching data"}), 500
 
 
@@ -1214,6 +1215,7 @@ def search_pos_dates_two():
 
     except Exception as e:
         print(f"Error occurred: {e}")
+        db.session.rollback()
         return jsonify({"error": "An error occurred while fetching data"}), 500
 
 
@@ -1306,6 +1308,7 @@ def search_waiter_dates_two():
 
     except Exception as e:
         print(f"Error occurred: {e}")
+        db.session.rollback()
         return jsonify({"error": "An error occurred while fetching data"}), 500
 
 
@@ -1334,6 +1337,7 @@ def search_attendant_dates_two():
 
     except Exception as e:
         print(f"Error occurred: {e}")
+        db.session.rollback()
         return jsonify({"error": "An error occurred while fetching data"}), 500 
 
 
@@ -1364,6 +1368,7 @@ def search_method_dates_two():
 
     except Exception as e:
         print(f"Error occurred: {e}")
+        db.session.rollback()
         return jsonify({"error": "An error occurred while fetching data"}), 500
 
 
@@ -1394,6 +1399,7 @@ def search_department_dates_two():
 
     except Exception as e:
         print(f"Error occurred: {e}")
+        db.session.rollback()
         return jsonify({"error": "An error occurred while fetching data"}), 500
 
 
@@ -1426,6 +1432,7 @@ def search_category_dates_two():
 
     except Exception as e:
         print(f"Error occurred: {e}")
+        db.session.rollback()
         return jsonify({"error": "An error occurred while fetching data"}), 500
 
 
@@ -1458,6 +1465,7 @@ def search_cashier_dates_two():
 
     except Exception as e:
         print(f"Error occurred: {e}")
+        db.session.rollback()
         return jsonify({"error": "An error occurred while fetching data"}), 500
 
 
@@ -3138,6 +3146,7 @@ def searchdates_two():
 
     except Exception as e:
         print(f"Error occurred: {e}")
+        db.session.rollback()
         return jsonify({"error": "An error occurred while fetching data"}), 500
 
 
@@ -3166,6 +3175,7 @@ def search_purchase_date_two():
 
     except Exception as e:
         print(f"Error occurred: {e}")
+        db.session.rollback()
         return jsonify({"error": "An error occurred while fetching data"}), 500
 
 
@@ -3194,6 +3204,7 @@ def search_refund_dates_two():
 
     except Exception as e:
         print(f"Error occurred: {e}")
+        db.session.rollback()
         return jsonify({"error": "An error occurred while fetching data"}), 500
 
 # @guest.route("/search_salary_dates",methods=["POST"])
@@ -3329,6 +3340,7 @@ def search_expense_dates_two():
         return jsonify(result), 200
     except Exception as e:
         print(f"Error occurred: {e}")
+        db.session.rollback()
 
 
 
