@@ -8456,8 +8456,8 @@ def get_helding_orders_givers():
 
             # ✅ Include ALL items, no filtering
             orders_list.append({
-                ""id": order.id,
-                                    "items": filtered_items,
+                                    "id": order.id,
+                                    "items": held_orders,
                                     "total": order.total,
                                     "balance":order.balance,
                                     "note": order.note,
