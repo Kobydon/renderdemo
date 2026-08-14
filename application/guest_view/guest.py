@@ -4351,7 +4351,7 @@ import json
 @flask_praetorian.auth_required
 def get_orders():
     user = flask_praetorian.current_user()
-    orders = OrderItem.query.filter_by(company_name=user.company_name,family="food",status="Pending").order_by(OrderItem.id.desc()).all()
+    orders = OrderItem.query.filter_by(company_name=user.company_name,family="digital",status="Pending").order_by(OrderItem.id.desc()).all()
     return jsonify(orders_schema.dump(orders))
 
 
@@ -10683,7 +10683,7 @@ def hold_and_pay():
             
             # Update status
             if new_balance <= 0:
-                existing_hold.status = "Confirmed"
+                existing_hold.status = "Pending"
                 existing_hold.paid_status = "Success"
             elif amount_paid > 0:
                 existing_hold.status = "Pending"
@@ -10770,7 +10770,7 @@ def hold_and_pay():
                 customer=f"{customer.firstname} {customer.lastname}" if customer else data.get('customer', ''),
                 customer_id=customer.id if customer else None,
                 company_name=user.company_name,
-                status="Confirmed" if new_balance <= 0 else "Pending",
+                status="Pending" if new_balance <= 0 else "Pending",
                 paid_status="Success" if new_balance <= 0 else ("Partial" if amount_paid > 0 else "Pending"),
                 onetime="no",
                 waiter=f"{user.firstname} {user.lastname}",
