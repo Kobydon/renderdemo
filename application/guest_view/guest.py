@@ -7613,6 +7613,15 @@ def get_helding_orders():
                     "digital_printing_status": order.contain_digital_printing,
                     "working_on": order.working_on,
                     "working_on_id": order.working_on_id,
+                    "working_on_label": order.working_on_label,
+                    "working_on_id_label": order.working_on_id_label,
+                    "working_on_large_format": order.working_on_large_format,
+                    "working_on_id_large_format": order.working_on_id_large_format,
+                    "working_on_dtf": order.working_on_dtf,
+                    "working_on_id_dtf": order.working_on_id_dtf,
+                    "working_on_digital_printing": order.working_on_digital_printing,
+                    "working_on_id_digital_printing": order.working_on_id_digital_printing,
+
                     "created_at": order.created_at.strftime('%Y-%m-%d %H:%M:%S')  # Format the datetime
                 })
 
@@ -7653,17 +7662,25 @@ def get_helding_ordersa():
 
             if filtered_items:  # Only include orders with unconfirmed food items
                 orders_list.append({
-                    "id": order.id,
-                    "items": filtered_items,
-                    "balance":order.balance,
-                    "total": order.total,
-                    "note": order.note,
-                    "waiter": order.waiter,
-                     "working_on_id": order.working_on_id,
-                     "working_on": order.working_on,
-                    "company_name": order.company_name,
-                    "status": order.status,
-                    "created_at": order.created_at.strftime('%Y-%m-%d %H:%M:%S')  # Format the datetime
+                   "id": order.id,
+                                       "items": filtered_items,
+                                       "total": order.total,
+                                       "balance":order.balance,
+                                       "note": order.note,
+                                       "waiter": order.waiter,
+                                       "company_name": order.company_name,
+                                       "status": order.status,
+                                       "digital_printing_status": order.contain_digital_printing,
+                                       "working_on": order.working_on,
+                                       "working_on_id": order.working_on_id,
+                                       "working_on_label": order.working_on_label,
+                                       "working_on_id_label": order.working_on_id_label,
+                                       "working_on_large_format": order.working_on_large_format,
+                                       "working_on_id_large_format": order.working_on_id_large_format,
+                                       "working_on_dtf": order.working_on_dtf,
+                                       "working_on_id_dtf": order.working_on_id_dtf,
+                                       "working_on_digital_printing": order.working_on_digital_printing,
+                                       "working_on_id_digital_printing": order.working_on_id_digital_printing, # Format the datetime
                 })
 
         except (json.JSONDecodeError, TypeError) as e:
@@ -7701,17 +7718,25 @@ def get_helding_orders_drinks():
 
             if filtered_items:
                 orders_list.append({
-                    "id": order.id,
-                    "items": filtered_items,
-                    "total": order.total,
-                    "waiter": order.waiter,
-                    "company_name": order.company_name,
-                    "status": order.status,
-                     "working_on_id": order.working_on_id,
-                     "balance":order.balance,
-                     "working_on": order.working_on,
-                     "balance":order.balance,
-                    "large_format_status": order.contain_large_format
+                   "id": order.id,
+                                       "items": filtered_items,
+                                       "total": order.total,
+                                       "balance":order.balance,
+                                       "note": order.note,
+                                       "waiter": order.waiter,
+                                       "company_name": order.company_name,
+                                       "status": order.status,
+                                       "digital_printing_status": order.contain_digital_printing,
+                                       "working_on": order.working_on,
+                                       "working_on_id": order.working_on_id,
+                                       "working_on_label": order.working_on_label,
+                                       "working_on_id_label": order.working_on_id_label,
+                                       "working_on_large_format": order.working_on_large_format,
+                                       "working_on_id_large_format": order.working_on_id_large_format,
+                                       "working_on_dtf": order.working_on_dtf,
+                                       "working_on_id_dtf": order.working_on_id_dtf,
+                                       "working_on_digital_printing": order.working_on_digital_printing,
+                                       "working_on_id_digital_printing": order.working_on_id_digital_printing,
                 })
 
         except (json.JSONDecodeError, TypeError) as e:
@@ -7755,17 +7780,24 @@ def get_helding_orders_processed_drinks():
             if filtered_items:
                 orders_list.append({
                     "id": order.id,
-                    "items": filtered_items,
-                    "total": order.total,
-                    "note": order.note,
-                    "waiter": order.waiter,
-                    "company_name": order.company_name,
-                    "balance":order.balance,
-                    "working_on": order.working_on,
-                    "working_on_id": order.working_on_id,
-                    "balance":order.balance,
-                    "status": order.status,
-                    "created_at": order.created_at.strftime('%Y-%m-%d %H:%M:%S')  # Format the datetime
+                                        "items": filtered_items,
+                                        "total": order.total,
+                                        "balance":order.balance,
+                                        "note": order.note,
+                                        "waiter": order.waiter,
+                                        "company_name": order.company_name,
+                                        "status": order.status,
+                                        "digital_printing_status": order.contain_digital_printing,
+                                        "working_on": order.working_on,
+                                        "working_on_id": order.working_on_id,
+                                        "working_on_label": order.working_on_label,
+                                        "working_on_id_label": order.working_on_id_label,
+                                        "working_on_large_format": order.working_on_large_format,
+                                        "working_on_id_large_format": order.working_on_id_large_format,
+                                        "working_on_dtf": order.working_on_dtf,
+                                        "working_on_id_dtf": order.working_on_id_dtf,
+                                        "working_on_digital_printing": order.working_on_digital_printing,
+                                        "working_on_id_digital_printing": order.working_on_id_digital_printing,
                 })
 
         except (json.JSONDecodeError, TypeError) as e:
@@ -7809,15 +7841,24 @@ def get_helding_orders_label():
             if filtered_items:
                 orders_list.append({
                     "id": order.id,
-                    "items": filtered_items,
-                    "total": order.total,
-                    "waiter": order.waiter,
-                    "company_name": order.company_name,
-                    "status": order.status,
-                    "working_on": order.working_on,
-                    "working_on_id": order.working_on_id,
-                    "label_status": order.contain_label,
-                    "balance":order.balance,
+                                        "items": filtered_items,
+                                        "total": order.total,
+                                        "balance":order.balance,
+                                        "note": order.note,
+                                        "waiter": order.waiter,
+                                        "company_name": order.company_name,
+                                        "status": order.status,
+                                        "digital_printing_status": order.contain_digital_printing,
+                                        "working_on": order.working_on,
+                                        "working_on_id": order.working_on_id,
+                                        "working_on_label": order.working_on_label,
+                                        "working_on_id_label": order.working_on_id_label,
+                                        "working_on_large_format": order.working_on_large_format,
+                                        "working_on_id_large_format": order.working_on_id_large_format,
+                                        "working_on_dtf": order.working_on_dtf,
+                                        "working_on_id_dtf": order.working_on_id_dtf,
+                                        "working_on_digital_printing": order.working_on_digital_printing,
+                                        "working_on_id_digital_printing": order.working_on_id_digital_printing,
                 })
 
         except (json.JSONDecodeError, TypeError) as e:
@@ -7860,16 +7901,24 @@ def get_helding_orders_label_processed():
             if filtered_items:
                 orders_list.append({
                    "id": order.id,
-                    "items": filtered_items,
-                    "total": order.total,
-                    "note": order.note,
-                    "waiter": order.waiter,
-                    "company_name": order.company_name,
-                    "status": order.status,
-                    "working_on": order.working_on,
-                    "working_on_id": order.working_on_id,
-                    "balance":order.balance,
-                    "created_at": order.created_at.strftime('%Y-%m-%d %H:%M:%S')  # Format the datetime
+                                       "items": filtered_items,
+                                       "total": order.total,
+                                       "balance":order.balance,
+                                       "note": order.note,
+                                       "waiter": order.waiter,
+                                       "company_name": order.company_name,
+                                       "status": order.status,
+                                       "digital_printing_status": order.contain_digital_printing,
+                                       "working_on": order.working_on,
+                                       "working_on_id": order.working_on_id,
+                                       "working_on_label": order.working_on_label,
+                                       "working_on_id_label": order.working_on_id_label,
+                                       "working_on_large_format": order.working_on_large_format,
+                                       "working_on_id_large_format": order.working_on_id_large_format,
+                                       "working_on_dtf": order.working_on_dtf,
+                                       "working_on_id_dtf": order.working_on_id_dtf,
+                                       "working_on_digital_printing": order.working_on_digital_printing,
+                                       "working_on_id_digital_printing": order.working_on_id_digital_printing,  # Format the datetime
                 })
 
         except (json.JSONDecodeError, TypeError) as e:
@@ -7910,15 +7959,24 @@ def get_helding_orders_dtf():
             if filtered_items:
                 orders_list.append({
                     "id": order.id,
-                    "items": filtered_items,
-                    "total": order.total,
-                    "waiter": order.waiter,
-                    "company_name": order.company_name,
-                    "status": order.status,
-                    "working_on": order.working_on,
-                    "working_on_id": order.working_on_id,
-                    "dtf_status": order.contain_dtf,
-                    "balance":order.balance,
+                                        "items": filtered_items,
+                                        "total": order.total,
+                                        "balance":order.balance,
+                                        "note": order.note,
+                                        "waiter": order.waiter,
+                                        "company_name": order.company_name,
+                                        "status": order.status,
+                                        "digital_printing_status": order.contain_digital_printing,
+                                        "working_on": order.working_on,
+                                        "working_on_id": order.working_on_id,
+                                        "working_on_label": order.working_on_label,
+                                        "working_on_id_label": order.working_on_id_label,
+                                        "working_on_large_format": order.working_on_large_format,
+                                        "working_on_id_large_format": order.working_on_id_large_format,
+                                        "working_on_dtf": order.working_on_dtf,
+                                        "working_on_id_dtf": order.working_on_id_dtf,
+                                        "working_on_digital_printing": order.working_on_digital_printing,
+                                        "working_on_id_digital_printing": order.working_on_id_digital_printing,
                 })
 
         except (json.JSONDecodeError, TypeError) as e:
@@ -8398,20 +8456,25 @@ def get_helding_orders_givers():
 
             # ✅ Include ALL items, no filtering
             orders_list.append({
-                "id": order.id,
-                "items": items,  # All items included
-                "total": order.total,
-                "waiter": order.waiter,
-                "company_name": order.company_name,
-                "status": order.status,
-                "balance":order.balance,
-                "delivery_status": getattr(order, 'delivery_status', 'pending'),
-                "customer": order.customer,
-                "note": order.note,
-                "created_at": order.created_at.strftime('%Y-%m-%d %H:%M:%S') if order.created_at else None,
-                "dtf_confirm": order.dtf_confirm,
-                "working_on": order.working_on,
-                "working_on_id": order.working_on_id
+                ""id": order.id,
+                                    "items": filtered_items,
+                                    "total": order.total,
+                                    "balance":order.balance,
+                                    "note": order.note,
+                                    "waiter": order.waiter,
+                                    "company_name": order.company_name,
+                                    "status": order.status,
+                                    "digital_printing_status": order.contain_digital_printing,
+                                    "working_on": order.working_on,
+                                    "working_on_id": order.working_on_id,
+                                    "working_on_label": order.working_on_label,
+                                    "working_on_id_label": order.working_on_id_label,
+                                    "working_on_large_format": order.working_on_large_format,
+                                    "working_on_id_large_format": order.working_on_id_large_format,
+                                    "working_on_dtf": order.working_on_dtf,
+                                    "working_on_id_dtf": order.working_on_id_dtf,
+                                    "working_on_digital_printing": order.working_on_digital_printing,
+                                    "working_on_id_digital_printing": order.working_on_id_digital_printing,
             })
 
         except (json.JSONDecodeError, TypeError) as e:
@@ -8500,14 +8563,24 @@ def get_helding_orders_dtf_processed():
             if filtered_items:
                 orders_list.append({
                     "id": order.id,
-                    "items": filtered_items,
-                    "total": order.total,
-                    "note": order.note,
-                    "waiter": order.waiter,
-                    "company_name": order.company_name,
-                    "balance":order.balance,
-                    "status": order.status,
-                    "created_at": order.created_at.strftime('%Y-%m-%d %H:%M:%S')  # Format the datetime
+                                        "items": filtered_items,
+                                        "total": order.total,
+                                        "balance":order.balance,
+                                        "note": order.note,
+                                        "waiter": order.waiter,
+                                        "company_name": order.company_name,
+                                        "status": order.status,
+                                        "digital_printing_status": order.contain_digital_printing,
+                                        "working_on": order.working_on,
+                                        "working_on_id": order.working_on_id,
+                                        "working_on_label": order.working_on_label,
+                                        "working_on_id_label": order.working_on_id_label,
+                                        "working_on_large_format": order.working_on_large_format,
+                                        "working_on_id_large_format": order.working_on_id_large_format,
+                                        "working_on_dtf": order.working_on_dtf,
+                                        "working_on_id_dtf": order.working_on_id_dtf,
+                                        "working_on_digital_printing": order.working_on_digital_printing,
+                                        "working_on_id_digital_printing": order.working_on_id_digital_printing, # Format the datetime
                 })
 
         except (json.JSONDecodeError, TypeError) as e:
@@ -10042,7 +10115,7 @@ def accept_order(order_id):
         elif user.roles=="large_format":
             order.working_on_large_format = flask_praetorian.current_user().firstname + " " + flask_praetorian.current_user().lastname
             order.working_on_id_large_format = str(flask_praetorian.current_user().id)
-            
+
 
         db.session.commit()
         return jsonify({"message": "Order accepted successfully"}), 200
