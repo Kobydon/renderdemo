@@ -10485,7 +10485,6 @@ def cutting_order(order_id):
         return jsonify({"error": str(e)}), 500
 
 
-
 @guest.route("/check_order_item/<int:order_id>/<int:item_id>", methods=["PUT"])
 @flask_praetorian.auth_required
 def check_order_item(order_id, item_id):
@@ -10502,8 +10501,8 @@ def check_order_item(order_id, item_id):
         # Find and update the specific item
         item_found = False
         for item in items:
-            if item.get('id') == item_id and current_user.roles == "label":
-                item['is_checked_label'] = "yes"
+            if item.get('id') == item_id:
+                item['is_checked'] = "yes"
                 item['checked_by'] = str(current_user.firstname + " " + current_user.lastname)
                 item_found = True
                 break
