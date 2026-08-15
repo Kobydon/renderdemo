@@ -47,37 +47,59 @@ class User_schema(ma.Schema):
 
 user_schema=User_schema(many=True)
 
-
-@user.route("/register_quick",methods=["POST"])
+@user.route("/register_quick", methods=["POST"])
 @flask_praetorian.auth_required
 def register_quick():
-    us = User.query.filter_by(id = flask_praetorian.current_user().id).first()
-    firstname =request.json["firstname"]
-    username = request.json["username"]
-    password = request.json["password"]
-    lastname =request.json["lastname"]
-    about = request.json["about"]
-    # country = request.json["country"]
-    city = request.json["city"]
+    try:
+        us = User.query.filter_by(
+            id=flask_praetorian.current_user().id
+        ).first()
 
-    email = request.json["email"]
-    address = request.json["address"]
+        data = request.get_json()
 
+        firstname = data["firstname"]
+        username = data["username"]
+        password = data["password"]
+        lastname = data["lastname"]
+        about = data.get("about")
+        city = data["city"]
+        email = data["email"]
+        address = data["address"]
+        role = data["role"]
+        phone = data["phone"]
 
-    role = request.json["role"]
-    phone = request.json["phone"]
-    # confirm_password= request.json["confirm_password"]
-    hashed_password= guard.hash_password(password)
-    # if password == confirm_password:
-    owner = User(firstname=firstname,lastname=lastname,company_name=us.company_name,
-                    city=city ,phone=phone,username=username,hashed_password=hashed_password,roles=role,address=address,
-                    email=email,created_date=datetime.now())
-    db.session.add(owner)
-    db.session.commit()
-    resp = jsonify ("success")
-    resp.status_code =200
+        hashed_password = guard.hash_password(password)
 
-    return resp
+        owner = User(
+            firstname=firstname,
+            lastname=lastname,
+            company_name=us.company_name,
+            city=city,
+            phone=phone,
+            username=username,
+            hashed_password=hashed_password,
+            roles=role,
+            address=address,
+            email=email,
+            created_date=datetime.now()
+        )
+
+        db.session.add(owner)
+        db.session.commit()
+
+        return jsonify("success"), 200
+
+    except Exception as e:
+        # Undo any failed database transaction
+        db.session.rollback()
+
+        # Log the actual error
+        print("Error in register_quick:", str(e))
+
+        return jsonify({
+            "success": False,
+            "message": "An error occurred while registering the user."
+        }), 500
 
 
 @user.route("/find_cashier", methods=["POST"])

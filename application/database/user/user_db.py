@@ -27,7 +27,7 @@ class User(db.Model):
     last_logout = db.Column(db.String(255))
     about = db.Column(db.Text)
     phone = db.Column(db.String(20))
-    email = db.Column(db.String(255), unique=True)
+    email = db.Column(db.String(255))
     address = db.Column(db.Text)
     hashed_password = db.Column(db.Text)
     roles = db.Column(db.Text)
