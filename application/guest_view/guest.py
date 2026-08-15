@@ -1028,7 +1028,6 @@ def search_held_order_dates():
         print(f"Error in search_held_order_dates: {str(e)}")
         return jsonify({"error": str(e)}), 500
 from datetime import datetime, time
-
 @guest.route("/search_held_order_dates_two", methods=["POST"])
 @flask_praetorian.auth_required
 def search_held_order_dates_two():
@@ -1040,8 +1039,10 @@ def search_held_order_dates_two():
     # Get date range from request
     date = request.json.get("date")
     datetwo = request.json.get("date_two")
+    statuses = request.json.get("statuses", ["pending", "Cutting", "in_delivery"])  # Optional: allow custom statuses
+    
     if not date or not datetwo:
-        return jsonify({"error": "Both date and datetwo are requireds"}), 400
+        return jsonify({"error": "Both date and datetwo are required"}), 400
 
     try:
         # Convert to datetime range covering full days
@@ -1052,7 +1053,9 @@ def search_held_order_dates_two():
         held_orders = HeldCart.query.filter(
             HeldCart.session >= start_date,
             HeldCart.session <= end_date,
-            HeldCart.company_name == user.company_name,HeldCart.paid_status=="pending"
+            HeldCart.company_name == user.company_name,
+            HeldCart.paid_status == "pending",
+            HeldCart.delivery_status.in_(statuses)  # Dynamic status filter
         ).order_by(desc(HeldCart.session)).all()
 
         # Deserialize 'items' field before returning JSON response
@@ -1072,7 +1075,8 @@ def search_held_order_dates_two():
                 "waiter": order.waiter,
                 "items": order_items,
                 "customer": order.customer,
-             "phone": order.phone  
+                "phone": order.phone,
+                "delivery_status": order.delivery_status
             })
 
         return jsonify(result), 200
@@ -1081,11 +1085,6 @@ def search_held_order_dates_two():
         print(f"Error occurred: {e}")
         db.session.rollback()
         return jsonify({"error": "An error occurred while fetching data"}), 500
-
-
-
-
-
 
 @guest.route("/search_held_order_dates_food", methods=["POST"])
 @flask_praetorian.auth_required
