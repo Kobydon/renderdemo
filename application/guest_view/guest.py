@@ -1087,7 +1087,7 @@ def search_held_order_dates_two():
                     "status": order.status,
                     "total": order.total,
                     "customer": order.customer,
-                    "phone": order.phone,
+                    
                     "session": order.session,
                     "balance":order.balance,
                     "company_name": order.company_name,
@@ -1104,7 +1104,7 @@ def search_held_order_dates_two():
                     "status": order.status,
                     "total": order.total,
                     "customer": order.customer,
-                    "phone": order.phone,
+                    
                     "session": order.session,
                     "balance":order.balance,
                     "company_name": order.company_name,
