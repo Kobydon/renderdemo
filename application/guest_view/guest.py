@@ -1039,8 +1039,6 @@ def search_held_order_dates_two():
     # Get date range from request
     date = request.json.get("date")
     datetwo = request.json.get("date_two")
-    statuses = request.json.get("statuses", ["pending", "Cutting", "in_delivery"])  # Optional: allow custom statuses
-    
     if not date or not datetwo:
         return jsonify({"error": "Both date and datetwo are required"}), 400
 
@@ -1049,13 +1047,17 @@ def search_held_order_dates_two():
         start_date = datetime.combine(datetime.strptime(date, "%Y-%m-%d"), time.min)
         end_date = datetime.combine(datetime.strptime(datetwo, "%Y-%m-%d"), time.max)
 
-        # Query HeldCart with filtering
+        # Convert dates to string format for comparison with database
+        start_date_str = start_date.strftime("%Y-%m-%d %H:%M:%S")
+        end_date_str = end_date.strftime("%Y-%m-%d %H:%M:%S")
+
+        # Query HeldCart with filtering - Compare as strings
         held_orders = HeldCart.query.filter(
-            HeldCart.session >= start_date,
-            HeldCart.session <= end_date,
+            HeldCart.session >= start_date_str,  # Compare as string
+            HeldCart.session <= end_date_str,    # Compare as string
             HeldCart.company_name == user.company_name,
             HeldCart.paid_status == "pending",
-            HeldCart.delivery_status.in_(statuses)  # Dynamic status filter
+            HeldCart.delivery_status.in_(["pending", "Cutting", "in_delivery"])
         ).order_by(desc(HeldCart.session)).all()
 
         # Deserialize 'items' field before returning JSON response
@@ -1076,7 +1078,8 @@ def search_held_order_dates_two():
                 "items": order_items,
                 "customer": order.customer,
                 "phone": order.phone,
-                "delivery_status": order.delivery_status
+                "delivery_status": order.delivery_status,
+                "session": order.session  # Added for debugging
             })
 
         return jsonify(result), 200
