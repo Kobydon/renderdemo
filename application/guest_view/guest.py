@@ -8084,7 +8084,7 @@ def update_delivery_status():
                 
                 # Get customer from order
                 if held_cart.customer:
-                    customer = Customer.query.filter_by(id=held_cart.customer).first()
+                    customer = Customer.query.filter_by(id=held_cart.customer_id).first()
                     if customer:
                         customer_email = getattr(customer, 'email', None)
                         customer_name = getattr(customer, 'firstname', '') + ' ' + getattr(customer, 'lastname', '')
@@ -8430,7 +8430,7 @@ def send_delivery_email(order_id, customer_name, customer_email, delivered_by, c
     
     mail.send(msg)
     print(f"✅ Delivery email sent to {customer_email} for order #{order_id}")
-    
+
 @guest.route('/get_helding_orders_givers', methods=['GET'])
 @flask_praetorian.auth_required
 def get_helding_orders_givers():
