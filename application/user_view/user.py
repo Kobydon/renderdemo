@@ -64,7 +64,7 @@ def register_quick():
     address = request.json["address"]
 
 
-    role = "customer"
+    role = request.json["role"]
     phone = request.json["phone"]
     # confirm_password= request.json["confirm_password"]
     hashed_password= guard.hash_password(password)
