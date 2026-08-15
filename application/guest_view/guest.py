@@ -1084,7 +1084,7 @@ def search_held_order_dates_two():
                     "id": order.id,
                     "items": order_items,
                     "waiter": order.waiter,
-                    "status": order.status,
+                    "status": order.paid_status,
                     "total": order.total,
                     "customer": order.customer,
                     
