@@ -1028,6 +1028,7 @@ def search_held_order_dates():
         print(f"Error in search_held_order_dates: {str(e)}")
         return jsonify({"error": str(e)}), 500
 from datetime import datetime, time
+
 @guest.route("/search_held_order_dates_two", methods=["POST"])
 @flask_praetorian.auth_required
 def search_held_order_dates_two():
@@ -1051,44 +1052,75 @@ def search_held_order_dates_two():
         start_date_str = start_date.strftime("%Y-%m-%d %H:%M:%S")
         end_date_str = end_date.strftime("%Y-%m-%d %H:%M:%S")
 
-        # Query HeldCart with filtering
+        # Query HeldCart with filtering - No delivery_status filter
         held_orders = HeldCart.query.filter(
             HeldCart.session >= start_date_str,
             HeldCart.session <= end_date_str,
             HeldCart.company_name == user.company_name,
-            HeldCart.paid_status.in_(["Pending", "Partial"]),
-            HeldCart.delivery_status.in_(["pending", "Cutting", "in_delivery"])  # ✅ Added delivery status filter
+            HeldCart.paid_status.in_(["Pending", "Partial"])
         ).order_by(desc(HeldCart.session)).all()
 
-        # Deserialize 'items' field before returning JSON response
+        # Prepare response with items
         result = []
+        total_held_amount = 0
+        
         for order in held_orders:
             try:
-                order_items = json.loads(order.items)
-            except json.JSONDecodeError:
-                order_items = []
+                # Parse items JSON
+                order_items = json.loads(order.items) if order.items else []
+                
+                # Calculate total for this order
+                order_total = 0
+                for item in order_items:
+                    if isinstance(item, dict):
+                        qty = item.get('qty', 0)
+                        price = item.get('price', 0)
+                        order_total += qty * price
+                
+                total_held_amount += order_total
+                
+                # Add order with items
+                result.append({
+                    "id": order.id,
+                    "items": order_items,
+                    "waiter": order.waiter,
+                    "status": order.status,
+                    "total": order.total,
+                    "customer": order.customer,
+                    "phone": order.phone,
+                    "session": order.session,
+                    "balance":order.balance,
+                    "company_name": order.company_name,
+                    "created_at": order.created_at
+                })
+                
+            except json.JSONDecodeError as e:
+                print(f"Error decoding JSON for order {order.id}: {e}")
+                # Add order with empty items if JSON is invalid
+                result.append({
+                    "id": order.id,
+                    "items": [],
+                    "waiter": order.waiter,
+                    "status": order.status,
+                    "total": order.total,
+                    "customer": order.customer,
+                    "phone": order.phone,
+                    "session": order.session,
+                    "balance":order.balance,
+                    "company_name": order.company_name,
+                    "created_at": order.created_at
+                })
 
-            result.append({
-                "id": order.id,
-                "company_name": order.company_name,
-                "created_at": order.created_at,
-                "status": order.status,
-                "total": order.total,
-                "waiter": order.waiter,
-                "items": order_items,
-                "customer": order.customer,
-                "phone": order.phone,
-                "delivery_status": order.delivery_status,
-                "session": order.session,
-                "paid_status": order.paid_status  # Added for clarity
-            })
-
-        return jsonify(result), 200
+        return jsonify({
+            "HeldList": result,
+            "totalHeldAmount": total_held_amount
+        }), 200
 
     except Exception as e:
         print(f"Error occurred: {e}")
         db.session.rollback()
         return jsonify({"error": "An error occurred while fetching data"}), 500
+
 @guest.route("/search_held_order_dates_food", methods=["POST"])
 @flask_praetorian.auth_required
 def search_held_order_dates_food():
