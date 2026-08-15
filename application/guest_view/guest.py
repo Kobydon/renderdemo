@@ -8430,90 +8430,58 @@ def send_delivery_email(order_id, customer_name, customer_email, delivered_by, c
     
     mail.send(msg)
     print(f"✅ Delivery email sent to {customer_email} for order #{order_id}")
+
 @guest.route('/get_helding_orders_givers', methods=['GET'])
 @flask_praetorian.auth_required
 def get_helding_orders_givers():
-    try:
-        current_user = flask_praetorian.current_user()
+    user = flask_praetorian.current_user()
+    us = User.query.filter_by(id=user.id).first()
 
-        user = User.query.filter_by(id=current_user.id).first()
+    if not us:
+        return jsonify({"error": "User not found"}), 404
 
-        if not user:
-            return jsonify({
-                "success": False,
-                "message": "User not found"
-            }), 404
+    # Get only pending delivery orders
+    held_orders = HeldCart.query.filter(
+                HeldCart.delivery_status.in_([
+                    "pending",
+                    "Cutting",
+                    "in_delivery"
+                ])
+            ).all()
+    orders_list = []
 
-        # Get all pending/active delivery orders
-        held_orders = HeldCart.query.filter(
-            HeldCart.delivery_status.in_([
-                "pending",
-                "Cutting",
-                "in_delivery"
-            ])
-        ).all()
+    for order in held_orders:
+        try:
+            print(f"Raw items JSON for order {order.id}:", order.items)
+            items = json.loads(order.items)
 
-        orders_list = []
-
-        for order in held_orders:
-            try:
-                # Convert stored JSON string into Python object
-                if order.items:
-                    items = json.loads(order.items)
-                else:
-                    items = []
-
-            except (json.JSONDecodeError, TypeError):
-                # If the items field contains invalid JSON,
-                # don't break the entire request
-                items = []
-
-                print(
-                    f"Invalid items JSON for HeldCart order {order.id}: "
-                    f"{order.items}"
-                )
-
+            # ✅ Include ALL items, no filtering
             orders_list.append({
-                "id": order.id,
-                "items": items,
-                "total": order.total,
-                "balance": order.balance,
-                "note": order.note,
-                "waiter": order.waiter,
-                "company_name": order.company_name,
-                "status": order.status,
-
-                "digital_printing_status": order.contain_digital_printing,
-
-                "working_on": order.working_on,
-                "working_on_id": order.working_on_id,
-                "working_on_label": order.working_on_label,
-                "working_on_id_label": order.working_on_id_label,
-
-                "working_on_large_format": order.working_on_large_format,
-                "working_on_id_large_format": order.working_on_id_large_format,
-
-                "working_on_dtf": order.working_on_dtf,
-                "working_on_id_dtf": order.working_on_id_dtf,
-
-                "working_on_digital_printing": order.working_on_digital_printing,
-                "working_on_id_digital_printing": (
-                    order.working_on_id_digital_printing
-                ),
+                                    "id": order.id,
+                                    "items": held_orders,
+                                    "total": order.total,
+                                    "balance":order.balance,
+                                    "note": order.note,
+                                    "waiter": order.waiter,
+                                    "company_name": order.company_name,
+                                    "status": order.status,
+                                    "digital_printing_status": order.contain_digital_printing,
+                                    "working_on": order.working_on,
+                                    "working_on_id": order.working_on_id,
+                                    "working_on_label": order.working_on_label,
+                                    "working_on_id_label": order.working_on_id_label,
+                                    "working_on_large_format": order.working_on_large_format,
+                                    "working_on_id_large_format": order.working_on_id_large_format,
+                                    "working_on_dtf": order.working_on_dtf,
+                                    "working_on_id_dtf": order.working_on_id_dtf,
+                                    "working_on_digital_printing": order.working_on_digital_printing,
+                                    "working_on_id_digital_printing": order.working_on_id_digital_printing,
             })
 
-        return jsonify({
-            "success": True,
-            "orders": orders_list
-        }), 200
+        except (json.JSONDecodeError, TypeError) as e:
+            print(f"Error decoding JSON for order {order.id}: {e}")
 
-    except Exception as e:
-        print("Error in get_helding_orders_givers:", str(e))
-
-        return jsonify({
-            "success": False,
-            "message": "An error occurred while fetching orders."
-        }), 500
+    return jsonify(orders_list), 200
 
 
 @guest.route('/get_helding_orders_givers_processed', methods=['GET'])
