@@ -258,50 +258,52 @@ def get_user_details(id):
     results =user_schema.dump(info)
     return jsonify(results)
 
-
-
-
-@user.route("/update_user_profile",methods=['PUT'])
+@user.route("/update_user_profile", methods=["PUT"])
 @flask_praetorian.auth_required
 def update_user_profile():
-    
-            id = request.json["id"]
+    try:
+        data = request.get_json()
 
-            # firstname =request.json["firstname"]
-            # about =request.json["about"]
-            # lastname =request.json["lastname"]
-            # phone =  request.json["phone"]
-            # username = request.json["username"]
-            # password = request.json["password"]
-            # country = request.json["country"]
-            # city =  request.json["city"]
-            # address = request.json["address"]
-            # email = request.json["email"]
-            password = request.json["password"]
+        user_id = data["id"]
+        user = User.query.filter_by(id=user_id).first()
 
-            user = User.query.filter_by(id=id).first()
-            user.firstname =request.json["firstname"]
-            user.about =request.json["about"]
-            user.lastname =request.json["lastname"]
-            user.phone =  request.json["phone"]
-            user.username = request.json["username"]
-            password = request.json["password"]
-            user.country = request.json["country"]
-            user.city =  request.json["city"]
-            user.address = request.json["address"]
-            user.email = request.json["email"]
-            user.roles =  request.json["role"]
-         
-    
-    
-     
-            # user.gender=request.json["gender"]
-            # user.photo=request.json["photo"]
-           
-            user.hashed_password =  guard.hash_password(password)
-            db.session.commit()
-            res = jsonify("sucess")
-            res.status_code=200
-            return res
+        if not user:
+            return jsonify({
+                "success": False,
+                "message": "User not found"
+            }), 404
 
+        user.firstname = data.get("firstname")
+        user.about = data.get("about")
+        user.lastname = data.get("lastname")
+        user.phone = data.get("phone")
+        user.username = data.get("username")
+        user.country = data.get("country")
+        user.city = data.get("city")
+        user.address = data.get("address")
+        user.email = data.get("email")
+        user.roles = data.get("role")
 
+        # Only change password if a password was actually provided
+        password = data.get("password")
+
+        if password is not None and password != "":
+            user.hashed_password = guard.hash_password(password)
+
+        db.session.commit()
+
+        return jsonify({
+            "success": True,
+            "message": "User updated successfully"
+        }), 200
+
+    except Exception as e:
+        # Important: reset the database session if anything fails
+        db.session.rollback()
+
+        print("Error in update_user_profile:", str(e))
+
+        return jsonify({
+            "success": False,
+            "message": "An error occurred while updating the user."
+        }), 500
