@@ -8430,7 +8430,7 @@ def send_delivery_email(order_id, customer_name, customer_email, delivered_by, c
     
     mail.send(msg)
     print(f"✅ Delivery email sent to {customer_email} for order #{order_id}")
-
+    
 @guest.route('/get_helding_orders_givers', methods=['GET'])
 @flask_praetorian.auth_required
 def get_helding_orders_givers():
@@ -8455,27 +8455,27 @@ def get_helding_orders_givers():
             print(f"Raw items JSON for order {order.id}:", order.items)
             items = json.loads(order.items)
 
-            # ✅ Include ALL items, no filtering
+            # ✅ Use the parsed 'items' variable, not 'held_orders'
             orders_list.append({
-                                    "id": order.id,
-                                    "items": held_orders,
-                                    "total": order.total,
-                                    "balance":order.balance,
-                                    "note": order.note,
-                                    "waiter": order.waiter,
-                                    "company_name": order.company_name,
-                                    "status": order.status,
-                                    "digital_printing_status": order.contain_digital_printing,
-                                    "working_on": order.working_on,
-                                    "working_on_id": order.working_on_id,
-                                    "working_on_label": order.working_on_label,
-                                    "working_on_id_label": order.working_on_id_label,
-                                    "working_on_large_format": order.working_on_large_format,
-                                    "working_on_id_large_format": order.working_on_id_large_format,
-                                    "working_on_dtf": order.working_on_dtf,
-                                    "working_on_id_dtf": order.working_on_id_dtf,
-                                    "working_on_digital_printing": order.working_on_digital_printing,
-                                    "working_on_id_digital_printing": order.working_on_id_digital_printing,
+                "id": order.id,
+                "items": items,  # ✅ Fixed: use parsed items
+                "total": order.total,
+                "balance": order.balance,
+                "note": order.note,
+                "waiter": order.waiter,
+                "company_name": order.company_name,
+                "status": order.status,
+                "digital_printing_status": order.contain_digital_printing,
+                "working_on": order.working_on,
+                "working_on_id": order.working_on_id,
+                "working_on_label": order.working_on_label,
+                "working_on_id_label": order.working_on_id_label,
+                "working_on_large_format": order.working_on_large_format,
+                "working_on_id_large_format": order.working_on_id_large_format,
+                "working_on_dtf": order.working_on_dtf,
+                "working_on_id_dtf": order.working_on_id_dtf,
+                "working_on_digital_printing": order.working_on_digital_printing,
+                "working_on_id_digital_printing": order.working_on_id_digital_printing,
             })
 
         except (json.JSONDecodeError, TypeError) as e:
