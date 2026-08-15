@@ -1051,12 +1051,13 @@ def search_held_order_dates_two():
         start_date_str = start_date.strftime("%Y-%m-%d %H:%M:%S")
         end_date_str = end_date.strftime("%Y-%m-%d %H:%M:%S")
 
-        # Query HeldCart with filtering - Compare as strings
+        # Query HeldCart with filtering
         held_orders = HeldCart.query.filter(
-            HeldCart.session >= start_date_str,  # Compare as string
-            HeldCart.session <= end_date_str,    # Compare as string
+            HeldCart.session >= start_date_str,
+            HeldCart.session <= end_date_str,
             HeldCart.company_name == user.company_name,
-            HeldCart.paid_status.in_(["Pending", "Partial"])
+            HeldCart.paid_status.in_(["Pending", "Partial"]),
+            HeldCart.delivery_status.in_(["pending", "Cutting", "in_delivery"])  # ✅ Added delivery status filter
         ).order_by(desc(HeldCart.session)).all()
 
         # Deserialize 'items' field before returning JSON response
@@ -1078,7 +1079,8 @@ def search_held_order_dates_two():
                 "customer": order.customer,
                 "phone": order.phone,
                 "delivery_status": order.delivery_status,
-                "session": order.session  # Added for debugging
+                "session": order.session,
+                "paid_status": order.paid_status  # Added for clarity
             })
 
         return jsonify(result), 200
@@ -1087,7 +1089,6 @@ def search_held_order_dates_two():
         print(f"Error occurred: {e}")
         db.session.rollback()
         return jsonify({"error": "An error occurred while fetching data"}), 500
-
 @guest.route("/search_held_order_dates_food", methods=["POST"])
 @flask_praetorian.auth_required
 def search_held_order_dates_food():
