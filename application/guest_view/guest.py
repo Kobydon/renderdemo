@@ -1056,8 +1056,7 @@ def search_held_order_dates_two():
             HeldCart.session >= start_date_str,  # Compare as string
             HeldCart.session <= end_date_str,    # Compare as string
             HeldCart.company_name == user.company_name,
-            HeldCart.paid_status == "pending",
-            HeldCart.delivery_status.in_(["pending", "Cutting", "in_delivery"])
+            HeldCart.paid_status.in_(["Pending", "Partial"])
         ).order_by(desc(HeldCart.session)).all()
 
         # Deserialize 'items' field before returning JSON response
