@@ -9163,10 +9163,10 @@ def add_customer():
         phone = request.json.get("phone", "").strip()
         email = request.json.get("email", "").strip()
         # Validate required fields
-        if not firstname or not lastname:
-            resp = jsonify({"error": "Firstname and lastname are required"})
-            resp.status_code = 400
-            return resp
+        # if not firstname or not lastname:
+        #     resp = jsonify({"error": "Firstname and lastname are required"})
+        #     resp.status_code = 400
+        #     return resp
         
         # Create new customer WITHOUT customer_id
         customer = Customer(
