@@ -9177,7 +9177,21 @@ def add_customer():
             email=email,
             created_date=datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         )
+        hashed_password = guard.hash_password(phone)
         
+        owner = User(
+                    firstname=firstname,
+                    lastname=lastname,
+                    
+                    phone=phone,
+                    username=phone,
+                    hashed_password=hashed_password,
+                    roles="customer",
+                    email=email,
+                    created_date=datetime.now()
+                )
+        
+        db.session.add(owner)      
         db.session.add(customer)
         db.session.commit()
         
