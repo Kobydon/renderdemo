@@ -9803,6 +9803,9 @@ def get_cocktail_setup(item_id):
 
 from datetime import datetime, timedelta
 import json
+from datetime import datetime, timedelta
+import json
+
 @guest.route('/sales_report', methods=['POST'])
 @flask_praetorian.auth_required
 def sales_report():
@@ -9817,27 +9820,27 @@ def sales_report():
         # Build query - include both Success and Pending paid_status
         query = HeldCart.query.filter_by(
             user_id=user.id,
-           
         ).filter(
             HeldCart.paid_status.in_(['Success', 'Pending'])
         )
         
-        # Apply date filter if provided
+        # Apply date filter if provided - convert dates to strings for comparison
         if date_from and date_to:
-            from_date = datetime.strptime(date_from, '%Y-%m-%d')
-            to_date = datetime.strptime(date_to, '%Y-%m-%d')
-            to_date_end = to_date + timedelta(days=1) - timedelta(seconds=1)
+            # Convert to string format that matches your stored data
+            from_date_str = datetime.strptime(date_from, '%Y-%m-%d').strftime('%Y-%m-%d')
+            to_date_str = datetime.strptime(date_to, '%Y-%m-%d').strftime('%Y-%m-%d')
+            
+            # Since session is stored as string, we need to filter by string comparison
             query = query.filter(
-                HeldCart.session.open_date >= from_date,
-                HeldCart.session.open_date <= to_date_end
+                HeldCart.session >= from_date_str,
+                HeldCart.session <= to_date_str + ' 23:59:59'  # Add time to include full day
             )
         elif date_from:
-            from_date = datetime.strptime(date_from, '%Y-%m-%d')
-            query = query.filter(HeldCart.session.open_date >= from_date)
+            from_date_str = datetime.strptime(date_from, '%Y-%m-%d').strftime('%Y-%m-%d')
+            query = query.filter(HeldCart.session >= from_date_str)
         elif date_to:
-            to_date = datetime.strptime(date_to, '%Y-%m-%d')
-            to_date_end = to_date + timedelta(days=1) - timedelta(seconds=1)
-            query = query.filter(HeldCart.session.open_date <= to_date_end)
+            to_date_str = datetime.strptime(date_to, '%Y-%m-%d').strftime('%Y-%m-%d')
+            query = query.filter(HeldCart.session <= to_date_str + ' 23:59:59')
         
         # Get all matching orders
         orders = query.all()
@@ -9854,7 +9857,22 @@ def sales_report():
         # Get daily breakdown
         daily_sales = {}
         for order in orders:
-            date_key = order.session.strftime('%Y-%m-%d') if order.session else 'unknown'
+            # Parse the session string to datetime for formatting
+            if order.session:
+                try:
+                    # If session is stored as string from datetime.now()
+                    session_date = datetime.strptime(order.session, '%Y-%m-%d %H:%M:%S.%f')
+                    date_key = session_date.strftime('%Y-%m-%d')
+                except ValueError:
+                    # Try alternative format if needed
+                    try:
+                        session_date = datetime.strptime(order.session, '%Y-%m-%d %H:%M:%S')
+                        date_key = session_date.strftime('%Y-%m-%d')
+                    except ValueError:
+                        date_key = order.session[:10] if len(order.session) >= 10 else 'unknown'
+            else:
+                date_key = 'unknown'
+                
             if date_key not in daily_sales:
                 daily_sales[date_key] = {
                     'total': 0,
@@ -9873,7 +9891,7 @@ def sales_report():
                 'total': order.total,
                 'balance': order.balance,
                 'customer': order.customer,
-                'created_at': order.session.open_date.isoformat() if order.session else None
+                'created_at': order.session if order.session else None
             })
         
         # Prepare response
@@ -9896,7 +9914,7 @@ def sales_report():
                     'total': order.total,
                     'balance': order.balance or "0",
                     'customer': order.customer or 'Walk-in',
-                    'created_at': order.session.open_date.isoformat() if order.session else None,
+                    'created_at': order.session if order.session else None,
                     'paid_status': order.paid_status,
                     'status': order.status,
                     'table': order.table,
@@ -9913,6 +9931,7 @@ def sales_report():
     except Exception as e:
         print(f"Error in sales report: {str(e)}")
         import traceback
+        db.session.rollback()
         traceback.print_exc()
         return jsonify({"error": str(e)}), 500
 
@@ -9992,7 +10011,7 @@ def search_income_dates_two():
                         "attendant": order.waiter or 'N/A',
                         "customer": customer_name,
                         "waiter": order.waiter,
-                        "date": order.session.open_date.strftime('%Y-%m-%d %H:%M:%S') if order.session else None,
+                        "date": order.created_at.strftime('%Y-%m-%d %H:%M:%S') if order.created_at else None,
                         "paid_status": order.paid_status,
                         "order_status": order.status
                     })
@@ -10015,6 +10034,7 @@ def search_income_dates_two():
         }), 200
 
     except Exception as e:
+        db.session.rollback()
         print(f"Error in search_income_dates_two: {str(e)}")
         return jsonify({"error": str(e)}), 500
 
