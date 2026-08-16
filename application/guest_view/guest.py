@@ -11446,7 +11446,6 @@ def send_bulk_message():
         
         # Query users
         users = User.query.filter(
-            User.company_name == company_name,
             User.is_active == True
         ).all()
         
