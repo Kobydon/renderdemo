@@ -10737,6 +10737,9 @@ def get_customer_payments():
 from datetime import datetime, timedelta
 import json
 import http.client as httpClient
+from datetime import datetime, timedelta
+import json
+import http.client as httpClient
 
 @guest.route('/hold_and_pay', methods=['POST'])
 @flask_praetorian.auth_required
@@ -11104,6 +11107,9 @@ def hold_and_pay():
                     # Get current time for SMS
                     now = datetime.now()
                     
+                    # Get attendant name from order
+                    attendant = order.waiter if order.waiter else f"{user.firstname} {user.lastname}"
+                    
                     # Format the receipt for SMS
                     items_list = json.loads(order.items)
                     item_lines = []
@@ -11116,21 +11122,41 @@ def hold_and_pay():
                     
                     items_text = "\n".join(item_lines)
                     
-                    # Build SMS message
-                    sms_message = f"""🏪 *ASEMPAHFIE GRAPHICS* 🏪
-📋 Order #{order_id}
-👤 Customer: {customer_name}
-{'✅' if new_balance <= 0 else '⏳'} Status: {'PAID IN FULL' if new_balance <= 0 else f'BALANCE: GHS {new_balance:.2f}'}
+                    # Build SMS message - Clean version without emojis for better compatibility
+                    if new_balance <= 0:
+                        status_text = "PAID IN FULL"
+                        status_icon = "✅"
+                    else:
+                        status_text = f"BALANCE: GHS {new_balance:.2f}"
+                        status_icon = "⏳"
+                    
+                    sms_message = f"""
+{status_icon} ASEMPAHFIE GRAPHICS
+================================
+Order #{order_id}
+Customer: {customer_name}
+Status: {status_text}
+Attendant: {attendant}
+Location: Kokomlemle, Accra
+================================
 
-📦 ITEMS:
+ITEMS:
 {items_text}
 
-💵 Total: GHS {total:.2f}
-💰 Paid: GHS {amount_paid:.2f}
-💳 Method: {payment_method}
-📅 {now.strftime('%d-%m-%Y %I:%M %p')}
+================================
+Total: GHS {total:.2f}
+Paid: GHS {amount_paid:.2f}
+Method: {payment_method}
+Date: {now.strftime('%d-%m-%Y %I:%M %p')}
+================================
 
-Thank you for choosing Asempahfie Graphics! 🙏"""
+Thank you for choosing Asempahfie Graphics!
+
+Contact Us:
+Email: afgghana@gmail.com
+Phone: 0243210009 / 0531100380
+================================
+"""
                     
                     # Send SMS using the API
                     host = 'api.smsonlinegh.com'
@@ -11145,14 +11171,11 @@ Thank you for choosing Asempahfie Graphics! 🙏"""
                     }
                     
                     msg_data = {
-                        'text': sms_message,
+                        'text': sms_message.strip(),
                         'type': 0,  # 0 for standard SMS
                         'sender': 'ASEMPAH',  # Sender ID (max 11 characters)
                         'destinations': [clean_phone]
                     }
-                    
-                    # Optionally add delivery callback
-                    # msg_data['callback'] = {'url': 'https://yourdomain.com/sms_callback', 'accept': 'application/json'}
                     
                     httpConn = httpClient.HTTPConnection(host)
                     httpConn.request('POST', requestURI, json.dumps(msg_data), headers)
