@@ -994,3 +994,47 @@ class Cart(db.Model):
 
     # Relationship to link to PurchaseRequest
     requests = db.relationship('PurchaseRequest', backref='cart', lazy=True)
+
+
+# Add these models to your existing models.py file
+
+class BulkMessage(db.Model):
+    """Model for storing bulk messages"""
+    id = db.Column(db.Integer, primary_key=True)
+    company_name = db.Column(db.String(1000000))
+    subject = db.Column(db.String(500))
+    message = db.Column(db.Text)
+    message_type = db.Column(db.String(50))  # 'sms', 'email', 'both'
+    recipient_type = db.Column(db.String(50))  # 'customers', 'employees', 'all', 'specific'
+    recipient_count = db.Column(db.Integer, default=0)
+    sent_count = db.Column(db.Integer, default=0)
+    failed_count = db.Column(db.Integer, default=0)
+    status = db.Column(db.String(50), default='pending')  # pending, sending, completed, failed
+    scheduled_for = db.Column(db.DateTime, nullable=True)
+    sent_at = db.Column(db.DateTime, nullable=True)
+    created_by = db.Column(db.String(255))
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    recipients = db.Column(db.Text)  # JSON string of recipient details
+    
+    def __repr__(self):
+        return f"<BulkMessage(id={self.id}, subject={self.subject}, type={self.message_type}, status={self.status})>"
+
+class MessageRecipient(db.Model):
+    """Model for tracking individual message recipients"""
+    id = db.Column(db.Integer, primary_key=True)
+    bulk_message_id = db.Column(db.Integer, db.ForeignKey('bulk_message.id'))
+    recipient_name = db.Column(db.String(255))
+    recipient_phone = db.Column(db.String(50))
+    recipient_email = db.Column(db.String(255))
+    recipient_role = db.Column(db.String(50))
+    message_type = db.Column(db.String(50))  # 'sms', 'email', 'both'
+    sent = db.Column(db.Boolean, default=False)
+    sent_at = db.Column(db.DateTime, nullable=True)
+    status = db.Column(db.String(50), default='pending')  # pending, sent, failed
+    error_message = db.Column(db.Text, nullable=True)
+    
+    # Relationship
+    bulk_message = db.relationship('BulkMessage', backref='recipients_list')
+    
+    def __repr__(self):
+        return f"<MessageRecipient(id={self.id}, name={self.recipient_name}, sent={self.sent})>"

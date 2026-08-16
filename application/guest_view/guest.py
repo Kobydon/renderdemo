@@ -7,6 +7,7 @@ from  application.settings.setup import app
 
 import json
 # from application.forms import LoginForm
+from application.database.user.user_db import *
 from application.database.user.user_db import db,Guests,User,Booking,Rooms,Payment,Reservation,Refund,Budget,Income,Expenses,Attendance,Iteman,Family,Category,Unit,Stock,Store,StockTransfer,Department,Vendor,PurchaseOrder,PurchaseRequest,ReceivedItem,returnRequest,GOP,RoomType,Session,Wifi,Order,StockUsage,PosPayment,OrderItem,HeldCart,FoodChef,EventPayment,StockTransferOut,Cart,CanceldOrder,Customer,Credit,AccountGroup
 from application.database.user.user_db import Account
 from sqlalchemy import or_,desc,and_
@@ -11260,4 +11261,606 @@ Phone: 0243210009 / 0531100380
     except Exception as e:
         db.session.rollback()
         print(f"❌ Error: {str(e)}")
+        return jsonify({"error": str(e)}), 500
+
+
+
+
+
+from datetime import datetime, timezone, timedelta
+import json
+import http.client as httpClient
+import flask_praetorian
+from flask import request, jsonify
+from flask_mail import Message
+
+
+# ============================================
+# SMS SENDING FUNCTION (USING YOUR API)
+# ============================================
+
+def send_sms_bulk(phone, message):
+    """
+    Send SMS using your SMS Online GH API
+    """
+    try:
+        # Clean phone number - remove spaces and ensure proper format
+        clean_phone = ''.join(filter(str.isdigit, str(phone)))
+        
+        # Ensure it's a valid Ghana number (starts with 0 and is 10 digits)
+        if len(clean_phone) == 10 and clean_phone.startswith('0'):
+            # Your SMS API Configuration
+            host = 'api.smsonlinegh.com'
+            requestURI = '/v5/message/sms/send'
+            apiKey = 'a7142fa4296ea493c9e2bd20352edf0d8c4191204fc126b7487408222a4fec27'
+            
+            headers = {
+                'Host': host,
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+                'Authorization': f'key {apiKey}'
+            }
+            
+            # Prepare message data
+            msg_data = {
+                'text': message,
+                'type': 0,  # 0 for standard SMS
+                'sender': 'Assempa Fie',  # Sender ID (max 11 characters)
+                'destinations': [clean_phone]
+            }
+            
+            # Send via HTTP
+            httpConn = httpClient.HTTPConnection(host)
+            httpConn.request('POST', requestURI, json.dumps(msg_data), headers)
+            
+            response = httpConn.getresponse()
+            status = response.status
+            
+            if status == 200:
+                response_data = response.read()
+                print(f"✅ SMS sent successfully to {clean_phone}: {response_data}")
+                httpConn.close()
+                return True
+            else:
+                print(f"⚠️ SMS sending failed with status {status}: {response.read()}")
+                httpConn.close()
+                return False
+        else:
+            print(f"⚠️ Invalid phone number format: {clean_phone}")
+            return False
+            
+    except Exception as e:
+        print(f"⚠️ Failed to send SMS to {phone}: {str(e)}")
+        return False
+
+# ============================================
+# EMAIL SENDING FUNCTION (USING YOUR CONFIG)
+# ============================================
+
+def send_email_bulk(to_email, subject, message, company_name="Asempahfie Graphics"):
+    """
+    Send Email using your Flask-Mail configuration
+    """
+    try:
+        # Validate email
+        if not to_email or '@' not in str(to_email):
+            print(f"⚠️ Invalid email: {to_email}")
+            return False
+        
+        # Create HTML email template
+        now = datetime.now()
+        
+        html_content = f"""
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="UTF-8">
+            <title>{subject}</title>
+            <style>
+                body {{ font-family: Arial, sans-serif; margin: 0; padding: 0; background-color: #f8f9fa; }}
+                .email-container {{ max-width: 600px; margin: 20px auto; background: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.08); }}
+                .header {{ background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%); padding: 30px 20px; text-align: center; border-bottom: 4px solid #e94560; }}
+                .header h1 {{ color: #ffffff; font-size: 24px; margin: 0; }}
+                .content {{ padding: 30px; }}
+                .greeting {{ font-size: 18px; color: #1a1a2e; margin-bottom: 15px; font-weight: 600; }}
+                .message-body {{ color: #555; font-size: 15px; line-height: 1.8; margin: 20px 0; white-space: pre-wrap; }}
+                .footer {{ background: #f8f9fa; padding: 25px 30px; text-align: center; border-top: 1px solid #e9ecef; color: #888; }}
+                .footer .brand {{ font-size: 16px; font-weight: 700; color: #1a1a2e; }}
+                .divider {{ border: none; border-top: 2px solid #e94560; margin: 20px 0; }}
+            </style>
+        </head>
+        <body>
+            <div class="email-container">
+                <div class="header">
+                    <h1>{company_name}</h1>
+                    <div style="color: #e0e0e0; font-size: 14px;">📍 Kokomlemle, Accra • 📞 0243210009</div>
+                </div>
+                <div class="content">
+                    <div class="greeting">Dear Valued Customer,</div>
+                    <div class="message-body">{message}</div>
+                    <hr class="divider">
+                    <p style="color: #555; font-size: 14px; line-height: 1.6;">
+                        💖 We truly appreciate your continued support and loyalty to {company_name}.
+                        If you have any questions, please don't hesitate to contact us.
+                    </p>
+                </div>
+                <div class="footer">
+                    <div class="brand">✨ {company_name} ✨</div>
+                    <div style="color: #666; margin: 3px 0;">📍 Kokomlemle, Accra</div>
+                    <div style="color: #666; margin: 3px 0;">📞 0243210009</div>
+                    <div style="color: #666; margin: 3px 0;">📧 afgghana@gmail.com</div>
+                    <p style="margin-top: 15px; font-size: 12px; color: #aaa;">
+                        © {now.year} {company_name}. All rights reserved.
+                    </p>
+                    <p style="font-size: 11px; color: #bbb; margin-top: 10px;">
+                        This is an automated message. Please do not reply to this email.
+                    </p>
+                </div>
+            </div>
+        </body>
+        </html>
+        """
+        
+        # Create and send email using Flask-Mail
+        msg = Message(
+            subject=subject,
+            recipients=[str(to_email)],
+            html=html_content,
+            sender="afgghana@gmail.com"
+        )
+        mail.send(msg)
+        print(f"✅ Email sent successfully to {to_email}")
+        return True
+        
+    except Exception as e:
+        print(f"⚠️ Failed to send email to {to_email}: {str(e)}")
+        return False
+
+# ============================================
+# BULK MESSAGE ROUTES
+# ============================================
+
+@guest.route("/bulk_message/send", methods=["POST"])
+@flask_praetorian.auth_required
+def send_bulk_message():
+    """
+    Send bulk messages to users based on role
+    """
+    try:
+        data = request.json
+        current_user = flask_praetorian.current_user()
+        company_name = current_user.company_name
+        
+        # Get form data
+        subject = data.get('subject', 'Bulk Message')
+        message = data.get('message', '')
+        message_type = data.get('message_type', 'sms')  # sms, email, both
+        recipient_type = data.get('recipient_type', 'customers')  # customers, employees, all
+        schedule_delay = int(data.get('schedule', 0))  # minutes
+        
+        if not message:
+            return jsonify({"error": "Message content is required"}), 400
+        
+        # Get recipients based on role
+        recipients = []
+        
+        # Query users
+        users = User.query.filter(
+            User.company_name == company_name,
+            User.is_active == True
+        ).all()
+        
+        if recipient_type == 'customers':
+            # Get customers (users with role='customer')
+            filtered_users = [u for u in users if 'customer' in (u.roles or '').lower()]
+        elif recipient_type == 'employees':
+            # Get employees (users with role != 'customer')
+            filtered_users = [u for u in users if 'customer' not in (u.roles or '').lower()]
+        else:
+            # Get all users
+            filtered_users = users
+        
+        # Filter based on message type and ensure contact info exists
+        for user in filtered_users:
+            # Skip if no phone for SMS
+            if message_type in ['sms', 'both'] and (not user.phone or user.phone == ''):
+                continue
+            # Skip if no email for email
+            if message_type in ['email', 'both'] and (not user.email or user.email == ''):
+                continue
+                
+            recipients.append({
+                'id': user.id,
+                'name': f"{user.firstname or ''} {user.lastname or ''}".strip() or user.username or 'Valued Customer',
+                'phone': user.phone or '',
+                'email': user.email or '',
+                'role': 'customer' if 'customer' in (user.roles or '').lower() else 'employee'
+            })
+        
+        # Remove duplicates based on phone/email
+        unique_recipients = []
+        seen_phones = set()
+        seen_emails = set()
+        
+        for recipient in recipients:
+            if recipient['phone'] and recipient['phone'] not in seen_phones:
+                seen_phones.add(recipient['phone'])
+                unique_recipients.append(recipient)
+            elif recipient['email'] and recipient['email'] not in seen_emails:
+                seen_emails.add(recipient['email'])
+                unique_recipients.append(recipient)
+        
+        if not unique_recipients:
+            return jsonify({"error": "No valid recipients found"}), 404
+        
+        # Create bulk message record
+        bulk_message = BulkMessage(
+            company_name=company_name,
+            subject=subject,
+            message=message,
+            message_type=message_type,
+            recipient_type=recipient_type,
+            recipient_count=len(unique_recipients),
+            status='pending',
+            created_by=f"{current_user.firstname or ''} {current_user.lastname or ''}".strip() or current_user.username,
+            created_at=datetime.now(timezone.utc)
+        )
+        
+        if schedule_delay > 0:
+            bulk_message.scheduled_for = datetime.now(timezone.utc) + timedelta(minutes=schedule_delay)
+        
+        db.session.add(bulk_message)
+        db.session.flush()
+        
+        # Create recipient records
+        for recipient in unique_recipients:
+            msg_recipient = MessageRecipient(
+                bulk_message_id=bulk_message.id,
+                recipient_name=recipient['name'],
+                recipient_phone=recipient['phone'],
+                recipient_email=recipient['email'],
+                recipient_role=recipient['role'],
+                message_type=message_type,
+                status='pending'
+            )
+            db.session.add(msg_recipient)
+        
+        db.session.commit()
+        
+        # Send messages immediately if not scheduled
+        if schedule_delay == 0:
+            # Start sending in background
+            send_messages_background(bulk_message.id)
+        
+        return jsonify({
+            "success": True,
+            "message": f"✅ Bulk message created successfully! {len(unique_recipients)} recipients found.",
+            "data": {
+                "bulk_id": bulk_message.id,
+                "recipient_count": len(unique_recipients),
+                "status": bulk_message.status,
+                "message_type": message_type,
+                "recipient_type": recipient_type
+            }
+        }), 200
+        
+    except Exception as e:
+        db.session.rollback()
+        print(f"❌ Bulk message error: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({"error": str(e)}), 500
+
+def send_messages_background(bulk_id):
+    """
+    Background function to send messages
+    """
+    try:
+        # Update status to sending
+        bulk_message = BulkMessage.query.get(bulk_id)
+        if not bulk_message:
+            return
+        
+        recipients = MessageRecipient.query.filter_by(
+            bulk_message_id=bulk_id,
+            status='pending'
+        ).all()
+        
+        bulk_message.status = 'sending'
+        db.session.commit()
+        
+        sent_count = 0
+        failed_count = 0
+        
+        for recipient in recipients:
+            try:
+                success = False
+                message_text = bulk_message.message
+                
+                # Send SMS
+                if bulk_message.message_type in ['sms', 'both'] and recipient.recipient_phone:
+                    sms_sent = send_sms_bulk(
+                        phone=recipient.recipient_phone,
+                        message=message_text
+                    )
+                    if sms_sent:
+                        success = True
+                
+                # Send Email
+                if bulk_message.message_type in ['email', 'both'] and recipient.recipient_email:
+                    email_sent = send_email_bulk(
+                        to_email=recipient.recipient_email,
+                        subject=bulk_message.subject or 'Bulk Message',
+                        message=message_text,
+                        company_name=bulk_message.company_name or "Asempahfie Graphics"
+                    )
+                    if email_sent:
+                        success = True
+                
+                if success:
+                    recipient.sent = True
+                    recipient.status = 'sent'
+                    recipient.sent_at = datetime.now(timezone.utc)
+                    sent_count += 1
+                else:
+                    recipient.status = 'failed'
+                    recipient.error_message = 'Failed to send message'
+                    failed_count += 1
+                
+                db.session.commit()
+                
+            except Exception as e:
+                recipient.status = 'failed'
+                recipient.error_message = str(e)
+                failed_count += 1
+                db.session.commit()
+                print(f"⚠️ Error sending to {recipient.recipient_name}: {str(e)}")
+        
+        # Update bulk message
+        bulk_message.sent_count = sent_count
+        bulk_message.failed_count = failed_count
+        bulk_message.status = 'completed' if sent_count > 0 else 'failed'
+        bulk_message.sent_at = datetime.now(timezone.utc)
+        db.session.commit()
+        
+        print(f"✅ Bulk message {bulk_id} completed: {sent_count} sent, {failed_count} failed")
+        
+    except Exception as e:
+        print(f"❌ Error in bulk send: {str(e)}")
+        bulk_message = BulkMessage.query.get(bulk_id)
+        if bulk_message:
+            bulk_message.status = 'failed'
+            db.session.commit()
+
+@guest.route("/bulk_message/history", methods=["GET"])
+@flask_praetorian.auth_required
+def get_bulk_message_history():
+    """
+    Get bulk message history for the current company
+    """
+    try:
+        current_user = flask_praetorian.current_user()
+        company_name = current_user.company_name
+        
+        # Get all bulk messages for this company, ordered by newest first
+        messages = BulkMessage.query.filter_by(
+            company_name=company_name
+        ).order_by(BulkMessage.created_at.desc()).limit(100).all()
+        
+        result = []
+        for msg in messages:
+            result.append({
+                "id": msg.id,
+                "subject": msg.subject,
+                "message": msg.message[:200] + '...' if len(msg.message) > 200 else msg.message,
+                "message_type": msg.message_type,
+                "recipient_type": msg.recipient_type,
+                "recipient_count": msg.recipient_count,
+                "sent_count": msg.sent_count or 0,
+                "failed_count": msg.failed_count or 0,
+                "status": msg.status,
+                "created_at": msg.created_at.isoformat() if msg.created_at else None,
+                "sent_at": msg.sent_at.isoformat() if msg.sent_at else None,
+                "created_by": msg.created_by
+            })
+        
+        return jsonify(result), 200
+        
+    except Exception as e:
+        print(f"❌ History error: {str(e)}")
+        return jsonify({"error": str(e)}), 500
+
+@guest.route("/bulk_message/status/<int:message_id>", methods=["GET"])
+@flask_praetorian.auth_required
+def get_bulk_message_status(message_id):
+    """
+    Get detailed status of a specific bulk message
+    """
+    try:
+        current_user = flask_praetorian.current_user()
+        company_name = current_user.company_name
+        
+        bulk_message = BulkMessage.query.filter_by(
+            id=message_id
+        ).first()
+        
+        if not bulk_message:
+            return jsonify({"error": "Message not found"}), 404
+        
+        recipients = MessageRecipient.query.filter_by(
+            bulk_message_id=message_id
+        ).limit(200).all()
+        
+        recipient_list = []
+        for r in recipients:
+            recipient_list.append({
+                "name": r.recipient_name,
+                "phone": r.recipient_phone,
+                "email": r.recipient_email,
+                "role": r.recipient_role,
+                "status": r.status,
+                "sent_at": r.sent_at.isoformat() if r.sent_at else None,
+                "error": r.error_message
+            })
+        
+        return jsonify({
+            "id": bulk_message.id,
+            "subject": bulk_message.subject,
+            "message": bulk_message.message,
+            "message_type": bulk_message.message_type,
+            "recipient_type": bulk_message.recipient_type,
+            "recipient_count": bulk_message.recipient_count,
+            "sent_count": bulk_message.sent_count or 0,
+            "failed_count": bulk_message.failed_count or 0,
+            "status": bulk_message.status,
+            "created_at": bulk_message.created_at.isoformat() if bulk_message.created_at else None,
+            "sent_at": bulk_message.sent_at.isoformat() if bulk_message.sent_at else None,
+            "created_by": bulk_message.created_by,
+            "recipients": recipient_list
+        }), 200
+        
+    except Exception as e:
+        print(f"❌ Status error: {str(e)}")
+        return jsonify({"error": str(e)}), 500
+
+@guest.route("/bulk_message/preview", methods=["POST"])
+@flask_praetorian.auth_required
+def preview_bulk_message():
+    """
+    Preview recipients for a bulk message
+    """
+    try:
+        data = request.json
+        current_user = flask_praetorian.current_user()
+        company_name = current_user.company_name
+        
+        recipient_type = data.get('recipient_type', 'customers')
+        message_type = data.get('message_type', 'sms')
+        
+        # Query users
+        users = User.query.filter(
+            User.company_name == company_name,
+            User.is_active == True
+        ).all()
+        
+        if recipient_type == 'customers':
+            filtered_users = [u for u in users if 'customer' in (u.roles or '').lower()]
+        elif recipient_type == 'employees':
+            filtered_users = [u for u in users if 'customer' not in (u.roles or '').lower()]
+        else:
+            filtered_users = users
+        
+        # Filter based on message type
+        if message_type in ['sms', 'both']:
+            filtered_users = [u for u in filtered_users if u.phone and u.phone != '']
+        if message_type in ['email', 'both']:
+            filtered_users = [u for u in filtered_users if u.email and u.email != '']
+        
+        # Limit to 5 previews
+        preview_users = filtered_users[:5]
+        
+        preview_data = []
+        for user in preview_users:
+            preview_data.append({
+                "name": f"{user.firstname or ''} {user.lastname or ''}".strip() or user.username or 'Valued Customer',
+                "phone": user.phone or '',
+                "email": user.email or '',
+                "role": 'customer' if 'customer' in (user.roles or '').lower() else 'employee'
+            })
+        
+        return jsonify({
+            "total_recipients": len(filtered_users),
+            "preview_count": len(preview_users),
+            "preview": preview_data
+        }), 200
+        
+    except Exception as e:
+        print(f"❌ Preview error: {str(e)}")
+        return jsonify({"error": str(e)}), 500
+
+@guest.route("/bulk_message/delete/<int:message_id>", methods=["DELETE"])
+@flask_praetorian.auth_required
+def delete_bulk_message(message_id):
+    """
+    Delete a bulk message and its recipients
+    """
+    try:
+        current_user = flask_praetorian.current_user()
+        company_name = current_user.company_name
+        
+        bulk_message = BulkMessage.query.filter_by(
+            id=message_id
+        ).first()
+        
+        if not bulk_message:
+            return jsonify({"error": "Message not found"}), 404
+        
+        # Delete all recipients first
+        MessageRecipient.query.filter_by(bulk_message_id=message_id).delete()
+        
+        # Delete the bulk message
+        db.session.delete(bulk_message)
+        db.session.commit()
+        
+        return jsonify({
+            "success": True,
+            "message": "Bulk message deleted successfully"
+        }), 200
+        
+    except Exception as e:
+        db.session.rollback()
+        print(f"❌ Delete error: {str(e)}")
+        return jsonify({"error": str(e)}), 500
+
+@guest.route("/bulk_message/resend/<int:message_id>", methods=["POST"])
+@flask_praetorian.auth_required
+def resend_bulk_message(message_id):
+    """
+    Resend a failed bulk message
+    """
+    try:
+        current_user = flask_praetorian.current_user()
+        company_name = current_user.company_name
+        
+        bulk_message = BulkMessage.query.filter_by(
+            id=message_id
+        ).first()
+        
+        if not bulk_message:
+            return jsonify({"error": "Message not found"}), 404
+        
+        # Get all failed recipients
+        failed_recipients = MessageRecipient.query.filter_by(
+            bulk_message_id=message_id,
+            status='failed'
+        ).all()
+        
+        if not failed_recipients:
+            return jsonify({"error": "No failed recipients to resend"}), 404
+        
+        # Reset status for failed recipients
+        for recipient in failed_recipients:
+            recipient.status = 'pending'
+            recipient.sent = False
+            recipient.error_message = None
+        
+        # Update bulk message status
+        bulk_message.status = 'pending'
+        db.session.commit()
+        
+        # Send messages
+        send_messages_background(bulk_message.id)
+        
+        return jsonify({
+            "success": True,
+            "message": f"Resending to {len(failed_recipients)} failed recipients",
+            "data": {
+                "bulk_id": bulk_message.id,
+                "recipient_count": len(failed_recipients)
+            }
+        }), 200
+        
+    except Exception as e:
+        db.session.rollback()
+        print(f"❌ Resend error: {str(e)}")
         return jsonify({"error": str(e)}), 500
