@@ -9817,7 +9817,7 @@ def sales_report():
         # Build query - include both Success and Pending paid_status
         query = HeldCart.query.filter_by(
             user_id=user.id,
-            company_name=user.company_name
+           
         ).filter(
             HeldCart.paid_status.in_(['Success', 'Pending'])
         )
