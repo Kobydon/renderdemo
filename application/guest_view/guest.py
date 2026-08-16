@@ -11170,7 +11170,7 @@ Phone: 0243210009 / 0531100380
                     msg_data = {
                         'text': sms_message.strip(),
                         'type': 0,  # 0 for standard SMS
-                        'sender': 'Assempah Fie',  # Sender ID (max 11 characters)
+                        'sender': 'Assempa Fie',  # Sender ID (max 11 characters)
                         'destinations': [clean_phone]
                     }
                     
