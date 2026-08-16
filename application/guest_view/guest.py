@@ -9805,6 +9805,8 @@ from datetime import datetime, timedelta
 import json
 from datetime import datetime, timedelta
 import json
+from datetime import datetime, timedelta
+import json
 
 @guest.route('/sales_report', methods=['POST'])
 @flask_praetorian.auth_required
@@ -9824,20 +9826,27 @@ def sales_report():
             HeldCart.paid_status.in_(['Success', 'Pending'])
         )
         
-        # Apply date filter if provided - convert dates to strings for comparison
+        # Apply date filter if provided
         if date_from and date_to:
-            # Convert to string format that matches your stored data
-            from_date_str = datetime.strptime(date_from, '%Y-%m-%d').strftime('%Y-%m-%d')
-            to_date_str = datetime.strptime(date_to, '%Y-%m-%d').strftime('%Y-%m-%d')
-            
-            # Since session is stored as string, we need to filter by string comparison
-            query = query.filter(
-                HeldCart.session >= from_date_str,
-                HeldCart.session <= to_date_str + ' 23:59:59'  # Add time to include full day
-            )
+            # If same date, query for that entire day
+            if date_from == date_to:
+                date_str = datetime.strptime(date_from, '%Y-%m-%d').strftime('%Y-%m-%d')
+                # Query for the entire day (from 00:00:00 to 23:59:59)
+                query = query.filter(
+                    HeldCart.session >= date_str + ' 00:00:00',
+                    HeldCart.session <= date_str + ' 23:59:59'
+                )
+            else:
+                from_date_str = datetime.strptime(date_from, '%Y-%m-%d').strftime('%Y-%m-%d')
+                to_date_str = datetime.strptime(date_to, '%Y-%m-%d').strftime('%Y-%m-%d')
+                
+                query = query.filter(
+                    HeldCart.session >= from_date_str + ' 00:00:00',
+                    HeldCart.session <= to_date_str + ' 23:59:59'
+                )
         elif date_from:
             from_date_str = datetime.strptime(date_from, '%Y-%m-%d').strftime('%Y-%m-%d')
-            query = query.filter(HeldCart.session >= from_date_str)
+            query = query.filter(HeldCart.session >= from_date_str + ' 00:00:00')
         elif date_to:
             to_date_str = datetime.strptime(date_to, '%Y-%m-%d').strftime('%Y-%m-%d')
             query = query.filter(HeldCart.session <= to_date_str + ' 23:59:59')
@@ -9931,10 +9940,8 @@ def sales_report():
     except Exception as e:
         print(f"Error in sales report: {str(e)}")
         import traceback
-        db.session.rollback()
         traceback.print_exc()
         return jsonify({"error": str(e)}), 500
-
 
 @guest.route("/search_income_dates_two", methods=["POST"])
 @flask_praetorian.auth_required
