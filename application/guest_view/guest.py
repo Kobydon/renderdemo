@@ -9823,7 +9823,7 @@ def sales_report():
         query = HeldCart.query.filter_by(
             user_id=user.id,
         ).filter(
-            HeldCart.paid_status.in_(['Success', 'Pending'])
+            HeldCart.paid_status.in_(['Success', 'Pending','Partial'])
         )
         
         # Apply date filter if provided
