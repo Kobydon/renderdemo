@@ -73,7 +73,6 @@ def register_quick():
         owner = User(
             firstname=firstname,
             lastname=lastname,
-            company_name=us.company_name,
             city=city,
             phone=phone,
             username=username,
@@ -144,7 +143,6 @@ def register():
             username=username,
             hashed_password=hashed_password,
             roles=role,
-            company_name=company_name,
             email=email,
             created_date=datetime.now()
         )
@@ -214,7 +212,7 @@ def get_info():
 @flask_praetorian.auth_required
 def get_users():
     us = User.query.filter_by(id = flask_praetorian.current_user().id).first()
-    info = db.session.query(User).filter_by(company_name=us.company_name)
+    info = db.session.query(User).all()
     results =user_schema.dump(info)
     return jsonify(results)
 
@@ -223,7 +221,7 @@ def get_users():
 @flask_praetorian.auth_required
 def get_users_waiter():
     us = User.query.filter_by(id = flask_praetorian.current_user().id).first()
-    info = db.session.query(User).filter_by(company_name=us.company_name,roles="online")
+    info = db.session.query(User).filter_by(roles="online")
     results =user_schema.dump(info)
     return jsonify(results)
 
