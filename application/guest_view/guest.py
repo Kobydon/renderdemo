@@ -10734,6 +10734,9 @@ def get_customer_payments():
         }), 500
 
 
+from datetime import datetime, timedelta
+import json
+import http.client as httpClient
 
 @guest.route('/hold_and_pay', methods=['POST'])
 @flask_praetorian.auth_required
@@ -10971,7 +10974,6 @@ def hold_and_pay():
         email_sent = False
         if customer_email and '@' in str(customer_email):
             try:
-                from datetime import datetime
                 now = datetime.now()
                 
                 html_content = f"""
@@ -11099,6 +11101,9 @@ def hold_and_pay():
                 
                 # Ensure it's a valid Ghana number (starts with 0 and is 10 digits)
                 if len(clean_phone) == 10 and clean_phone.startswith('0'):
+                    # Get current time for SMS
+                    now = datetime.now()
+                    
                     # Format the receipt for SMS
                     items_list = json.loads(order.items)
                     item_lines = []
@@ -11123,13 +11128,11 @@ def hold_and_pay():
 💵 Total: GHS {total:.2f}
 💰 Paid: GHS {amount_paid:.2f}
 💳 Method: {payment_method}
-📅 {datetime.now().strftime('%d-%m-%Y %I:%M %p')}
+📅 {now.strftime('%d-%m-%Y %I:%M %p')}
 
 Thank you for choosing Asempahfie Graphics! 🙏"""
                     
                     # Send SMS using the API
-                    import http.client as httpClient
-                    
                     host = 'api.smsonlinegh.com'
                     requestURI = '/v5/message/sms/send'
                     apiKey = 'a7142fa4296ea493c9e2bd20352edf0d8c4191204fc126b7487408222a4fec27'
@@ -11144,7 +11147,7 @@ Thank you for choosing Asempahfie Graphics! 🙏"""
                     msg_data = {
                         'text': sms_message,
                         'type': 0,  # 0 for standard SMS
-                        'sender': 'Assempahfie Graphics',  # Sender ID (max 11 characters)
+                        'sender': 'ASEMPAH',  # Sender ID (max 11 characters)
                         'destinations': [clean_phone]
                     }
                     
