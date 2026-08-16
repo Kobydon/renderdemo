@@ -9828,16 +9828,16 @@ def sales_report():
             to_date = datetime.strptime(date_to, '%Y-%m-%d')
             to_date_end = to_date + timedelta(days=1) - timedelta(seconds=1)
             query = query.filter(
-                HeldCart.created_at >= from_date,
-                HeldCart.created_at <= to_date_end
+                HeldCart.session >= from_date,
+                HeldCart.session <= to_date_end
             )
         elif date_from:
             from_date = datetime.strptime(date_from, '%Y-%m-%d')
-            query = query.filter(HeldCart.created_at >= from_date)
+            query = query.filter(HeldCart.session >= from_date)
         elif date_to:
             to_date = datetime.strptime(date_to, '%Y-%m-%d')
             to_date_end = to_date + timedelta(days=1) - timedelta(seconds=1)
-            query = query.filter(HeldCart.created_at <= to_date_end)
+            query = query.filter(HeldCart.session <= to_date_end)
         
         # Get all matching orders
         orders = query.all()
@@ -9854,7 +9854,7 @@ def sales_report():
         # Get daily breakdown
         daily_sales = {}
         for order in orders:
-            date_key = order.created_at.strftime('%Y-%m-%d') if order.created_at else 'unknown'
+            date_key = order.session.strftime('%Y-%m-%d') if order.session else 'unknown'
             if date_key not in daily_sales:
                 daily_sales[date_key] = {
                     'total': 0,
@@ -9873,7 +9873,7 @@ def sales_report():
                 'total': order.total,
                 'balance': order.balance,
                 'customer': order.customer,
-                'created_at': order.created_at.isoformat() if order.created_at else None
+                'session': order.session.isoformat() if order.session else None
             })
         
         # Prepare response
@@ -9896,7 +9896,7 @@ def sales_report():
                     'total': order.total,
                     'balance': order.balance or "0",
                     'customer': order.customer or 'Walk-in',
-                    'created_at': order.created_at.isoformat() if order.created_at else None,
+                    'created_at': order.session.isoformat() if order.created_at else None,
                     'paid_status': order.paid_status,
                     'status': order.status,
                     'table': order.table,
