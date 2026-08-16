@@ -10758,11 +10758,14 @@ def hold_and_pay():
         note = data.get('note', '')
         table = data.get('table', '')
         customer_id = data.get('customer')
+        phone_number = data.get('phone_number', '')  # Get phone number from request
         
         # Get customer
         customer = None
         if customer_id:
             customer = Customer.query.filter_by(id=customer_id).first()
+            if customer and hasattr(customer, 'phone'):
+                phone_number = customer.phone or phone_number
         
         # Parse hold_id
         existing_hold = None
@@ -10800,22 +10803,23 @@ def hold_and_pay():
                 if item_id in existing_items_dict and existing_items_dict[item_id].get("confirmed", False):
                     updated_items.append(existing_items_dict[item_id])
                 else:
-                     updated_items.append({
-                                           "id": item_id,
-                                           "qty": item_qty,
-                                           "description": item.get("description", ""),
-                                           "name": item["name"],
-                                           "price": item["price"],
-                                           "family": str(item.get("family", "")).strip(),
-                                           "is_checked_label": str(item.get("is_checked_label", "no")).strip(),
-                                           "is_checked_dtf": str(item.get("is_checked_dtf", "no")).strip(),
-                                             "is_checked_large_format": str(item.get("is_checked_large_format", "no")).strip(),
-                                             "is_checked_digital_printing": str(item.get("is_checked_digital_printing", "no")).strip(),
-                                           "checked_by": str(flask_praetorian.current_user().firstname+" "+flask_praetorian.current_user().lastname) if item.get("is_checked", "no") == "yes" else "",
-                                           "category": str(item.get("category", "")).strip(),
-                                           "confirmed": False,
-                                           "is_vip": item.get("is_vip", "no")
-                                       })
+                    updated_items.append({
+                        "id": item_id,
+                        "qty": item_qty,
+                        "description": item.get("description", ""),
+                        "name": item["name"],
+                        "price": item["price"],
+                        "family": str(item.get("family", "")).strip(),
+                        "is_checked_label": str(item.get("is_checked_label", "no")).strip(),
+                        "is_checked_dtf": str(item.get("is_checked_dtf", "no")).strip(),
+                        "is_checked_large_format": str(item.get("is_checked_large_format", "no")).strip(),
+                        "is_checked_digital_printing": str(item.get("is_checked_digital_printing", "no")).strip(),
+                        "checked_by": str(flask_praetorian.current_user().firstname+" "+flask_praetorian.current_user().lastname) if item.get("is_checked", "no") == "yes" else "",
+                        "category": str(item.get("category", "")).strip(),
+                        "confirmed": False,
+                        "is_vip": item.get("is_vip", "no")
+                    })
+            
             # ========== FIXED: Calculate new total and balance ==========
             # New total = existing balance + new items total
             new_total = existing_balance + total
@@ -10882,13 +10886,11 @@ def hold_and_pay():
                     "description": item.get("description", ""),
                     "family": str(item.get("family", "")).strip(),
                     "category": str(item.get("category", "")).strip(),
-                    "confirmed": False ,
-                    "is_checked_label   ": "no",
+                    "confirmed": False,
+                    "is_checked_label": "no",
                     "is_checked_dtf": "no",
                     "is_checked_large_format": "no",
                     "is_checked_digital_printing": "no",
-
-                    
                     "is_vip": item.get("is_vip", "no")
                 } for item in data["cartItems"]]
             except (ValueError, TypeError, KeyError) as e:
@@ -11088,6 +11090,91 @@ def hold_and_pay():
                 print(f"⚠️ Failed to send email: {str(e)}")
                 email_sent = False
 
+        # ========== SEND SMS CONFIRMATION ==========
+        sms_sent = False
+        if phone_number:
+            try:
+                # Clean phone number - remove spaces and ensure proper format
+                clean_phone = ''.join(filter(str.isdigit, str(phone_number)))
+                
+                # Ensure it's a valid Ghana number (starts with 0 and is 10 digits)
+                if len(clean_phone) == 10 and clean_phone.startswith('0'):
+                    # Format the receipt for SMS
+                    items_list = json.loads(order.items)
+                    item_lines = []
+                    for item in items_list[:5]:  # Limit to first 5 items for SMS
+                        item_total = float(item['qty']) * float(item['price'])
+                        item_lines.append(f"{item['name']} x{item['qty']} = GHS{item_total:.2f}")
+                    
+                    if len(items_list) > 5:
+                        item_lines.append(f"... and {len(items_list) - 5} more items")
+                    
+                    items_text = "\n".join(item_lines)
+                    
+                    # Build SMS message
+                    sms_message = f"""🏪 *ASEMPAHFIE GRAPHICS* 🏪
+📋 Order #{order_id}
+👤 Customer: {customer_name}
+{'✅' if new_balance <= 0 else '⏳'} Status: {'PAID IN FULL' if new_balance <= 0 else f'BALANCE: GHS {new_balance:.2f}'}
+
+📦 ITEMS:
+{items_text}
+
+💵 Total: GHS {total:.2f}
+💰 Paid: GHS {amount_paid:.2f}
+💳 Method: {payment_method}
+📅 {datetime.now().strftime('%d-%m-%Y %I:%M %p')}
+
+Thank you for choosing Asempahfie Graphics! 🙏"""
+                    
+                    # Send SMS using the API
+                    import http.client as httpClient
+                    
+                    host = 'api.smsonlinegh.com'
+                    requestURI = '/v5/message/sms/send'
+                    apiKey = 'a7142fa4296ea493c9e2bd20352edf0d8c4191204fc126b7487408222a4fec27'
+                    
+                    headers = {
+                        'Host': host,
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json',
+                        'Authorization': f'key {apiKey}'
+                    }
+                    
+                    msg_data = {
+                        'text': sms_message,
+                        'type': 0,  # 0 for standard SMS
+                        'sender': 'Assempahfie Graphics',  # Sender ID (max 11 characters)
+                        'destinations': [clean_phone]
+                    }
+                    
+                    # Optionally add delivery callback
+                    # msg_data['callback'] = {'url': 'https://yourdomain.com/sms_callback', 'accept': 'application/json'}
+                    
+                    httpConn = httpClient.HTTPConnection(host)
+                    httpConn.request('POST', requestURI, json.dumps(msg_data), headers)
+                    
+                    response = httpConn.getresponse()
+                    status = response.status
+                    
+                    if status == 200:
+                        response_data = response.read()
+                        print(f"✅ SMS sent successfully: {response_data}")
+                        sms_sent = True
+                    else:
+                        print(f"⚠️ SMS sending failed with status {status}: {response.read()}")
+                        sms_sent = False
+                    
+                    httpConn.close()
+                    
+                else:
+                    print(f"⚠️ Invalid phone number format: {clean_phone}")
+                    sms_sent = False
+                    
+            except Exception as e:
+                print(f"⚠️ Failed to send SMS: {str(e)}")
+                sms_sent = False
+
         # ========== RETURN RESPONSE ==========
         return jsonify({
             "success": True,
@@ -11103,6 +11190,7 @@ def hold_and_pay():
             "is_paid": new_balance <= 0,
             "is_full_payment": is_full_payment,
             "email_sent": email_sent,
+            "sms_sent": sms_sent,
             "items": json.loads(order.items) if order.items else []
         }), 200
 
