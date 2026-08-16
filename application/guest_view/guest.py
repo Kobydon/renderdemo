@@ -10772,6 +10772,7 @@ def hold_and_pay():
             customer = Customer.query.filter_by(id=customer_id).first()
             if customer and hasattr(customer, 'phone'):
                 phone_number = customer.phone or phone_number
+                customer_name = f"{customer.firstname} {customer.lastname}"
         
         # Parse hold_id
         existing_hold = None
@@ -10969,7 +10970,7 @@ def hold_and_pay():
         
         if customer and hasattr(customer, 'email') and customer.email:
             customer_email = customer.email
-            customer_name = f"{customer.firstname} {customer.lastname}"
+            
         elif data.get('customer_email'):
             customer_email = data.get('customer_email')
             customer_name = data.get('customer_name', 'Valued Customer')
@@ -11131,31 +11132,31 @@ def hold_and_pay():
                         status_icon = "⏳"
                     
                     sms_message = f"""
-{status_icon} ASEMPAHFIE GRAPHICS
-================================
+ASEMPAHFIE GRAPHICS
+======================
 Order #{order_id}
 Customer: {customer_name}
 Status: {status_text}
 Attendant: {attendant}
-Location: Kokomlemle, Accra
-================================
+=======================
 
 ITEMS:
 {items_text}
 
-================================
+======================
 Total: GHS {total:.2f}
 Paid: GHS {amount_paid:.2f}
 Method: {payment_method}
 Date: {now.strftime('%d-%m-%Y %I:%M %p')}
-================================
+======================
 
 Thank you for choosing Asempahfie Graphics!
 
 Contact Us:
 Email: afgghana@gmail.com
 Phone: 0243210009 / 0531100380
-================================
+Location: Kokomlemle, Accra
+======================
 """
                     
                     # Send SMS using the API
