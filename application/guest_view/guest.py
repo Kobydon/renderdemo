@@ -10733,10 +10733,6 @@ def get_customer_payments():
             "error": str(e)
         }), 500
 
-
-from datetime import datetime, timedelta
-import json
-import http.client as httpClient
 from datetime import datetime, timedelta
 import json
 import http.client as httpClient
@@ -10766,13 +10762,18 @@ def hold_and_pay():
         customer_id = data.get('customer')
         phone_number = data.get('phone_number', '')  # Get phone number from request
         
+        # Initialize customer_name
+        customer_name = "Valued Customer"
+        
         # Get customer
         customer = None
         if customer_id:
             customer = Customer.query.filter_by(id=customer_id).first()
-            if customer and hasattr(customer, 'phone'):
-                phone_number = customer.phone or phone_number
+            if customer:
+                # Update customer name from database
                 customer_name = f"{customer.firstname} {customer.lastname}"
+                if hasattr(customer, 'phone'):
+                    phone_number = customer.phone or phone_number
         
         # Parse hold_id
         existing_hold = None
@@ -10966,14 +10967,14 @@ def hold_and_pay():
         
         # ========== SEND EMAIL CONFIRMATION ==========
         customer_email = None
-        customer_name = "Valued Customer"
-        
+        # Use the customer_name we already set
         if customer and hasattr(customer, 'email') and customer.email:
             customer_email = customer.email
-            
         elif data.get('customer_email'):
             customer_email = data.get('customer_email')
-            customer_name = data.get('customer_name', 'Valued Customer')
+            # Override customer_name if provided in request
+            if data.get('customer_name'):
+                customer_name = data.get('customer_name')
         
         email_sent = False
         if customer_email and '@' in str(customer_email):
@@ -11123,7 +11124,7 @@ def hold_and_pay():
                     
                     items_text = "\n".join(item_lines)
                     
-                    # Build SMS message - Clean version without emojis for better compatibility
+                    # Build SMS message - Clean version without separators
                     if new_balance <= 0:
                         status_text = "PAID IN FULL"
                         status_icon = "✅"
@@ -11133,30 +11134,25 @@ def hold_and_pay():
                     
                     sms_message = f"""
 ASEMPAHFIE GRAPHICS
-======================
 Order #{order_id}
 Customer: {customer_name}
 Status: {status_text}
 Attendant: {attendant}
-=======================
+Location: Kokomlemle, Accra
 
 ITEMS:
 {items_text}
 
-======================
 Total: GHS {total:.2f}
 Paid: GHS {amount_paid:.2f}
 Method: {payment_method}
 Date: {now.strftime('%d-%m-%Y %I:%M %p')}
-======================
 
 Thank you for choosing Asempahfie Graphics!
 
 Contact Us:
 Email: afgghana@gmail.com
 Phone: 0243210009 / 0531100380
-Location: Kokomlemle, Accra
-======================
 """
                     
                     # Send SMS using the API
