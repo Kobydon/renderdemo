@@ -9665,8 +9665,6 @@ def delete_account(id):
       resp = jsonify("success")
       resp.status_code =201
       return resp
-
-
 @guest.route("/balance_sheet", methods=["POST"])
 @flask_praetorian.auth_required
 def balance_sheet():
@@ -9677,25 +9675,34 @@ def balance_sheet():
         if not from_date or not to_date:
             return jsonify({"error": "Please select both dates"}), 400
 
+        # Get current user's company
+        current_user = flask_praetorian.current_user()
+        company_name = current_user.company_name
+
         start = datetime.strptime(from_date, "%Y-%m-%d")
         end = datetime.strptime(to_date, "%Y-%m-%d")
+        end = end.replace(hour=23, minute=59, second=59)
 
         # -----------------------------------------------------
         #                      INCOME
         # -----------------------------------------------------
-        income_records = Income.query.filter(
-            Income.created_date >= start,
-            Income.created_date <= end
+        # Convert session string to datetime for proper comparison
+        income_records = HeldCart.query.filter(
+            HeldCart.company_name == company_name,
+            HeldCart.status.in_(["completed", "paid"]),  # Only completed sales
+            func.date(HeldCart.session) >= start.date(),
+            func.date(HeldCart.session) <= end.date()
         ).all()
 
-        total_income = sum(float(i.amount or 0) for i in income_records)
+        total_income = sum(float(i.total or 0) for i in income_records)
 
         # -----------------------------------------------------
         #                     EXPENSES
         # -----------------------------------------------------
         expense_records = Expenses.query.filter(
-            Expenses.session >= start,
-            Expenses.session <= end
+            Expenses.company_name == company_name,
+            func.date(Expenses.session) >= start.date(),
+            func.date(Expenses.session) <= end.date()
         ).all()
 
         grouped_expenses = {}
@@ -9715,10 +9722,13 @@ def balance_sheet():
         # -----------------------------------------------------
         #                ACCOUNTS RECEIVABLE
         # -----------------------------------------------------
+        # Credit sales that haven't been fully paid
         receivable_records = HeldCart.query.filter(
-            HeldCart.session >= start,
-            HeldCart.session <= end,
-            HeldCart.paid_status == "pending"
+            HeldCart.company_name == company_name,
+            HeldCart.paid_status.in_(["Pending", "Partial"]),
+            HeldCart.status.in_(["completed", "paid"]),  # Only completed orders
+            func.date(HeldCart.session) >= start.date(),
+            func.date(HeldCart.session) <= end.date()
         ).all()
 
         accounts_receivable = sum(float(c.total or 0) for c in receivable_records)
@@ -9727,54 +9737,70 @@ def balance_sheet():
         #            STOCK AVAILABLE FOR SALE (Iteman)
         #            price × quantity
         # -----------------------------------------------------
-        iteman_records = Iteman.query.filter_by(is_vip="no").all()
+        iteman_records = Iteman.query.filter(
+            Iteman.company_name == company_name,
+            Iteman.is_vip == "no",
+            Iteman.voided != "yes"  # Exclude voided items
+        ).all()
 
         stock_for_sale = sum(
             float(item.price or 0) * float(item.quantity or 0)
             for item in iteman_records
+            if item.quantity and float(item.quantity) > 0
         )
 
         # -----------------------------------------------------
         #                    STOCK IN STORE
+        #                    quantity × price (not just quantity)
         # -----------------------------------------------------
-        stock_records = Stock.query.all()
+        stock_records = Stock.query.filter(
+            Stock.company_name == company_name
+        ).all()
 
-        stock_in_store = sum(
-            float(s.quantity or 0)
-            for s in stock_records
-        )
+        # This needs to join with Iteman to get prices
+        # Or we need to store price in Stock table
+        # For now, we'll calculate based on Iteman prices
+        stock_in_store = 0
+        for stock in stock_records:
+            # Find matching item in Iteman to get price
+            item = Iteman.query.filter(
+                Iteman.company_name == company_name,
+                Iteman.name == stock.name,
+                Iteman.is_vip == "no",
+                Iteman.voided != "yes"
+            ).first()
+            
+            if item:
+                stock_in_store += float(stock.quantity or 0) * float(item.price or 0)
 
         # -----------------------------------------------------
         #                     NET ASSETS
         # -----------------------------------------------------
-        net_assets = (
-            total_income
-            + accounts_receivable
-            + stock_for_sale
-            + stock_in_store
-            - total_expenses
-        )
+        total_assets = total_income + accounts_receivable + stock_for_sale + stock_in_store
+        net_assets = total_assets - total_expenses
 
         # -----------------------------------------------------
         #                    RETURN DATA
         # -----------------------------------------------------
         return jsonify({
-            "date": to_date,
-            "income_total": total_income,
-            "accounts_receivable": accounts_receivable,
-            "stock_for_sale": stock_for_sale,
-            "stock_in_store": stock_in_store,
-            "total_expenses": total_expenses,
-            "net": net_assets,
+            "from_date": from_date,
+            "to_date": to_date,
+            "income_total": round(total_income, 2),
+            "accounts_receivable": round(accounts_receivable, 2),
+            "stock_for_sale": round(stock_for_sale, 2),
+            "stock_in_store": round(stock_in_store, 2),
+            "total_assets": round(total_assets, 2),
+            "total_expenses": round(total_expenses, 2),
+            "net": round(net_assets, 2),
             "expense_groups": grouped_expenses,
             "expense_totals": category_totals
         })
 
     except Exception as e:
-        print("Balance sheet error:", str(e))
+        print("Balance sheets error:", str(e))
+        import traceback
+        traceback.print_exc()
         return jsonify({"error": "Something went wrong"}), 500
-
-
 @guest.route('/cocktail-setup/<int:item_id>', methods=['PUT'])
 @flask_praetorian.auth_required
 def save_cocktail_setup(item_id):
