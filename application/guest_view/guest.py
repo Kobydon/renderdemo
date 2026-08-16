@@ -9828,16 +9828,16 @@ def sales_report():
             to_date = datetime.strptime(date_to, '%Y-%m-%d')
             to_date_end = to_date + timedelta(days=1) - timedelta(seconds=1)
             query = query.filter(
-                HeldCart.session >= from_date,
-                HeldCart.session <= to_date_end
+                HeldCart.session.open_date >= from_date,
+                HeldCart.session.open_date <= to_date_end
             )
         elif date_from:
             from_date = datetime.strptime(date_from, '%Y-%m-%d')
-            query = query.filter(HeldCart.session >= from_date)
+            query = query.filter(HeldCart.session.open_date >= from_date)
         elif date_to:
             to_date = datetime.strptime(date_to, '%Y-%m-%d')
             to_date_end = to_date + timedelta(days=1) - timedelta(seconds=1)
-            query = query.filter(HeldCart.session <= to_date_end)
+            query = query.filter(HeldCart.session.open_date <= to_date_end)
         
         # Get all matching orders
         orders = query.all()
@@ -9873,7 +9873,7 @@ def sales_report():
                 'total': order.total,
                 'balance': order.balance,
                 'customer': order.customer,
-                'session': order.session.isoformat() if order.session else None
+                'created_at': order.session.open_date.isoformat() if order.session else None
             })
         
         # Prepare response
@@ -9896,7 +9896,7 @@ def sales_report():
                     'total': order.total,
                     'balance': order.balance or "0",
                     'customer': order.customer or 'Walk-in',
-                    'created_at': order.session.isoformat() if order.created_at else None,
+                    'created_at': order.session.open_date.isoformat() if order.session else None,
                     'paid_status': order.paid_status,
                     'status': order.status,
                     'table': order.table,
@@ -9992,7 +9992,7 @@ def search_income_dates_two():
                         "attendant": order.waiter or 'N/A',
                         "customer": customer_name,
                         "waiter": order.waiter,
-                        "date": order.created_at.strftime('%Y-%m-%d %H:%M:%S') if order.created_at else None,
+                        "date": order.session.open_date.strftime('%Y-%m-%d %H:%M:%S') if order.session else None,
                         "paid_status": order.paid_status,
                         "order_status": order.status
                     })
