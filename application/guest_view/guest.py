@@ -10225,6 +10225,8 @@ def accept_order(order_id):
     except Exception as e:
         print(f"Error in accept_order: {str(e)}")
         return jsonify({"error": str(e)}), 500
+ 
+
 @guest.route("/cutting_order/<int:order_id>", methods=["POST", "PUT"])
 @flask_praetorian.auth_required
 def cutting_order(order_id):
@@ -10249,43 +10251,50 @@ def cutting_order(order_id):
         if item_index is not None:
             # Update by index
             if 0 <= item_index < len(items):
-                items[item_index]['confirmed'] = "cutting"
+                items[item_index]['confirmed'] = "ready for pickup"
                 items[item_index]['checked_by'] = str(current_user.firstname + " " + current_user.lastname)
-                items[item_index]['cutting_status'] = "printed"  # Add printed status
+                items[item_index]['cutting_status'] = "ready for pickup"
                 item_found = True
                 updated_item = items[item_index]
         else:
             # Update all items in the order
             for item in items:
-                item['confirmed'] = "cutting"
-                # item['checked_by'] = str(current_user.firstname + " " + current_user.lastname)
-                item['cutting_status'] = "printed"  # Add printed status
+                item['confirmed'] = "ready for pickup"
+                item['cutting_status'] = "ready for pickup"
                 item_found = True
-                updated_item = item  # Keep reference to last updated item
+                updated_item = item
         
         if not item_found:
             return jsonify({"error": "Item not found in order"}), 404
         
-        # Update order items
+        # Update order items and status
         order.items = json.dumps(items)
+        order.status = "ready for pickup"
         db.session.commit()
         
-        # --- SEND SIMPLE EMAIL IF CUSTOMER HAS EMAIL ---
+        # --- GET CUSTOMER INFORMATION ---
         customer_email = None
         customer_name = "Valued Customer"
+        phone_number = None
         
-        # Get customer from order
-        if order.customer:
-            customer = Customer.query.filter_by(id=order.customer).first()
+        # Get customer using customer_id from order
+        if order.customer_id:
+            customer = Customer.query.filter_by(id=order.customer_id).first()
             if customer:
                 customer_email = getattr(customer, 'email', None)
+                phone_number = getattr(customer, 'phone', None)
                 customer_name = getattr(customer, 'firstname', '') + ' ' + getattr(customer, 'lastname', '')
                 if not customer_name or customer_name.strip() == '':
                     customer_name = "Valued Customer"
         
-        # Send simple email if we have a customer email
+        # Initialize flags
+        email_sent = False
+        sms_sent = False
+        
+        # ========== SEND EMAIL CONFIRMATION ==========
         if customer_email:
             try:
+                now = datetime.now()
                 # Build simple email HTML
                 html_content = f"""
                 <!DOCTYPE html>
@@ -10293,7 +10302,7 @@ def cutting_order(order_id):
                 <head>
                     <meta charset="UTF-8">
                     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-                    <title>Order Update - Asempahfie Graphics</title>
+                    <title>Order Ready for Pickup - Asempahfie Graphics</title>
                     <style>
                         body {{
                             font-family: 'Segoe UI', Arial, sans-serif;
@@ -10314,7 +10323,7 @@ def cutting_order(order_id):
                             background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
                             padding: 25px 20px;
                             text-align: center;
-                            border-bottom: 4px solid #e94560;
+                            border-bottom: 4px solid #28a745;
                         }}
                         .header h1 {{
                             color: #ffffff;
@@ -10339,11 +10348,11 @@ def cutting_order(order_id):
                             font-weight: 600;
                         }}
                         .greeting span {{
-                            color: #e94560;
+                            color: #28a745;
                         }}
                         .status-card {{
-                            background: linear-gradient(135deg, #fff5f5 0%, #fff0f0 100%);
-                            border-left: 4px solid #e94560;
+                            background: linear-gradient(135deg, #f0fff4 0%, #e8f5e9 100%);
+                            border-left: 4px solid #28a745;
                             padding: 15px 20px;
                             border-radius: 8px;
                             margin: 20px 0;
@@ -10374,7 +10383,7 @@ def cutting_order(order_id):
                             padding: 15px 20px;
                             margin: 20px 0;
                             text-align: center;
-                            border: 2px dashed #dee2e6;
+                            border: 2px dashed #28a745;
                         }}
                         .order-ref .order-number {{
                             font-size: 28px;
@@ -10424,7 +10433,7 @@ def cutting_order(order_id):
                             margin-bottom: 5px;
                         }}
                         .step.active .step-icon {{
-                            background: #e94560;
+                            background: #28a745;
                         }}
                         .step.completed .step-icon {{
                             background: #28a745;
@@ -10436,7 +10445,7 @@ def cutting_order(order_id):
                             letter-spacing: 0.5px;
                         }}
                         .step.active .step-label {{
-                            color: #e94560;
+                            color: #28a745;
                             font-weight: 600;
                         }}
                         .step.completed .step-label {{
@@ -10490,14 +10499,14 @@ def cutting_order(order_id):
                             <div class="greeting">Dear <span>{customer_name}</span>,</div>
                             
                             <p style="color: #555; font-size: 14px; line-height: 1.6;">
-                                We're happy to let you know that your order is progressing well!
+                                Great news! Your order is now <strong>ready for pickup</strong>! 🎉
                             </p>
                             
                             <div class="status-card">
                                 <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap;">
                                     <div>
-                                        <div class="stage"><strong>📋 Status:</strong> <span class="status-badge">Printed</span></div>
-                                        <div class="stage" style="margin-top: 5px;"><strong>✂️ Stage:</strong> Cutting</div>
+                                        <div class="stage"><strong>📋 Status:</strong> <span class="status-badge">Ready for Pickup</span></div>
+                                        <div class="stage" style="margin-top: 5px;"><strong>✅ Stage:</strong> Complete</div>
                                         <div class="stage" style="margin-top: 5px;"><strong>👤 Prepared By:</strong> {current_user.firstname} {current_user.lastname}</div>
                                     </div>
                                 </div>
@@ -10517,18 +10526,27 @@ def cutting_order(order_id):
                                     <div class="step-icon">✓</div>
                                     <div class="step-label">Printed</div>
                                 </div>
-                                <div class="step active">
-                                    <div class="step-icon">✂</div>
+                                <div class="step completed">
+                                    <div class="step-icon">✓</div>
                                     <div class="step-label">Cutting</div>
                                 </div>
-                                <div class="step">
+                                <div class="step active">
                                     <div class="step-icon">📦</div>
                                     <div class="step-label">Ready</div>
                                 </div>
                             </div>
                             
-                            <p style="color: #666; font-size: 13px; line-height: 1.6; margin-top: 20px; text-align: center;">
-                                Your order is currently being cut. We'll notify you when it's ready for pickup.
+                            <div style="background: #e8f5e9; padding: 15px; border-radius: 8px; margin: 20px 0; text-align: center;">
+                                <p style="margin: 0; font-size: 16px; font-weight: 600; color: #2e7d32;">
+                                    📍 Your order is ready for pickup at our location!
+                                </p>
+                                <p style="margin: 5px 0 0; font-size: 13px; color: #555;">
+                                    Kokomlemle, Accra
+                                </p>
+                            </div>
+                            
+                            <p style="color: #666; font-size: 13px; line-height: 1.6; margin-top: 10px; text-align: center;">
+                                Please come to our shop to collect your order.
                             </p>
                             
                             <p style="color: #1a1a2e; font-size: 13px; margin: 15px 0 5px; font-weight: 600; text-align: center;">
@@ -10541,7 +10559,7 @@ def cutting_order(order_id):
                             <div class="shop-info">📍 Kokomlemle, Accra • 📞 0243210009</div>
                             <div class="shop-info">📧 info@asempahfiegraphics.com</div>
                             <p style="margin-top: 10px; font-size: 11px; color: #bbb;">
-                                © {datetime.now().year} Asempahfie Graphics. All rights reserved.
+                                © {now.year} Asempahfie Graphics. All rights reserved.
                             </p>
                         </div>
                     </div>
@@ -10550,41 +10568,123 @@ def cutting_order(order_id):
                 """
                 
                 # Send email
-                from flask_mail import Mail, Message
-                from flask import current_app
-                
-                # mail = Mail(current_app)
+                from flask_mail import Message
                 
                 msg = Message(
-                    subject=f"✂️ Order #{order_id} - Printed & Cutting Stage - Asempahfie Graphics",
-                    html=html_content, sender="afgghana@gmail.com",
+                    subject=f"✅ Order #{order_id} - Ready for Pickup - Asempahfie Graphics",
+                    html=html_content,
+                    sender="afgghana@gmail.com",
                     recipients=[customer_email]
-                   
                 )
                 
                 mail.send(msg)
-                
-                print(f"✅ Cutting stage email sent to {customer_email} for order #{order_id}")
+                email_sent = True
+                print(f"✅ Ready for pickup email sent to {customer_email} for order #{order_id}")
                 
             except Exception as email_error:
-                # Log the error but don't fail the request
-                print(f"⚠️ Failed to send cutting email to {customer_email}: {str(email_error)}")
-                # Continue execution - email failure shouldn't break the order
+                print(f"⚠️ Failed to send ready for pickup email to {customer_email}: {str(email_error)}")
+                email_sent = False
         else:
-            # No email provided - just continue silently
             print(f"ℹ️ No email provided for order #{order_id}, skipping email notification")
-        
+
+        # ========== SEND SMS CONFIRMATION ==========
+        if phone_number:
+            try:
+                # Clean phone number - remove spaces and ensure proper format
+                clean_phone = ''.join(filter(str.isdigit, str(phone_number)))
+                
+                # Ensure it's a valid Ghana number (starts with 0 and is 10 digits)
+                if len(clean_phone) == 10 and clean_phone.startswith('0'):
+                    # Get current time for SMS
+                    now = datetime.now()
+                    
+                    # Get attendant name
+                    attendant = order.waiter if order.waiter else f"{current_user.firstname} {current_user.lastname}"
+                    
+                    # Build SMS message
+                    sms_message = f"""
+ASEMPAHFIE GRAPHICS - ORDER READY ✅
+Order #{order_id}
+Customer: {customer_name}
+Status: Ready for Pickup 📦
+Attendant: {attendant}
+Date: {now.strftime('%d-%m-%Y %I:%M %p')}
+
+Your order is now ready for pickup!
+
+Location: Kokomlemle, Accra
+Hours: Mon-Sat 8am - 8pm
+
+Contact Us:
+Email: afgghana@gmail.com
+Phone: 0243210009 / 0531100380
+"""
+                    
+                    # Send SMS using the API
+                    host = 'api.smsonlinegh.com'
+                    requestURI = '/v5/message/sms/send'
+                    apiKey = 'a7142fa4296ea493c9e2bd20352edf0d8c4191204fc126b7487408222a4fec27'
+                    
+                    headers = {
+                        'Host': host,
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json',
+                        'Authorization': f'key {apiKey}'
+                    }
+                    
+                    msg_data = {
+                        'text': sms_message.strip(),
+                        'type': 0,  # 0 for standard SMS
+                        'sender': 'ASEMPAH',  # Sender ID (max 11 characters)
+                        'destinations': [clean_phone]
+                    }
+                    
+                    httpConn = httpClient.HTTPConnection(host)
+                    httpConn.request('POST', requestURI, json.dumps(msg_data), headers)
+                    
+                    response = httpConn.getresponse()
+                    status = response.status
+                    
+                    if status == 200:
+                        response_data = response.read()
+                        print(f"✅ Ready for pickup SMS sent successfully to {clean_phone}: {response_data}")
+                        sms_sent = True
+                    else:
+                        print(f"⚠️ SMS sending failed with status {status}: {response.read()}")
+                        sms_sent = False
+                    
+                    httpConn.close()
+                    
+                else:
+                    print(f"⚠️ Invalid phone number format: {clean_phone}")
+                    sms_sent = False
+                    
+            except Exception as sms_error:
+                print(f"⚠️ Failed to send ready for pickup SMS: {str(sms_error)}")
+                sms_sent = False
+        else:
+            print(f"ℹ️ No phone number provided for order #{order_id}, skipping SMS notification")
+
+        # ========== RETURN RESPONSE ==========
         return jsonify({
-            "message": "Item checked successfully",
-           
+            "message": "Order is ready for pickup",
+            "order_id": order_id,
+            "status": "ready for pickup",
             "checked_by": current_user.firstname + " " + current_user.lastname,
-            "cutting_status": "printed",
-            "email_sent": bool(customer_email) and 'email_sent' in locals()
+            "cutting_status": "ready for pickup",
+            "item_updated": updated_item,
+            "email_sent": email_sent,
+            "sms_sent": sms_sent,
+            "customer_name": customer_name,
+            "customer_email": customer_email,
+            "customer_phone": phone_number
         }), 200
         
     except Exception as e:
         db.session.rollback()
         print(f"❌ Error in cutting_order: {str(e)}")
+        import traceback
+        traceback.print_exc()
         return jsonify({"error": str(e)}), 500
 
 
