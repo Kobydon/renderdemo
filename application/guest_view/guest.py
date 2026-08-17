@@ -7692,7 +7692,11 @@ def get_helding_ordersa():
             print(f"Order {order.id} items:", items)  # Debugging
 
             # Filter items by "food" family and unconfirmed status
-            filtered_items = [item for item in items if item.get("family") == "digital_printing" and item.get("confirmed") == True]  
+            filtered_items = [item for item in items if item.get("family") == "digital_printing" and (item.get("confirmed") == True or item.get("confirmed") in [
+                    "ready for pickup",
+                    "delivered",
+                    "printed","in_delivery"
+                ])]  
             print(f"Filtered items for order {order.id}:", filtered_items)  # Debugging
 
             if filtered_items:  # Only include orders with unconfirmed food items
@@ -7809,7 +7813,9 @@ def get_helding_orders_processed_drinks():
             items = json.loads(order.items)
 
             # Filter items to include only drinks
-            filtered_items = [item for item in items if item.get("family") == "large_format" and item.get("confirmed") == True]
+            filtered_items = [item for item in items if item.get("family") == "large_format" and item.get("confirmed") == True or item.get("confirmed") in [
+                    "ready for pickup", "delivered", "printed","in_delivery"
+                ]]
             print(f"Filtered items for order {order.id}:", filtered_items)
 
             if filtered_items:
@@ -7930,7 +7936,8 @@ def get_helding_orders_label_processed():
             items = json.loads(order.items)
 
             # Filter items to include only drinks
-            filtered_items = [item for item in items if item.get("family") == "label" and item.get("confirmed") == True]
+            filtered_items = [item for item in items if item.get("family") == "label" and item.get("confirmed") == True or item.get("confirmed") in [
+                    "ready for pickup", "delivered", "printed","in_delivery"]]
             print(f"Filtered items for order {order.id}:", filtered_items)
 
             if filtered_items:
@@ -8032,6 +8039,38 @@ def update_delivery_status():
         address = data.get('address')
         note = data.get('note')
         status = data.get('status', 'delivered')  # Default to delivered
+        item_index = data.get('item_index')  # For updating specific item
+
+        # Helper function to update items in an order
+        def update_order_items(held_cart, item_index=None):
+            try:
+                items = json.loads(held_cart.items) if held_cart.items else []
+                
+                if item_index is not None:
+                    # Update by index (specific item)
+                    if 0 <= item_index < len(items):
+                        items[item_index]['confirmed'] = "delivered"
+                        # items[item_index]['checked_by'] = str(current_user.firstname + " " + current_user.lastname)
+                        items[item_index]['cutting_status'] = "delivered"
+                        updated_item = items[item_index]
+                        item_found = True
+                    else:
+                        item_found = False
+                        updated_item = None
+                else:
+                    # Update all items in the order
+                    for item in items:
+                        item['confirmed'] = "delivered"
+                        item['cutting_status'] = "delivered"
+                    updated_item = items[0] if items else None
+                    item_found = True
+                
+                held_cart.items = json.dumps(items)
+                return item_found, updated_item
+                
+            except (json.JSONDecodeError, Exception) as e:
+                print(f"⚠️ Failed to update items for order {held_cart.id}: {str(e)}")
+                return False, None
 
         # Handle bulk update
         if order_ids and isinstance(order_ids, list):
@@ -8043,6 +8082,13 @@ def update_delivery_status():
                 held_cart = HeldCart.query.filter_by(id=order_id).first()
                 
                 if held_cart:
+                    # Update items in the order
+                    item_found, updated_item = update_order_items(held_cart, item_index)
+                    
+                    if not item_found and item_index is not None:
+                        not_found_orders.append(order_id)
+                        continue
+                    
                     # Update delivery fields
                     held_cart.delivered_by = delivered_by
                     held_cart.delivery_contact = contact
@@ -8062,7 +8108,7 @@ def update_delivery_status():
                         customer_name = "Valued Customer"
                         
                         # Get customer from order
-                        if held_cart.customer:
+                        if held_cart.customer_id:
                             customer = Customer.query.filter_by(id=held_cart.customer_id).first()
                             if customer:
                                 customer_email = getattr(customer, 'email', None)
@@ -8098,6 +8144,12 @@ def update_delivery_status():
             if not held_cart:
                 return jsonify({"error": "Order not found"}), 404
 
+            # Update items in the order
+            item_found, updated_item = update_order_items(held_cart, item_index)
+            
+            if not item_found and item_index is not None:
+                return jsonify({"error": f"Item at index {item_index} not found in order"}), 404
+
             # Update delivery fields
             held_cart.delivered_by = delivered_by
             held_cart.delivery_contact = contact
@@ -8113,12 +8165,13 @@ def update_delivery_status():
             
             # --- SEND DELIVERY EMAIL FOR SINGLE ORDER ---
             email_sent = False
+            
             if status == 'delivered':
                 customer_email = None
                 customer_name = "Valued Customer"
                 
                 # Get customer from order
-                if held_cart.customer:
+                if held_cart.customer_id:
                     customer = Customer.query.filter_by(id=held_cart.customer_id).first()
                     if customer:
                         customer_email = getattr(customer, 'email', None)
@@ -8139,6 +8192,8 @@ def update_delivery_status():
                 "message": "Delivery status updated",
                 "order_id": order_id,
                 "status": status,
+                "item_updated": updated_item,
+                "item_index": item_index,
                 "email_sent": email_sent
             }), 200
         
@@ -8148,8 +8203,9 @@ def update_delivery_status():
     except Exception as e:
         db.session.rollback()
         print(f"❌ Error in update_delivery_status: {str(e)}")
+        import traceback
+        traceback.print_exc()
         return jsonify({"error": str(e)}), 500
-
 
 # Helper function to send delivery email
 def send_delivery_email(order_id, customer_name, customer_email, delivered_by, contact, address, note):
@@ -8593,7 +8649,9 @@ def get_helding_orders_dtf_processed():
             items = json.loads(order.items)
 
             # Filter items to include only drinks
-            filtered_items = [item for item in items if item.get("family") == "dtf" and item.get("confirmed") == True]
+            filtered_items = [item for item in items if item.get("family") == "dtf" and item.get("confirmed") == True or item.get("confirmed") in [
+                    "ready for pickup", "delivered", "printed","in_delivery"
+                ]]
             print(f"Filtered items for order {order.id}:", filtered_items)
 
             if filtered_items:
@@ -10252,7 +10310,7 @@ def cutting_order(order_id):
             # Update by index
             if 0 <= item_index < len(items):
                 items[item_index]['confirmed'] = "ready for pickup"
-                items[item_index]['checked_by'] = str(current_user.firstname + " " + current_user.lastname)
+                # items[item_index]['checked_by'] = str(current_user.firstname + " " + current_user.lastname)
                 items[item_index]['cutting_status'] = "ready for pickup"
                 item_found = True
                 updated_item = items[item_index]
