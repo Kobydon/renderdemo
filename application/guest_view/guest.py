@@ -10603,7 +10603,8 @@ def cutting_order(order_id):
                     
                     # Build SMS message
                     sms_message = f"""
-ASEMPAHFIE GRAPHICS
+ASEMPAH FIE GRAPHICS
+
 Order #{order_id}
 Dear {customer_name},
 Your order is now ready for pickup!
