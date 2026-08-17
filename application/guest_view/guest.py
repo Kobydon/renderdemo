@@ -10603,14 +10603,14 @@ def cutting_order(order_id):
                     
                     # Build SMS message
                     sms_message = f"""
-ASEMPAHFIE GRAPHICS - ORDER READY ✅
+ASEMPAHFIE GRAPHICS
 Order #{order_id}
-Customer: {customer_name}
-Status: Ready for Pickup 📦
+Dear {customer_name},
+Your order is now ready for pickup!
+
 Attendant: {attendant}
 Date: {now.strftime('%d-%m-%Y %I:%M %p')}
 
-Your order is now ready for pickup!
 
 Location: Kokomlemle, Accra
 Hours: Mon-Sat 8am - 8pm
