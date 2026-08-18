@@ -11139,13 +11139,13 @@ def hold_and_pay():
                     )
 
         # ============================================================
-        # HELPER: PREPARE CART ITEM - FIXED MEASUREMENT HANDLING
+        # HELPER: PREPARE CART ITEM - FIXED TO ALWAYS PRESERVE MEASUREMENTS
         # ============================================================
 
         def prepare_cart_item(item):
             """
-            Prepare one cart item while preserving all measurement data.
-            Now properly preserves ALL measurement fields including measurementArea.
+            Prepare one cart item while preserving ALL measurement data.
+            This function ALWAYS preserves measurement fields regardless of is_measurement_product.
             """
 
             try:
@@ -11173,35 +11173,23 @@ def hold_and_pay():
                 item_price = 0
 
             # ========================================================
-            # MEASUREMENT DATA - PRESERVE ALL FIELDS
+            # MEASUREMENT DATA - ALWAYS PRESERVE ALL FIELDS
             # ========================================================
 
-            # Get the measurement object if it exists
+            # Get all measurement fields - ALWAYS preserve these
             measurement = item.get("measurement")
-            
-            # Individual measurement fields
             measurement_width = item.get("measurementWidth")
             measurement_height = item.get("measurementHeight")
             measurement_unit = item.get("measurementUnit")
             measurement_area = item.get("measurementArea")
-            
-            # Determine whether this is a measurement product
-            is_measurement_product = bool(
-                item.get(
-                    "is_measurement_product",
-                    False
-                )
-            )
-            
-            # Get showMeasurement flag
+            is_measurement_product = bool(item.get("is_measurement_product", False))
             show_measurement = item.get("showMeasurement", is_measurement_product)
 
             # --------------------------------------------------------
-            # If measurement object exists, use it as the main source
+            # If measurement object exists, use it as the source
             # --------------------------------------------------------
             
             if isinstance(measurement, dict):
-                # Get values from measurement object
                 if measurement_width is None:
                     measurement_width = measurement.get("width")
                 if measurement_height is None:
@@ -11242,18 +11230,15 @@ def hold_and_pay():
                 and measurement_width is not None
                 and measurement_height is not None
             ):
-                measurement_area = (
-                    measurement_width
-                    * measurement_height
-                )
+                measurement_area = measurement_width * measurement_height
 
             # ========================================================
-            # BUILD MEASUREMENT OBJECT - ALWAYS PRESERVE DATA
+            # BUILD MEASUREMENT OBJECT - ALWAYS CREATE IF DATA EXISTS
             # ========================================================
 
             final_measurement = None
             
-            # Always create measurement object if we have measurement data
+            # ALWAYS create measurement object if we have measurement data
             # Even if is_measurement_product is False, preserve the data
             if (
                 measurement_width is not None
@@ -11277,13 +11262,9 @@ def hold_and_pay():
                 try:
                     item_total = float(item_total)
                 except (ValueError, TypeError):
-                    item_total = (
-                        item_price * item_qty
-                    )
+                    item_total = item_price * item_qty
             else:
-                item_total = (
-                    item_price * item_qty
-                )
+                item_total = item_price * item_qty
 
             # ========================================================
             # CHECKED BY
@@ -11298,7 +11279,7 @@ def hold_and_pay():
                 )
 
             # ========================================================
-            # FINAL ITEM - PRESERVE ALL MEASUREMENT DATA
+            # FINAL ITEM - ALWAYS PRESERVE ALL MEASUREMENT DATA
             # ========================================================
 
             prepared_item = {
@@ -11435,7 +11416,7 @@ def hold_and_pay():
                     continue
 
             # --------------------------------------------------------
-            # Merge items - PRESERVE MEASUREMENT DATA
+            # Merge items - PRESERVE ALL MEASUREMENT DATA
             # --------------------------------------------------------
 
             updated_items = []
@@ -11449,7 +11430,7 @@ def hold_and_pay():
                 # ----------------------------------------------------
                 # IMPORTANT:
                 # Do NOT replace a confirmed item with an incomplete
-                # item. Preserve measurement data.
+                # item. Preserve all measurement data.
                 # ----------------------------------------------------
 
                 if (
@@ -11466,7 +11447,6 @@ def hold_and_pay():
                     )
 
                     # Preserve ALL measurement information
-                    # if it already exists.
                     if (
                         not existing_item.get(
                             "measurement"
