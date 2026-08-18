@@ -11035,7 +11035,7 @@ def get_customer_payments():
             "error": str(e)
         }), 500
 
-from datetime import datetime, timedelta
+from datetime import datetime
 import json
 import http.client as httpClient
 
@@ -11043,405 +11043,1375 @@ import http.client as httpClient
 @flask_praetorian.auth_required
 def hold_and_pay():
     """
-    Unified endpoint to hold order and process payment simultaneously
+    Hold an order and process payment in one API call.
+
+    Measurement products are preserved with:
+        - measurement.width
+        - measurement.height
+        - measurement.unit
+        - measurement.area
+        - measurementWidth
+        - measurementHeight
+        - measurementUnit
+        - measurementArea
+        - is_measurement_product
+        - showMeasurement
     """
+
     try:
         user = current_user()
         data = request.get_json()
-        session = Session.query.filter_by(status="current").first()
-        
-        # Validate required fields
-        if not data or 'cartItems' not in data or 'total' not in data:
-            return jsonify({"error": "Invalid request. 'cartItems' and 'total' are required."}), 400
 
-        # Get parameters
-        hold_id = data.get('id')
-        amount_paid = float(data.get('amount_paid', 0))
-        total = float(data.get('total', 0))
-        payment_method = data.get('method', 'Cash')
-        note = data.get('note', '')
-        table = data.get('table', '')
-        customer_id = data.get('customer')
-        phone_number = data.get('phone_number', '')  # Get phone number from request
-        
-        # Initialize customer_name
+        session = Session.query.filter_by(status="current").first()
+
+        # ============================================================
+        # VALIDATION
+        # ============================================================
+
+        if not data:
+            return jsonify({
+                "error": "Request body is required."
+            }), 400
+
+        if "cartItems" not in data:
+            return jsonify({
+                "error": "'cartItems' is required."
+            }), 400
+
+        if "total" not in data:
+            return jsonify({
+                "error": "'total' is required."
+            }), 400
+
+        if not isinstance(data["cartItems"], list):
+            return jsonify({
+                "error": "'cartItems' must be a list."
+            }), 400
+
+        # ============================================================
+        # REQUEST DATA
+        # ============================================================
+
+        hold_id = data.get("id")
+
+        try:
+            amount_paid = float(data.get("amount_paid", 0) or 0)
+            total = float(data.get("total", 0) or 0)
+        except (ValueError, TypeError):
+            return jsonify({
+                "error": "Invalid total or amount_paid."
+            }), 400
+
+        payment_method = data.get("method", "Cash") or "Cash"
+        note = data.get("note", "") or ""
+        table = data.get("table", "") or ""
+        customer_id = data.get("customer")
+        phone_number = data.get("phone_number", "") or ""
+
+        # Prevent negative payment
+        if amount_paid < 0:
+            amount_paid = 0
+
+        # ============================================================
+        # CUSTOMER
+        # ============================================================
+
         customer_name = "Valued Customer"
-        
-        # Get customer
         customer = None
+
         if customer_id:
-            customer = Customer.query.filter_by(id=customer_id).first()
+            try:
+                customer = Customer.query.filter_by(
+                    id=int(customer_id)
+                ).first()
+            except (ValueError, TypeError):
+                customer = None
+
             if customer:
-                # Update customer name from database
-                customer_name = f"{customer.firstname} {customer.lastname}"
-                if hasattr(customer, 'phone'):
-                    phone_number = customer.phone or phone_number
-        
-        # Parse hold_id
+                customer_name = (
+                    f"{customer.firstname} "
+                    f"{customer.lastname}"
+                )
+
+                if hasattr(customer, "phone"):
+                    phone_number = (
+                        customer.phone or phone_number
+                    )
+
+        # ============================================================
+        # HELPER: PREPARE CART ITEM - FIXED MEASUREMENT HANDLING
+        # ============================================================
+
+        def prepare_cart_item(item):
+            """
+            Prepare one cart item while preserving all measurement data.
+            Now properly preserves ALL measurement fields including measurementArea.
+            """
+
+            try:
+                item_id = int(item.get("id"))
+            except (ValueError, TypeError):
+                raise ValueError(
+                    f"Invalid item ID: {item.get('id')}"
+                )
+
+            try:
+                item_qty = int(item.get("qty", 1))
+            except (ValueError, TypeError):
+                raise ValueError(
+                    f"Invalid quantity for item: {item.get('name', '')}"
+                )
+
+            if item_qty <= 0:
+                item_qty = 1
+
+            try:
+                item_price = float(
+                    item.get("price", 0) or 0
+                )
+            except (ValueError, TypeError):
+                item_price = 0
+
+            # ========================================================
+            # MEASUREMENT DATA - PRESERVE ALL FIELDS
+            # ========================================================
+
+            # Get the measurement object if it exists
+            measurement = item.get("measurement")
+            
+            # Individual measurement fields
+            measurement_width = item.get("measurementWidth")
+            measurement_height = item.get("measurementHeight")
+            measurement_unit = item.get("measurementUnit")
+            measurement_area = item.get("measurementArea")
+            
+            # Determine whether this is a measurement product
+            is_measurement_product = bool(
+                item.get(
+                    "is_measurement_product",
+                    False
+                )
+            )
+            
+            # Get showMeasurement flag
+            show_measurement = item.get("showMeasurement", is_measurement_product)
+
+            # --------------------------------------------------------
+            # If measurement object exists, use it as the main source
+            # --------------------------------------------------------
+            
+            if isinstance(measurement, dict):
+                # Get values from measurement object
+                if measurement_width is None:
+                    measurement_width = measurement.get("width")
+                if measurement_height is None:
+                    measurement_height = measurement.get("height")
+                if not measurement_unit:
+                    measurement_unit = measurement.get("unit")
+                if measurement_area is None:
+                    measurement_area = measurement.get("area")
+
+            # --------------------------------------------------------
+            # Convert measurement values to numbers
+            # --------------------------------------------------------
+
+            if measurement_width is not None:
+                try:
+                    measurement_width = float(measurement_width)
+                except (ValueError, TypeError):
+                    measurement_width = None
+
+            if measurement_height is not None:
+                try:
+                    measurement_height = float(measurement_height)
+                except (ValueError, TypeError):
+                    measurement_height = None
+
+            if measurement_unit:
+                measurement_unit = str(measurement_unit)
+
+            if measurement_area is not None:
+                try:
+                    measurement_area = float(measurement_area)
+                except (ValueError, TypeError):
+                    measurement_area = None
+
+            # If area wasn't supplied, calculate it
+            if (
+                measurement_area is None
+                and measurement_width is not None
+                and measurement_height is not None
+            ):
+                measurement_area = (
+                    measurement_width
+                    * measurement_height
+                )
+
+            # ========================================================
+            # BUILD MEASUREMENT OBJECT - ALWAYS PRESERVE DATA
+            # ========================================================
+
+            final_measurement = None
+            
+            # Always create measurement object if we have measurement data
+            # Even if is_measurement_product is False, preserve the data
+            if (
+                measurement_width is not None
+                and measurement_height is not None
+                and measurement_unit
+            ):
+                final_measurement = {
+                    "width": measurement_width,
+                    "height": measurement_height,
+                    "unit": measurement_unit,
+                    "area": measurement_area
+                }
+
+            # ========================================================
+            # ITEM TOTAL
+            # ========================================================
+
+            item_total = item.get("total")
+
+            if item_total is not None:
+                try:
+                    item_total = float(item_total)
+                except (ValueError, TypeError):
+                    item_total = (
+                        item_price * item_qty
+                    )
+            else:
+                item_total = (
+                    item_price * item_qty
+                )
+
+            # ========================================================
+            # CHECKED BY
+            # ========================================================
+
+            checked_by = ""
+
+            if item.get("is_checked", "no") == "yes":
+                checked_by = (
+                    f"{user.firstname} "
+                    f"{user.lastname}"
+                )
+
+            # ========================================================
+            # FINAL ITEM - PRESERVE ALL MEASUREMENT DATA
+            # ========================================================
+
+            prepared_item = {
+                "id": item_id,
+                "qty": item_qty,
+                "name": item.get("name", ""),
+                "price": item_price,
+                "total": item_total,
+                "description": item.get("description", ""),
+                "family": str(item.get("family", "")).strip(),
+                "category": str(item.get("category", "")).strip(),
+                "confirmed": bool(item.get("confirmed", False)),
+                "is_checked_label": str(item.get("is_checked_label", "no")).strip(),
+                "is_checked_dtf": str(item.get("is_checked_dtf", "no")).strip(),
+                "is_checked_large_format": str(item.get("is_checked_large_format", "no")).strip(),
+                "is_checked_digital_printing": str(item.get("is_checked_digital_printing", "no")).strip(),
+                "checked_by": checked_by,
+                "is_vip": item.get("is_vip", "no"),
+                
+                # ====================================================
+                # MEASUREMENT FIELDS - ALL PRESERVED
+                # ====================================================
+                
+                "is_measurement_product": is_measurement_product,
+                "measurement": final_measurement,
+                "measurementWidth": measurement_width,
+                "measurementHeight": measurement_height,
+                "measurementUnit": measurement_unit,
+                "measurementArea": measurement_area,
+                "showMeasurement": bool(show_measurement)
+            }
+
+            return prepared_item
+
+        # ============================================================
+        # PREPARE ALL CART ITEMS
+        # ============================================================
+
+        try:
+            incoming_items = []
+
+            for item in data["cartItems"]:
+                incoming_items.append(
+                    prepare_cart_item(item)
+                )
+
+        except (ValueError, TypeError, KeyError) as e:
+            return jsonify({
+                "error": str(e)
+            }), 400
+
+        # ============================================================
+        # PARSE HOLD ID
+        # ============================================================
+
         existing_hold = None
+
         if hold_id:
+
             try:
                 hold_id = int(hold_id)
-                existing_hold = HeldCart.query.filter_by(id=hold_id, user_id=user.id).first()
-            except (ValueError, TypeError):
-                return jsonify({"error": "Invalid hold ID"}), 400
 
-        # Check if full payment was made
-        is_full_payment = amount_paid >= total
-        
-        # ========== FIXED: Handle existing order ==========
-        if existing_hold:
-            # Get existing balance
-            try:
-                existing_balance = float(existing_hold.balance) if existing_hold.balance else 0
-                existing_items = json.loads(existing_hold.items) if existing_hold.items else []
             except (ValueError, TypeError):
+                return jsonify({
+                    "error": "Invalid hold ID."
+                }), 400
+
+            existing_hold = HeldCart.query.filter_by(
+                id=hold_id,
+                user_id=user.id
+            ).first()
+
+        # ============================================================
+        # PAYMENT
+        # ============================================================
+
+        is_full_payment = (
+            amount_paid >= total
+        )
+
+        # ============================================================
+        # EXISTING HELD ORDER
+        # ============================================================
+
+        if existing_hold:
+
+            try:
+
+                existing_balance = float(
+                    existing_hold.balance
+                    if existing_hold.balance
+                    else 0
+                )
+
+            except (ValueError, TypeError):
+
                 existing_balance = 0
+
+            try:
+
+                existing_items = json.loads(
+                    existing_hold.items
+                ) if existing_hold.items else []
+
+            except (
+                ValueError,
+                TypeError,
+                json.JSONDecodeError
+            ):
+
                 existing_items = []
-            
-            # Merge existing and new items
-            existing_items_dict = {int(item['id']): item for item in existing_items}
-            updated_items = []
-            
-            for item in data['cartItems']:
+
+            # --------------------------------------------------------
+            # Existing items indexed by ID
+            # --------------------------------------------------------
+
+            existing_items_dict = {}
+
+            for existing_item in existing_items:
+
                 try:
-                    item_id = int(item["id"])
-                    item_qty = int(item["qty"])
-                except (ValueError, TypeError):
-                    return jsonify({"error": f"Invalid item ID or quantity: {item}"}), 400
-                
-                if item_id in existing_items_dict and existing_items_dict[item_id].get("confirmed", False):
-                    updated_items.append(existing_items_dict[item_id])
+                    existing_item_id = int(
+                        existing_item.get("id")
+                    )
+
+                    existing_items_dict[
+                        existing_item_id
+                    ] = existing_item
+
+                except (
+                    ValueError,
+                    TypeError
+                ):
+                    continue
+
+            # --------------------------------------------------------
+            # Merge items - PRESERVE MEASUREMENT DATA
+            # --------------------------------------------------------
+
+            updated_items = []
+
+            for item in incoming_items:
+
+                item_id = int(
+                    item["id"]
+                )
+
+                # ----------------------------------------------------
+                # IMPORTANT:
+                # Do NOT replace a confirmed item with an incomplete
+                # item. Preserve measurement data.
+                # ----------------------------------------------------
+
+                if (
+                    item_id in existing_items_dict
+                    and existing_items_dict[
+                        item_id
+                    ].get("confirmed", False)
+                ):
+
+                    existing_item = (
+                        existing_items_dict[
+                            item_id
+                        ]
+                    )
+
+                    # Preserve ALL measurement information
+                    # if it already exists.
+                    if (
+                        not existing_item.get(
+                            "measurement"
+                        )
+                        and item.get(
+                            "measurement"
+                        )
+                    ):
+                        existing_item[
+                            "measurement"
+                        ] = item[
+                            "measurement"
+                        ]
+
+                    if (
+                        existing_item.get(
+                            "measurementWidth"
+                        ) is None
+                    ):
+                        existing_item[
+                            "measurementWidth"
+                        ] = item.get(
+                            "measurementWidth"
+                        )
+
+                    if (
+                        existing_item.get(
+                            "measurementHeight"
+                        ) is None
+                    ):
+                        existing_item[
+                            "measurementHeight"
+                        ] = item.get(
+                            "measurementHeight"
+                        )
+
+                    if (
+                        existing_item.get(
+                            "measurementUnit"
+                        ) is None
+                    ):
+                        existing_item[
+                            "measurementUnit"
+                        ] = item.get(
+                            "measurementUnit"
+                        )
+
+                    # PRESERVE measurementArea field
+                    if (
+                        existing_item.get(
+                            "measurementArea"
+                        ) is None
+                    ):
+                        existing_item[
+                            "measurementArea"
+                        ] = item.get(
+                            "measurementArea"
+                        )
+
+                    # PRESERVE is_measurement_product field
+                    if (
+                        existing_item.get(
+                            "is_measurement_product"
+                        ) is None
+                    ):
+                        existing_item[
+                            "is_measurement_product"
+                        ] = item.get(
+                            "is_measurement_product",
+                            False
+                        )
+
+                    # PRESERVE showMeasurement field
+                    if (
+                        existing_item.get(
+                            "showMeasurement"
+                        ) is None
+                    ):
+                        existing_item[
+                            "showMeasurement"
+                        ] = item.get(
+                            "showMeasurement",
+                            False
+                        )
+
+                    updated_items.append(
+                        existing_item
+                    )
+
                 else:
-                    updated_items.append({
-                        "id": item_id,
-                        "qty": item_qty,
-                        "description": item.get("description", ""),
-                        "name": item["name"],
-                        "price": item["price"],
-                        "family": str(item.get("family", "")).strip(),
-                        "is_checked_label": str(item.get("is_checked_label", "no")).strip(),
-                        "is_checked_dtf": str(item.get("is_checked_dtf", "no")).strip(),
-                        "is_checked_large_format": str(item.get("is_checked_large_format", "no")).strip(),
-                        "is_checked_digital_printing": str(item.get("is_checked_digital_printing", "no")).strip(),
-                        "checked_by": str(flask_praetorian.current_user().firstname+" "+flask_praetorian.current_user().lastname) if item.get("is_checked", "no") == "yes" else "",
-                        "category": str(item.get("category", "")).strip(),
-                        "confirmed": False,
-                        "is_vip": item.get("is_vip", "no")
-                    })
-            
-            # ========== FIXED: Calculate new total and balance ==========
-            # New total = existing balance + new items total
-            new_total = existing_balance + total
-            
+
+                    updated_items.append(
+                        item
+                    )
+
+            # --------------------------------------------------------
+            # Calculate new total
+            # --------------------------------------------------------
+
+            new_total = (
+                existing_balance + total
+            )
+
+            # --------------------------------------------------------
+            # Calculate new balance
+            # --------------------------------------------------------
+
             if is_full_payment:
-                # Full payment - balance should be 0
+
                 new_balance = 0
-                new_total = existing_balance + total  # Keep total as sum
+
             else:
-                # Partial payment - calculate remaining balance
-                new_balance = new_total - amount_paid
+
+                new_balance = (
+                    new_total - amount_paid
+                )
+
                 if new_balance < 0:
                     new_balance = 0
-            
-            # Update order
-            existing_hold.items = json.dumps(updated_items)
+
+            # --------------------------------------------------------
+            # Update held order
+            # --------------------------------------------------------
+
+            existing_hold.items = json.dumps(
+                updated_items
+            )
+
             existing_hold.total = new_total
-            existing_hold.balance = f"{new_balance:.2f}"
-            
-            # Update status
+
+            existing_hold.balance = (
+                f"{new_balance:.2f}"
+            )
+
+            # --------------------------------------------------------
+            # Status
+            # --------------------------------------------------------
+
             if new_balance <= 0:
+
                 existing_hold.status = "Pending"
                 existing_hold.paid_status = "Success"
+
             elif amount_paid > 0:
+
                 existing_hold.status = "Pending"
                 existing_hold.paid_status = "Pending"
+
             else:
+
                 existing_hold.status = "Pending"
                 existing_hold.paid_status = "Partial"
-            
-            # Update customer info
+
+            # --------------------------------------------------------
+            # Customer
+            # --------------------------------------------------------
+
             if customer:
-                existing_hold.customer = f"{customer.firstname} {customer.lastname}"
-                existing_hold.customer_id = customer.id
-            
-            # Update note with payment info
+
+                existing_hold.customer = (
+                    f"{customer.firstname} "
+                    f"{customer.lastname}"
+                )
+
+                existing_hold.customer_id = (
+                    customer.id
+                )
+
+            # --------------------------------------------------------
+            # Payment note
+            # --------------------------------------------------------
+
             if amount_paid > 0:
+
                 if is_full_payment:
-                    payment_note = f"💰 PAID IN FULL: GHS {amount_paid:.2f}"
+
+                    payment_note = (
+                        f"💰 PAID IN FULL: "
+                        f"GHS {amount_paid:.2f}"
+                    )
+
                 else:
-                    payment_note = f"💰 Amount Paid: GHS {amount_paid:.2f} | Balance: GHS {new_balance:.2f}"
-                
+
+                    payment_note = (
+                        f"💰 Amount Paid: "
+                        f"GHS {amount_paid:.2f} | "
+                        f"Balance: "
+                        f"GHS {new_balance:.2f}"
+                    )
+
                 if existing_hold.note:
-                    existing_hold.note = f"{existing_hold.note} | {payment_note}"
+
+                    existing_hold.note = (
+                        f"{existing_hold.note} | "
+                        f"{payment_note}"
+                    )
+
                 else:
-                    existing_hold.note = payment_note
-            
+
+                    existing_hold.note = (
+                        payment_note
+                    )
+
             if table:
                 existing_hold.table = table
+
             if payment_method:
-                existing_hold.payment_method = payment_method
-            
+                existing_hold.payment_method = (
+                    payment_method
+                )
+
             order = existing_hold
             order_id = existing_hold.id
-            
+
+        # ============================================================
+        # NEW ORDER
+        # ============================================================
+
         else:
-            # ========== FIXED: Create new order ==========
-            try:
-                cart_items = [{
-                    "id": int(item["id"]),
-                    "qty": int(item["qty"]),
-                    "name": item["name"],
-                    "price": float(item["price"]),
-                    "description": item.get("description", ""),
-                    "family": str(item.get("family", "")).strip(),
-                    "category": str(item.get("category", "")).strip(),
-                    "confirmed": False,
-                    "is_checked_label": "no",
-                    "is_checked_dtf": "no",
-                    "is_checked_large_format": "no",
-                    "is_checked_digital_printing": "no",
-                    "is_vip": item.get("is_vip", "no")
-                } for item in data["cartItems"]]
-            except (ValueError, TypeError, KeyError) as e:
-                return jsonify({"error": f"Invalid cart items format: {str(e)}"}), 400
-            
-            # ========== FIXED: Calculate balance ==========
+
+            # --------------------------------------------------------
+            # Calculate balance
+            # --------------------------------------------------------
+
             if is_full_payment:
+
                 new_balance = 0
+
             else:
-                new_balance = total - amount_paid
+
+                new_balance = (
+                    total - amount_paid
+                )
+
                 if new_balance < 0:
                     new_balance = 0
-            
-            # Check item categories
-            contain_drink = any(item.get("family") == "drink" for item in cart_items)
-            contain_food = any(item.get("family") == "food" for item in cart_items)
-            contain_dtf = any(item.get("family") == "dtf" for item in cart_items)
-            contain_digital_printing = any(item.get("family") == "digital_printing" for item in cart_items)
-            contain_large_format = any(item.get("family") == "large_format" for item in cart_items)
-            contain_label = any(item.get("family") == "label" for item in cart_items)
-            
-            # Prepare note with payment info
+
+            # --------------------------------------------------------
+            # Check families
+            # --------------------------------------------------------
+
+            contain_drink = any(
+                item.get("family") == "drink"
+                for item in incoming_items
+            )
+
+            contain_food = any(
+                item.get("family") == "food"
+                for item in incoming_items
+            )
+
+            contain_dtf = any(
+                item.get("family") == "dtf"
+                for item in incoming_items
+            )
+
+            contain_digital_printing = any(
+                item.get("family")
+                == "digital_printing"
+                for item in incoming_items
+            )
+
+            contain_large_format = any(
+                item.get("family")
+                == "large_format"
+                for item in incoming_items
+            )
+
+            contain_label = any(
+                item.get("family") == "label"
+                for item in incoming_items
+            )
+
+            # --------------------------------------------------------
+            # Payment note
+            # --------------------------------------------------------
+
             final_note = note
+
             if amount_paid > 0:
+
                 if is_full_payment:
-                    payment_info = f"💰 PAID IN FULL: GHS {amount_paid:.2f}"
+
+                    payment_info = (
+                        f"💰 PAID IN FULL: "
+                        f"GHS {amount_paid:.2f}"
+                    )
+
                 else:
-                    payment_info = f"💰 Amount Paid: GHS {amount_paid:.2f} | Balance: GHS {new_balance:.2f}"
-                final_note = f"{note} | {payment_info}" if note else payment_info
-            
-            # Create held cart
+
+                    payment_info = (
+                        f"💰 Amount Paid: "
+                        f"GHS {amount_paid:.2f} | "
+                        f"Balance: "
+                        f"GHS {new_balance:.2f}"
+                    )
+
+                final_note = (
+                    f"{note} | {payment_info}"
+                    if note
+                    else payment_info
+                )
+
+            # --------------------------------------------------------
+            # Create HeldCart - STORE COMPLETE ITEMS WITH MEASUREMENTS
+            # --------------------------------------------------------
+
             order = HeldCart(
                 user_id=user.id,
-                items=json.dumps(cart_items),
+
+                # IMPORTANT:
+                # Measurements are stored here in the items JSON.
+                # incoming_items already contains all measurement data.
+                items=json.dumps(
+                    incoming_items
+                ),
+
                 total=total,
+
                 balance=f"{new_balance:.2f}",
-                customer=f"{customer.firstname} {customer.lastname}" if customer else data.get('customer', ''),
-                customer_id=customer.id if customer else None,
+
+                customer=(
+                    f"{customer.firstname} "
+                    f"{customer.lastname}"
+                    if customer
+                    else data.get(
+                        "customer",
+                        ""
+                    )
+                ),
+
+                customer_id=(
+                    customer.id
+                    if customer
+                    else None
+                ),
+
                 company_name=user.company_name,
-                status="Confirmed" if new_balance <= 0 else "Pending",
-                paid_status="Success" if new_balance <= 0 else ("Partial" if amount_paid > 0 else "Pending"),
+
+                status=(
+                    "Confirmed"
+                    if new_balance <= 0
+                    else "Pending"
+                ),
+
+                paid_status=(
+                    "Success"
+                    if new_balance <= 0
+                    else (
+                        "Partial"
+                        if amount_paid > 0
+                        else "Pending"
+                    )
+                ),
+
                 onetime="no",
-                waiter=f"{user.firstname} {user.lastname}",
-                contain_drink="yes" if contain_drink else "no",
-                contain_food="yes" if contain_food else "no",
-                contain_dtf="yes" if contain_dtf else "no",
-                contain_digital_printing="yes" if contain_digital_printing else "no",
-                contain_large_format="yes" if contain_large_format else "no",
-                contain_label="yes" if contain_label else "no",
+
+                waiter=(
+                    f"{user.firstname} "
+                    f"{user.lastname}"
+                ),
+
+                contain_drink=(
+                    "yes"
+                    if contain_drink
+                    else "no"
+                ),
+
+                contain_food=(
+                    "yes"
+                    if contain_food
+                    else "no"
+                ),
+
+                contain_dtf=(
+                    "yes"
+                    if contain_dtf
+                    else "no"
+                ),
+
+                contain_digital_printing=(
+                    "yes"
+                    if contain_digital_printing
+                    else "no"
+                ),
+
+                contain_large_format=(
+                    "yes"
+                    if contain_large_format
+                    else "no"
+                ),
+
+                contain_label=(
+                    "yes"
+                    if contain_label
+                    else "no"
+                ),
+
                 food_confirm="no",
                 drink_confirm="no",
                 label_confirm="no",
                 dtf_confirm="no",
                 large_format_confirm="no",
                 digital_printing_confirm="no",
-                session=session.open_date if session else None,
+
+                session=(
+                    session.open_date
+                    if session
+                    else None
+                ),
+
                 table=table,
+
                 note=final_note,
+
                 payment_method=payment_method
             )
+
             db.session.add(order)
+
             db.session.flush()
+
             order_id = order.id
-        
+
+        # ============================================================
+        # COMMIT
+        # ============================================================
+
         db.session.commit()
-        
-        # ========== SEND EMAIL CONFIRMATION ==========
+
+        # ============================================================
+        # EMAIL CONFIRMATION
+        # ============================================================
+
         customer_email = None
-        # Use the customer_name we already set
-        if customer and hasattr(customer, 'email') and customer.email:
+
+        if (
+            customer
+            and hasattr(customer, "email")
+            and customer.email
+        ):
+
             customer_email = customer.email
-        elif data.get('customer_email'):
-            customer_email = data.get('customer_email')
-            # Override customer_name if provided in request
-            if data.get('customer_name'):
-                customer_name = data.get('customer_name')
-        
+
+        elif data.get("customer_email"):
+
+            customer_email = data.get(
+                "customer_email"
+            )
+
+            if data.get("customer_name"):
+                customer_name = data.get(
+                    "customer_name"
+                )
+
         email_sent = False
-        if customer_email and '@' in str(customer_email):
+
+        if (
+            customer_email
+            and "@" in str(customer_email)
+        ):
+
             try:
+
                 now = datetime.now()
-                
+
                 html_content = f"""
                 <!DOCTYPE html>
                 <html>
                 <head>
                     <meta charset="UTF-8">
-                    <title>Order Confirmation - Assempah fie Graphics</title>
+
+                    <title>
+                        Order Confirmation -
+                        Asempahfie Graphics
+                    </title>
+
                     <style>
-                        body {{ font-family: Arial, sans-serif; margin: 0; padding: 0; background-color: #f8f9fa; }}
-                        .email-container {{ max-width: 600px; margin: 20px auto; background: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.08); }}
-                        .header {{ background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%); padding: 30px 20px; text-align: center; border-bottom: 4px solid #e94560; }}
-                        .header h1 {{ color: #ffffff; font-size: 24px; margin: 0; }}
-                        .content {{ padding: 30px; }}
-                        .greeting {{ font-size: 18px; color: #1a1a2e; margin-bottom: 15px; font-weight: 600; }}
-                        .greeting span {{ color: #e94560; }}
-                        .order-status {{ background: #f0f7ff; border-left: 4px solid #e94560; padding: 12px 18px; border-radius: 6px; margin: 20px 0; display: flex; justify-content: space-between; align-items: center; }}
-                        .order-status .value {{ background: #e94560; color: white; padding: 4px 14px; border-radius: 20px; font-size: 13px; font-weight: 600; }}
-                        .order-details {{ background: #f8f9fa; border-radius: 8px; padding: 15px 20px; margin: 20px 0; }}
-                        .order-details p {{ margin: 6px 0; font-size: 14px; color: #555; }}
-                        .items-table {{ width: 100%; border-collapse: collapse; margin: 20px 0; }}
-                        .items-table th {{ background: #1a1a2e; color: white; padding: 12px 15px; text-align: left; }}
-                        .items-table td {{ padding: 12px 15px; border-bottom: 1px solid #e9ecef; }}
-                        .total-section {{ background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); color: white; padding: 20px; border-radius: 8px; margin: 20px 0; display: flex; justify-content: space-between; align-items: center; }}
-                        .total-section .total-amount {{ font-size: 24px; font-weight: 700; color: #ffd700; }}
-                        .payment-info {{ background: #f0f7ff; border-radius: 8px; padding: 15px 20px; margin: 15px 0; }}
-                        .footer {{ background: #f8f9fa; padding: 25px 30px; text-align: center; border-top: 1px solid #e9ecef; color: #888; }}
+
+                        body {{
+                            font-family: Arial, sans-serif;
+                            margin: 0;
+                            padding: 0;
+                            background-color: #f8f9fa;
+                        }}
+
+                        .email-container {{
+                            max-width: 600px;
+                            margin: 20px auto;
+                            background: #ffffff;
+                            border-radius: 12px;
+                            overflow: hidden;
+                        }}
+
+                        .header {{
+                            background: #1a1a2e;
+                            padding: 30px 20px;
+                            text-align: center;
+                        }}
+
+                        .header h1 {{
+                            color: white;
+                            margin: 0;
+                        }}
+
+                        .content {{
+                            padding: 30px;
+                        }}
+
+                        .items-table {{
+                            width: 100%;
+                            border-collapse: collapse;
+                        }}
+
+                        .items-table th {{
+                            background: #1a1a2e;
+                            color: white;
+                            padding: 12px;
+                            text-align: left;
+                        }}
+
+                        .items-table td {{
+                            padding: 12px;
+                            border-bottom: 1px solid #e9ecef;
+                        }}
+
+                        .measurement {{
+                            font-size: 12px;
+                            color: #666;
+                            margin-top: 4px;
+                        }}
+
+                        .total-section {{
+                            background: #1a1a2e;
+                            color: white;
+                            padding: 20px;
+                            margin-top: 20px;
+                        }}
+
                     </style>
+
                 </head>
+
                 <body>
+
                     <div class="email-container">
+
                         <div class="header">
-                            <h1>Asempahfie Graphics</h1>
-                            <div style="color: #e0e0e0; font-size: 14px;">📍 Kokomlemle, Accra • 📞 0243210009</div>
+
+                            <h1>
+                                Asempahfie Graphics
+                            </h1>
+
+                            <div style="
+                                color:#ddd;
+                                font-size:14px;
+                                margin-top:8px;
+                            ">
+                                Kokomlemle, Accra
+                                • 0243210009
+                            </div>
+
                         </div>
+
                         <div class="content">
-                            <div class="greeting">Dear <span>{customer_name}</span>,</div>
-                            <p style="color: #555; font-size: 15px; line-height: 1.6;">
-                                Thank you for choosing <strong>Asempahfie Graphics</strong>! 🎉
-                                Your order has been {'confirmed and paid in full' if new_balance <= 0 else 'received and is being processed'}.
+
+                            <h3>
+                                Dear {customer_name},
+                            </h3>
+
+                            <p>
+                                Thank you for choosing
+                                <strong>
+                                    Asempahfie Graphics
+                                </strong>.
                             </p>
-                            <div class="order-status">
-                                <span style="font-weight: 600;">📋 Order Status:</span>
-                                <span class="value">{'✅ PAID IN FULL' if new_balance <= 0 else '⏳ Processing - Partial Payment'}</span>
-                            </div>
-                            <div class="order-details">
-                                <p><strong>🆔 Order ID:</strong> #{order_id}</p>
-                                <p><strong>📅 Date:</strong> {now.strftime('%A, %B %d, %Y at %I:%M %p')}</p>
-                                <p><strong>👤 Prepared By:</strong> {user.firstname} {user.lastname}</p>
-                                <p><strong>💰 Balance:</strong> {'✅ Fully Paid' if new_balance <= 0 else f'GHS {new_balance:.2f}'}</p>
-                            </div>
-                            <h3 style="color: #1a1a2e; margin: 25px 0 15px;">🛒 Order Items</h3>
+
+                            <p>
+                                Order #{order_id}
+                            </p>
+
                             <table class="items-table">
+
                                 <thead>
-                                    <tr><th>Item</th><th>Qty</th><th style="text-align: right;">Price</th><th style="text-align: right;">Total</th></tr>
+
+                                    <tr>
+                                        <th>Item</th>
+                                        <th>Qty</th>
+                                        <th>Price</th>
+                                        <th>Total</th>
+                                    </tr>
+
                                 </thead>
+
                                 <tbody>
                 """
-                
-                items_list = json.loads(order.items)
+
+                items_list = json.loads(
+                    order.items
+                )
+
                 for item in items_list:
-                    item_total = float(item['qty']) * float(item['price'])
+
+                    item_total = (
+                        float(item.get("qty", 0))
+                        * float(item.get("price", 0))
+                    )
+
+                    measurement_html = ""
+
+                    measurement = item.get(
+                        "measurement"
+                    )
+
+                    if (
+                        item.get(
+                            "is_measurement_product"
+                        )
+                        and isinstance(
+                            measurement,
+                            dict
+                        )
+                    ):
+
+                        width = measurement.get(
+                            "width"
+                        )
+
+                        height = measurement.get(
+                            "height"
+                        )
+
+                        unit = measurement.get(
+                            "unit"
+                        )
+
+                        area = measurement.get(
+                            "area"
+                        )
+
+                        if (
+                            width is not None
+                            and height is not None
+                            and unit
+                        ):
+
+                            measurement_html = (
+                                f"""
+                                <div class="measurement">
+                                    📏
+                                    {float(width):g}
+                                    ×
+                                    {float(height):g}
+                                    {unit}
+                                """
+                            )
+
+                            if area is not None:
+
+                                measurement_html += (
+                                    f"""
+                                    <br>
+                                    Area:
+                                    {float(area):g}
+                                    sq {unit}
+                                    """
+                                )
+
+                            measurement_html += (
+                                "</div>"
+                            )
+
                     html_content += f"""
-                                    <tr>
-                                        <td><strong>{item['name']}</strong></td>
-                                        <td>{item['qty']}</td>
-                                        <td style="text-align: right;">GHS {float(item['price']):.2f}</td>
-                                        <td style="text-align: right;">GHS {item_total:.2f}</td>
-                                    </tr>
+
+                        <tr>
+
+                            <td>
+                                <strong>
+                                    {item.get("name", "")}
+                                </strong>
+
+                                {measurement_html}
+
+                            </td>
+
+                            <td>
+                                {item.get("qty", 0)}
+                            </td>
+
+                            <td>
+                                GHS
+                                {float(item.get("price", 0)):.2f}
+                            </td>
+
+                            <td>
+                                GHS
+                                {item_total:.2f}
+                            </td>
+
+                        </tr>
+
                     """
-                
+
                 html_content += f"""
+
                                 </tbody>
+
                             </table>
+
                             <div class="total-section">
-                                <span style="font-size: 16px; font-weight: 600; opacity: 0.9;">Order Total</span>
-                                <span class="total-amount">GHS {total:.2f}</span>
+
+                                <strong>
+                                    Order Total:
+                                </strong>
+
+                                GHS {total:.2f}
+
+                                <br><br>
+
+                                Amount Paid:
+                                GHS {amount_paid:.2f}
+
+                                <br>
+
+                                Balance:
+                                GHS {new_balance:.2f}
+
+                                <br>
+
+                                Payment Method:
+                                {payment_method}
+
                             </div>
-                            <div class="payment-info">
-                                <p><strong>💳 Payment Status:</strong> {'✅ Paid in Full' if new_balance <= 0 else f'⏳ Partial Payment - Balance: GHS {new_balance:.2f}'}</p>
-                                <p><strong>💰 Amount Paid:</strong> GHS {amount_paid:.2f}</p>
-                                <p><strong>💳 Payment Method:</strong> {payment_method}</p>
-                                <p><strong>📝 Note:</strong> {note if note else 'No special instructions'}</p>
-                            </div>
-                            <p style="color: #555; font-size: 14px; line-height: 1.6; margin-top: 20px;">
-                                💖 We truly appreciate your business! Our team is working diligently to ensure 
-                                your order is prepared with the utmost care and quality.
-                            </p>
+
                         </div>
-                        <div class="footer">
-                            <div style="font-size: 16px; font-weight: 700; color: #1a1a2e;">✨ Asempahfie Graphics ✨</div>
-                            <div style="color: #666; margin: 3px 0;">📍 Kokomlemle, Accra</div>
-                            <div style="color: #666; margin: 3px 0;">📞 0243210009</div>
-                            <div style="color: #666; margin: 3px 0;">📧 info@asempahfiegraphics.com</div>
-                            <p style="margin-top: 15px; font-size: 12px; color: #aaa;">
-                                © {now.year} Asempahfie Graphics. All rights reserved.
-                            </p>
-                        </div>
+
                     </div>
+
                 </body>
                 </html>
                 """
-                
+
                 from flask_mail import Message
+
                 msg = Message(
-                    subject=f"🎉 {'Order Paid in Full' if new_balance <= 0 else 'Order Confirmed'} #{order_id} - Asempahfie Graphics",
-                    recipients=[str(customer_email)],
+                    subject=(
+                        f"🎉 "
+                        f"{'Order Paid in Full'
+                         if new_balance <= 0
+                         else 'Order Confirmed'} "
+                        f"#{order_id} "
+                        f"- Asempahfie Graphics"
+                    ),
+
+                    recipients=[
+                        str(customer_email)
+                    ],
+
                     html=html_content,
+
                     sender="afgghana@gmail.com"
                 )
+
                 mail.send(msg)
+
                 email_sent = True
-                print(f"✅ Email sent to {customer_email}")
-                
+
+                print(
+                    f"✅ Email sent to "
+                    f"{customer_email}"
+                )
+
             except Exception as e:
-                print(f"⚠️ Failed to send email: {str(e)}")
+
+                print(
+                    f"⚠️ Failed to send email: "
+                    f"{str(e)}"
+                )
+
                 email_sent = False
 
-        # ========== SEND SMS CONFIRMATION ==========
+        # ============================================================
+        # SMS
+        # ============================================================
+
         sms_sent = False
+
         if phone_number:
+
             try:
-                # Clean phone number - remove spaces and ensure proper format
-                clean_phone = ''.join(filter(str.isdigit, str(phone_number)))
-                
-                # Ensure it's a valid Ghana number (starts with 0 and is 10 digits)
-                if len(clean_phone) == 10 and clean_phone.startswith('0'):
-                    # Get current time for SMS
+
+                clean_phone = "".join(
+                    filter(
+                        str.isdigit,
+                        str(phone_number)
+                    )
+                )
+
+                if (
+                    len(clean_phone) == 10
+                    and clean_phone.startswith("0")
+                ):
+
                     now = datetime.now()
-                    
-                    # Get attendant name from order
-                    attendant = order.waiter if order.waiter else f"{user.firstname} {user.lastname}"
-                    
-                    # Format the receipt for SMS
-                    items_list = json.loads(order.items)
+
+                    attendant = (
+                        order.waiter
+                        if order.waiter
+                        else (
+                            f"{user.firstname} "
+                            f"{user.lastname}"
+                        )
+                    )
+
+                    items_list = json.loads(
+                        order.items
+                    )
+
                     item_lines = []
-                    for index, item in enumerate(items_list, start=1):
-                            item_total = float(item['qty']) * float(item['price'])
-                            item_lines.append(
-                                f"{index}. {item['name']} x{item['qty']} = GHS {item_total:.2f}"
+
+                    for index, item in enumerate(
+                        items_list,
+                        start=1
+                    ):
+
+                        item_total = (
+                            float(
+                                item.get(
+                                    "qty",
+                                    0
+                                )
+                            )
+                            *
+                            float(
+                                item.get(
+                                    "price",
+                                    0
+                                )
+                            )
+                        )
+
+                        item_text = (
+                            f"{index}. "
+                            f"{item.get('name', '')}"
+                        )
+
+                        measurement = item.get(
+                            "measurement"
+                        )
+
+                        if (
+                            item.get(
+                                "is_measurement_product"
+                            )
+                            and isinstance(
+                                measurement,
+                                dict
+                            )
+                        ):
+
+                            width = measurement.get(
+                                "width"
                             )
 
-                    
+                            height = measurement.get(
+                                "height"
+                            )
+
+                            unit = measurement.get(
+                                "unit"
+                            )
+
+                            area = measurement.get(
+                                "area"
+                            )
+
+                            if (
+                                width is not None
+                                and height is not None
+                                and unit
+                            ):
+
+                                item_text += (
+                                    f"\n"
+                                    f"   "
+                                    f"{float(width):g}"
+                                    f" x "
+                                    f"{float(height):g}"
+                                    f" {unit}"
+                                )
+
+                                if area is not None:
+
+                                    item_text += (
+                                        f"\n"
+                                        f"   Area: "
+                                        f"{float(area):g}"
+                                        f" sq {unit}"
+                                    )
+
+                        item_text += (
+                            f"\n   x"
+                            f"{item.get('qty', 0)}"
+                            f" = GHS "
+                            f"{item_total:.2f}"
+                        )
+
+                        item_lines.append(
+                            item_text
+                        )
+
                     if len(items_list) > 5:
-                        item_lines.append(f"... and {len(items_list) - 5} more items")
-                    
-                    items_text = "\n".join(item_lines)
-                    
-                    # Build SMS message - Clean version without separators
+
+                        item_lines.append(
+                            f"... and "
+                            f"{len(items_list) - 5}"
+                            f" more items"
+                        )
+
+                    items_text = "\n".join(
+                        item_lines
+                    )
+
                     if new_balance <= 0:
-                        status_text = "PAID IN FULL"
+
+                        status_text = (
+                            "PAID IN FULL"
+                        )
+
                         status_icon = "✅"
+
                     else:
-                        status_text = f"BALANCE: GHS {new_balance:.2f}"
+
+                        status_text = (
+                            f"BALANCE: "
+                            f"GHS {new_balance:.2f}"
+                        )
+
                         status_icon = "⏳"
-                    
+
                     sms_message = f"""
-ASSEMPAH FIE GRAPHICS
+ASSEMFAH FIE GRAPHICS
 Order #{order_id}
 Customer: {customer_name}
-Status: {status_text}
+Status: {status_icon} {status_text}
 Attendant: {attendant}
 Location: Kokomlemle, Accra
 
@@ -11459,77 +12429,175 @@ Contact Us:
 Email: afgghana@gmail.com
 Phone: 0243210009 / 0531100380
 """
-                    
-                    # Send SMS using the API
-                    host = 'api.smsonlinegh.com'
-                    requestURI = '/v5/message/sms/send'
-                    apiKey = 'a7142fa4296ea493c9e2bd20352edf0d8c4191204fc126b7487408222a4fec27'
-                    
+
+                    host = "api.smsonlinegh.com"
+
+                    requestURI = (
+                        "/v5/message/sms/send"
+                    )
+
+                    apiKey = (
+                        "a7142fa4296ea493c9e2bd20352edf0d8c4191204fc126b7487408222a4fec27"
+                    )
+
                     headers = {
-                        'Host': host,
-                        'Content-Type': 'application/json',
-                        'Accept': 'application/json',
-                        'Authorization': f'key {apiKey}'
+                        "Host": host,
+                        "Content-Type":
+                            "application/json",
+                        "Accept":
+                            "application/json",
+                        "Authorization":
+                            f"key {apiKey}"
                     }
-                    
+
                     msg_data = {
-                        'text': sms_message.strip(),
-                        'type': 0,  # 0 for standard SMS
-                        'sender': 'Assempa Fie',  # Sender ID (max 11 characters)
-                        'destinations': [clean_phone]
+                        "text":
+                            sms_message.strip(),
+
+                        "type": 0,
+
+                        "sender":
+                            "Assempa Fie",
+
+                        "destinations": [
+                            clean_phone
+                        ]
                     }
-                    
-                    httpConn = httpClient.HTTPConnection(host)
-                    httpConn.request('POST', requestURI, json.dumps(msg_data), headers)
-                    
-                    response = httpConn.getresponse()
+
+                    httpConn = (
+                        httpClient.HTTPConnection(
+                            host
+                        )
+                    )
+
+                    httpConn.request(
+                        "POST",
+                        requestURI,
+                        json.dumps(msg_data),
+                        headers
+                    )
+
+                    response = (
+                        httpConn.getresponse()
+                    )
+
                     status = response.status
-                    
+
                     if status == 200:
-                        response_data = response.read()
-                        print(f"✅ SMS sent successfully: {response_data}")
+
+                        response_data = (
+                            response.read()
+                        )
+
+                        print(
+                            "✅ SMS sent successfully: "
+                            f"{response_data}"
+                        )
+
                         sms_sent = True
+
                     else:
-                        print(f"⚠️ SMS sending failed with status {status}: {response.read()}")
+
+                        print(
+                            "⚠️ SMS sending failed "
+                            f"with status {status}: "
+                            f"{response.read()}"
+                        )
+
                         sms_sent = False
-                    
+
                     httpConn.close()
-                    
+
                 else:
-                    print(f"⚠️ Invalid phone number format: {clean_phone}")
+
+                    print(
+                        "⚠️ Invalid phone number "
+                        f"format: {clean_phone}"
+                    )
+
                     sms_sent = False
-                    
+
             except Exception as e:
-                print(f"⚠️ Failed to send SMS: {str(e)}")
+
+                print(
+                    f"⚠️ Failed to send SMS: "
+                    f"{str(e)}"
+                )
+
                 sms_sent = False
 
-        # ========== RETURN RESPONSE ==========
+        # ============================================================
+        # FINAL RESPONSE
+        # ============================================================
+
         return jsonify({
+
             "success": True,
-            "message": "Order processed successfully",
-            "id": order_id,
-            "order_id": order_id,
-            "total": f"{total:.2f}",
-            "balance": f"{new_balance:.2f}",
-            "amount_paid": f"{amount_paid:.2f}",
-            "status": order.status,
-            "paid_status": order.paid_status,
-            "is_held": new_balance > 0,
-            "is_paid": new_balance <= 0,
-            "is_full_payment": is_full_payment,
-            "email_sent": email_sent,
-            "sms_sent": sms_sent,
-            "items": json.loads(order.items) if order.items else []
+
+            "message":
+                "Order processed successfully",
+
+            "id":
+                order_id,
+
+            "order_id":
+                order_id,
+
+            "total":
+                f"{total:.2f}",
+
+            "balance":
+                f"{new_balance:.2f}",
+
+            "amount_paid":
+                f"{amount_paid:.2f}",
+
+            "status":
+                order.status,
+
+            "paid_status":
+                order.paid_status,
+
+            "is_held":
+                new_balance > 0,
+
+            "is_paid":
+                new_balance <= 0,
+
+            "is_full_payment":
+                is_full_payment,
+
+            "email_sent":
+                email_sent,
+
+            "sms_sent":
+                sms_sent,
+
+            # Return the complete items including
+            # measurement information.
+            "items":
+                json.loads(order.items)
+                if order.items
+                else []
+
         }), 200
 
+    # ================================================================
+    # ERROR HANDLING
+    # ================================================================
+
     except Exception as e:
+
         db.session.rollback()
-        print(f"❌ Error: {str(e)}")
-        return jsonify({"error": str(e)}), 500
 
+        print(
+            f"❌ Error in /hold_and_pay: "
+            f"{str(e)}"
+        )
 
-
-
+        return jsonify({
+            "error": str(e)
+        }), 500
 
 from datetime import datetime, timezone, timedelta
 import json
