@@ -8766,7 +8766,7 @@ def load_held_order(hold_id):
             "items": items,
             "total": held_order.total,
             "balance": balance,  # ✅ Added balance field
-            "customer": held_order.customer,
+            "customer": held_order.customer_id,
             "note": held_order.note,
             "table": held_order.table,
             "waiter": held_order.waiter,
