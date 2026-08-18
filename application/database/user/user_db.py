@@ -778,6 +778,7 @@ class Customer(db.Model):
     customer_id = db.Column(db.String(20), unique=True, nullable=False)
     firstname = db.Column(db.Text)
     email=  db.Column(db.String(400))
+    dob=  db.Column(db.String(400))
     company_name = db.Column(db.String(1000000))
     lastname = db.Column(db.Text)
     created_date = db.Column(db.String(400))

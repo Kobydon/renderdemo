@@ -9230,6 +9230,7 @@ def add_customer():
         lastname = request.json.get("lastname", "").strip()
         phone = request.json.get("phone", "").strip()
         email = request.json.get("email", "").strip()
+        dob = request.json.get("dob", "").strip()
         # Validate required fields
         # if not firstname or not lastname:
         #     resp = jsonify({"error": "Firstname and lastname are required"})
@@ -9243,6 +9244,7 @@ def add_customer():
             phone=phone,
             company_name=user.company_name,
             email=email,
+            dob=dob,
             created_date=datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         )
         hashed_password = guard.hash_password(phone)
@@ -9288,6 +9290,97 @@ def add_customer():
         resp = jsonify({"error": str(e)})
         resp.status_code = 500
         return resp
+
+
+
+@guest.route('/update_customer', methods=['PUT'])
+@flask_praetorian.auth_required
+def update_customer():
+    try:
+        user = current_user()
+
+        data = request.json
+
+        customer_id = data.get("customer_id")
+
+        firstname = data.get("firstname", "").strip()
+        lastname = data.get("lastname", "").strip()
+        phone = data.get("phone", "").strip()
+        email = data.get("email", "").strip()
+        dob = data.get("dob", "").strip()
+
+        if not customer_id:
+            return jsonify({
+                "success": False,
+                "error": "customer_id is required"
+            }), 400
+
+        # Find existing customer
+        customer = Customer.query.filter_by(
+            id=customer_id,
+            company_name=user.company_name
+        ).first()
+
+        if not customer:
+            return jsonify({
+                "success": False,
+                "error": "Customer not found"
+            }), 404
+
+        # Update Customer
+        customer.firstname = firstname
+        customer.lastname = lastname
+        customer.phone = phone
+        customer.email = email
+        customer.dob = dob
+
+        # Find the corresponding User
+        owner = User.query.filter_by(
+            phone=customer.phone
+        ).first()
+
+        # If phone was changed, you may need another
+        # way to identify the User. We handle that below.
+        if not owner:
+            owner = User.query.filter_by(
+                email=customer.email
+            ).first()
+
+        if owner:
+            owner.firstname = firstname
+            owner.lastname = lastname
+            owner.phone = phone
+            owner.username = phone
+            owner.email = email
+
+            # Only update password if phone changed
+            if phone:
+                owner.hashed_password = guard.hash_password(phone)
+
+        db.session.commit()
+
+        return jsonify({
+            "success": True,
+            "message": "Customer updated successfully",
+            "customer": {
+                "id": customer.id,
+                "customer_id": customer.customer_id,
+                "firstname": customer.firstname,
+                "lastname": customer.lastname,
+                "phone": customer.phone,
+                "email": customer.email,
+                "dob": customer.dob
+            }
+        }), 200
+
+    except Exception as e:
+        db.session.rollback()
+
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
+
 
 def generate_customer_id(customer_id, prefix="AFG"):
     """Generate customer ID from the id"""
