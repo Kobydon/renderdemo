@@ -12192,14 +12192,7 @@ def hold_and_pay():
                 from flask_mail import Message
 
                 msg = Message(
-                    subject=(
-                        f"🎉 "
-                        f"{'Order Paid in Full'
-                         if new_balance <= 0
-                         else 'Order Confirmed'} "
-                        f"#{order_id} "
-                        f"- Asempahfie Graphics"
-                    ),
+                    subject=f"Order Confirmation - Asempahfie Graphics (Order #{order_id})",
 
                     recipients=[
                         str(customer_email)
