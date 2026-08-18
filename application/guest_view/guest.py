@@ -7656,6 +7656,7 @@ def get_helding_orders():
                     "working_on_id_dtf": order.working_on_id_dtf,
                     "working_on_digital_printing": order.working_on_digital_printing,
                     "working_on_id_digital_printing": order.working_on_id_digital_printing,
+                    "customer":order.customer,
 
                     "created_at": order.created_at.strftime('%Y-%m-%d %H:%M:%S')  # Format the datetime
                 })
@@ -7719,6 +7720,7 @@ def get_helding_ordersa():
                                        "working_on_dtf": order.working_on_dtf,
                                        "working_on_id_dtf": order.working_on_id_dtf,
                                        "working_on_digital_printing": order.working_on_digital_printing,
+                                        "customer":order.customer,
                                        "working_on_id_digital_printing": order.working_on_id_digital_printing, # Format the datetime
                 })
 
@@ -7776,6 +7778,8 @@ def get_helding_orders_drinks():
                                        "working_on_id_dtf": order.working_on_id_dtf,
                                        "working_on_digital_printing": order.working_on_digital_printing,
                                        "working_on_id_digital_printing": order.working_on_id_digital_printing,
+                                        "customer":order.customer,
+
                 })
 
         except (json.JSONDecodeError, TypeError) as e:
@@ -7839,7 +7843,8 @@ def get_helding_orders_processed_drinks():
                                         "working_on_id_dtf": order.working_on_id_dtf,
                                         "working_on_digital_printing": order.working_on_digital_printing,
                                         "working_on_id_digital_printing": order.working_on_id_digital_printing,
-                })
+                                        "customer": order.customer
+                                })
 
         except (json.JSONDecodeError, TypeError) as e:
             print(f"Error decoding JSON for order {order.id}: {e}")
@@ -7900,6 +7905,7 @@ def get_helding_orders_label():
                                         "working_on_id_dtf": order.working_on_id_dtf,
                                         "working_on_digital_printing": order.working_on_digital_printing,
                                         "working_on_id_digital_printing": order.working_on_id_digital_printing,
+                                         "customer":order.customer
                 })
 
         except (json.JSONDecodeError, TypeError) as e:
@@ -7961,6 +7967,7 @@ def get_helding_orders_label_processed():
                                        "working_on_id_dtf": order.working_on_id_dtf,
                                        "working_on_digital_printing": order.working_on_digital_printing,
                                        "working_on_id_digital_printing": order.working_on_id_digital_printing,  # Format the datetime
+                                        "customer":order.customer
                 })
 
         except (json.JSONDecodeError, TypeError) as e:
@@ -8019,6 +8026,7 @@ def get_helding_orders_dtf():
                                         "working_on_id_dtf": order.working_on_id_dtf,
                                         "working_on_digital_printing": order.working_on_digital_printing,
                                         "working_on_id_digital_printing": order.working_on_id_digital_printing,
+                                         "customer":order.customer,
                 })
 
         except (json.JSONDecodeError, TypeError) as e:
@@ -8675,6 +8683,7 @@ def get_helding_orders_dtf_processed():
                                         "working_on_id_dtf": order.working_on_id_dtf,
                                         "working_on_digital_printing": order.working_on_digital_printing,
                                         "working_on_id_digital_printing": order.working_on_id_digital_printing, # Format the datetime
+                                        "order.customer": order.customer
                 })
 
         except (json.JSONDecodeError, TypeError) as e:
