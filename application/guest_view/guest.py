@@ -12493,7 +12493,7 @@ Phone: 0243210009 / 0531100380
             except Exception as e:
 
                 print(
-                    f"⚠️ Failed to send SMS: "
+                    f"⚠️ Failed to send SMSs: "
                     f"{str(e)}"
                 )
 
