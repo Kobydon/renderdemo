@@ -10558,7 +10558,7 @@ def cutting_order(order_id):
                 <body>
                     <div class="email-container">
                         <div class="header">
-                            <h1>🎨 Asempahfie Graphics</h1>
+                            <h1>🎨 Assempah fie Graphics</h1>
                             <div class="subtitle">📍 Kokomlemle, Accra • 📞 0243210009</div>
                         </div>
                         
@@ -10670,7 +10670,7 @@ def cutting_order(order_id):
                     
                     # Build SMS message
                     sms_message = f"""
-ASEMPAH FIE GRAPHICS
+ASSEMPAH FIE GRAPHICS
 
 Order #{order_id}
 Dear {customer_name},
@@ -11195,7 +11195,7 @@ def hold_and_pay():
                 <html>
                 <head>
                     <meta charset="UTF-8">
-                    <title>Order Confirmation - Asempahfie Graphics</title>
+                    <title>Order Confirmation - Assempah fie Graphics</title>
                     <style>
                         body {{ font-family: Arial, sans-serif; margin: 0; padding: 0; background-color: #f8f9fa; }}
                         .email-container {{ max-width: 600px; margin: 20px auto; background: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.08); }}
@@ -11324,9 +11324,12 @@ def hold_and_pay():
                     # Format the receipt for SMS
                     items_list = json.loads(order.items)
                     item_lines = []
-                    for item in items_list[:5]:  # Limit to first 5 items for SMS
-                        item_total = float(item['qty']) * float(item['price'])
-                        item_lines.append(f"{item['name']} x{item['qty']} = GHS{item_total:.2f}")
+                    for index, item in enumerate(items_list, start=1):
+                            item_total = float(item['qty']) * float(item['price'])
+                            item_lines.append(
+                                f"{index}. {item['name']} x{item['qty']} = GHS {item_total:.2f}"
+                            )
+
                     
                     if len(items_list) > 5:
                         item_lines.append(f"... and {len(items_list) - 5} more items")
@@ -11342,7 +11345,7 @@ def hold_and_pay():
                         status_icon = "⏳"
                     
                     sms_message = f"""
-ASEMPAHFIE GRAPHICS
+ASSEMPAH FIE GRAPHICS
 Order #{order_id}
 Customer: {customer_name}
 Status: {status_text}
