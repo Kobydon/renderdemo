@@ -3016,9 +3016,9 @@ def held_cart_report():
                 query = query.filter(HeldCart.customer_id == customer_filter)
             except (ValueError, TypeError):
                 # If it's a string, search by customer name
-                if customer_filter and isinstance(customer_filter, str):
+                if customer_filter :
                     # Use ilike for case-insensitive partial match
-                    query = query.filter(HeldCart.customer.ilike(f"%{customer_filter}%"))
+                    query = query.filter(HeldCart.customer_id==customer_filter)
         
         # Department filter
         if department:
