@@ -10882,7 +10882,7 @@ Phone: 0243210009 / 0531100380
         return jsonify({"error": str(e)}), 500
 
 @guest.route(
-    "/check_order_item/<int:order_id>/<string:item_id>",
+    "/check_order_item/<order_id>/<item_id>",
     methods=["PUT"]
 )
 @flask_praetorian.auth_required
