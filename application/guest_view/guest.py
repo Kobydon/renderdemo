@@ -3137,6 +3137,7 @@ def held_cart_report():
         
     except Exception as e:
         print(f"Error in held_cart_report: {str(e)}")
+        db.session.rollback()
         return jsonify({"error": str(e)}), 500
 
 
