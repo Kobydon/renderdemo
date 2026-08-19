@@ -3013,7 +3013,7 @@ def held_cart_report():
             try:
                 # Try to convert to int (assuming it's a customer ID)
                 customer_id_int = int(customer_filter)
-                query = query.filter(HeldCart.customer_id == customer_id_int)
+                query = query.filter(HeldCart.customer_id == customer_filter)
             except (ValueError, TypeError):
                 # If it's a string, search by customer name
                 if customer_filter and isinstance(customer_filter, str):
