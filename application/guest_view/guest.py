@@ -11037,90 +11037,139 @@ def get_customer_payments():
             "error": str(e)
         }), 500
 
+
+
 from datetime import datetime
 import json
+import uuid
 import http.client as httpClient
+
+from flask import request, jsonify
+from flask_praetorian import current_user
+
+
 @guest.route('/hold_and_pay', methods=['POST'])
 @flask_praetorian.auth_required
 def hold_and_pay():
     """
-    Hold an order and process payment in one API call.
+    Hold an order and process payment.
 
-    Measurement products are preserved with:
-        - measurement.width
-        - measurement.height
-        - measurement.unit
-        - measurement.area
-        - measurementWidth
-        - measurementHeight
-        - measurementUnit
-        - measurementArea
-        - is_measurement_product
-        - showMeasurement
+    IMPORTANT CART DESIGN
+    ---------------------
+    product_id:
+        Identifies the actual product.
+
+    cart_item_id:
+        Identifies ONE PARTICULAR LINE in the cart.
+
+    This means the same product can exist multiple times:
+
+        Product 15
+            cart_item_id = abc
+            price = 100
+
+        Product 15
+            cart_item_id = xyz
+            price = 150
+
+    Updating abc will NOT update xyz.
     """
 
     try:
+
+        # ============================================================
+        # USER / REQUEST
+        # ============================================================
+
         user = current_user()
-        data = request.get_json()
-
-        session = Session.query.filter_by(status="current").first()
-
-        # ============================================================
-        # VALIDATION
-        # ============================================================
+        data = request.get_json(silent=True)
 
         if not data:
             return jsonify({
+                "success": False,
                 "error": "Request body is required."
             }), 400
 
         if "cartItems" not in data:
             return jsonify({
+                "success": False,
                 "error": "'cartItems' is required."
             }), 400
 
         if "total" not in data:
             return jsonify({
+                "success": False,
                 "error": "'total' is required."
             }), 400
 
         if not isinstance(data["cartItems"], list):
             return jsonify({
+                "success": False,
                 "error": "'cartItems' must be a list."
             }), 400
 
         # ============================================================
-        # REQUEST DATA
+        # CURRENT SESSION
+        # ============================================================
+
+        session = Session.query.filter_by(
+            status="current"
+        ).first()
+
+        # ============================================================
+        # BASIC REQUEST DATA
         # ============================================================
 
         hold_id = data.get("id")
 
         try:
-            amount_paid = float(data.get("amount_paid", 0) or 0)
             total = float(data.get("total", 0) or 0)
+            amount_paid = float(
+                data.get("amount_paid", 0) or 0
+            )
         except (ValueError, TypeError):
             return jsonify({
+                "success": False,
                 "error": "Invalid total or amount_paid."
             }), 400
 
-        payment_method = data.get("method", "Cash") or "Cash"
-        note = data.get("note", "") or ""
-        table = data.get("table", "") or ""
-        customer_id = data.get("customer")
-        phone_number = data.get("phone_number", "") or ""
+        if total < 0:
+            total = 0
 
-        # Prevent negative payment
         if amount_paid < 0:
             amount_paid = 0
+
+        payment_method = (
+            data.get("method")
+            or "Cash"
+        )
+
+        note = (
+            data.get("note")
+            or ""
+        )
+
+        table = (
+            data.get("table")
+            or ""
+        )
+
+        customer_id = data.get("customer")
+
+        phone_number = (
+            data.get("phone_number")
+            or ""
+        )
 
         # ============================================================
         # CUSTOMER
         # ============================================================
 
-        customer_name = "Valued Customer"
         customer = None
+        customer_name = "Valued Customer"
 
         if customer_id:
+
             try:
                 customer = Customer.query.filter_by(
                     id=int(customer_id)
@@ -11129,212 +11178,459 @@ def hold_and_pay():
                 customer = None
 
             if customer:
+
                 customer_name = (
                     f"{customer.firstname} "
                     f"{customer.lastname}"
-                )
+                ).strip()
+
+                if not customer_name:
+                    customer_name = "Valued Customer"
 
                 if hasattr(customer, "phone"):
-                    phone_number = (
-                        customer.phone or phone_number
-                    )
+
+                    if customer.phone:
+                        phone_number = customer.phone
 
         # ============================================================
-        # HELPER: PREPARE CART ITEM - FIXED ID HANDLING
+        # GENERATE UNIQUE CART ITEM ID
+        # ============================================================
+
+        def generate_cart_item_id():
+            """
+            Generates a unique ID for one cart line.
+
+            This is NOT the product ID.
+            """
+
+            return str(uuid.uuid4())
+
+        # ============================================================
+        # PREPARE ONE CART ITEM
         # ============================================================
 
         def prepare_cart_item(item):
-            """
-            Prepare one cart item while preserving ALL measurement data.
-            Handles both string and numeric IDs.
-            """
 
-            # ========================================================
-            # HANDLE ITEM ID - Support both string and numeric IDs
-            # ========================================================
-            
-            item_id_value = item.get("id")
-            
-            # If ID is None or empty, generate a temporary one
-            if item_id_value is None or item_id_value == "":
-                # Generate a temporary ID based on name and timestamp
-                import time
-                item_id = int(time.time() * 1000)  # Use timestamp as fallback
-            else:
-                try:
-                    # Try to convert to int
-                    item_id = int(item_id_value)
-                except (ValueError, TypeError):
-                    # If it's a string ID, try to use productId if available
-                    if "productId" in item and item.get("productId"):
-                        try:
-                            item_id = int(item.get("productId"))
-                        except (ValueError, TypeError):
-                            # Generate a numeric ID from the string
-                            import hashlib
-                            hash_value = int(hashlib.md5(str(item_id_value).encode()).hexdigest()[:8], 16)
-                            item_id = hash_value
-                    else:
-                        # Generate a numeric ID from the string
-                        import hashlib
-                        hash_value = int(hashlib.md5(str(item_id_value).encode()).hexdigest()[:8], 16)
-                        item_id = hash_value
+            if not isinstance(item, dict):
+                raise ValueError(
+                    "Each cart item must be an object."
+                )
+
+            # --------------------------------------------------------
+            # PRODUCT ID
+            # --------------------------------------------------------
+
+            product_id = (
+                item.get("product_id")
+                or item.get("id")
+                or item.get("_id")
+                or item.get("name")
+            )
+
+            if product_id is None:
+                product_id = ""
+
+            # --------------------------------------------------------
+            # CART ITEM ID
+            #
+            # THIS IS THE IMPORTANT PART.
+            #
+            # If Angular already created one, preserve it.
+            # Otherwise generate one.
+            # --------------------------------------------------------
+
+            cart_item_id = item.get(
+                "cart_item_id"
+            )
+
+            if not cart_item_id:
+                cart_item_id = generate_cart_item_id()
+
+            cart_item_id = str(cart_item_id)
+
+            # --------------------------------------------------------
+            # QUANTITY
+            # --------------------------------------------------------
 
             try:
-                item_qty = int(item.get("qty", 1))
+                item_qty = int(
+                    item.get("qty", 1)
+                )
             except (ValueError, TypeError):
+
                 raise ValueError(
-                    f"Invalid quantity for item: {item.get('name', '')}"
+                    f"Invalid quantity for "
+                    f"{item.get('name', '')}"
                 )
 
             if item_qty <= 0:
                 item_qty = 1
 
+            # --------------------------------------------------------
+            # PRICE
+            # --------------------------------------------------------
+
             try:
+
                 item_price = float(
-                    item.get("price", 0) or 0
+                    item.get("price", 0)
+                    or 0
                 )
+
             except (ValueError, TypeError):
+
                 item_price = 0
 
-            # ========================================================
-            # MEASUREMENT DATA - ALWAYS PRESERVE ALL FIELDS
-            # ========================================================
+            # --------------------------------------------------------
+            # MEASUREMENT DATA
+            # --------------------------------------------------------
 
-            # Get all measurement fields - ALWAYS preserve these
-            measurement = item.get("measurement")
-            measurement_width = item.get("measurementWidth")
-            measurement_height = item.get("measurementHeight")
-            measurement_unit = item.get("measurementUnit")
-            measurement_area = item.get("measurementArea")
-            is_measurement_product = bool(item.get("is_measurement_product", False))
-            show_measurement = item.get("showMeasurement", is_measurement_product)
+            measurement = item.get(
+                "measurement"
+            )
+
+            measurement_width = item.get(
+                "measurementWidth"
+            )
+
+            measurement_height = item.get(
+                "measurementHeight"
+            )
+
+            measurement_unit = item.get(
+                "measurementUnit"
+            )
+
+            measurement_area = item.get(
+                "measurementArea"
+            )
+
+            is_measurement_product = bool(
+                item.get(
+                    "is_measurement_product",
+                    False
+                )
+            )
+
+            show_measurement = bool(
+                item.get(
+                    "showMeasurement",
+                    is_measurement_product
+                )
+            )
 
             # --------------------------------------------------------
-            # If measurement object exists, use it as the source
+            # READ MEASUREMENT OBJECT
             # --------------------------------------------------------
-            
-            if isinstance(measurement, dict):
+
+            if isinstance(
+                measurement,
+                dict
+            ):
+
                 if measurement_width is None:
-                    measurement_width = measurement.get("width")
+
+                    measurement_width = (
+                        measurement.get("width")
+                    )
+
                 if measurement_height is None:
-                    measurement_height = measurement.get("height")
+
+                    measurement_height = (
+                        measurement.get("height")
+                    )
+
                 if not measurement_unit:
-                    measurement_unit = measurement.get("unit")
+
+                    measurement_unit = (
+                        measurement.get("unit")
+                    )
+
                 if measurement_area is None:
-                    measurement_area = measurement.get("area")
+
+                    measurement_area = (
+                        measurement.get("area")
+                    )
 
             # --------------------------------------------------------
-            # Convert measurement values to numbers
+            # CONVERT MEASUREMENTS
             # --------------------------------------------------------
 
             if measurement_width is not None:
+
                 try:
-                    measurement_width = float(measurement_width)
-                except (ValueError, TypeError):
+                    measurement_width = float(
+                        measurement_width
+                    )
+                except (
+                    ValueError,
+                    TypeError
+                ):
                     measurement_width = None
 
             if measurement_height is not None:
+
                 try:
-                    measurement_height = float(measurement_height)
-                except (ValueError, TypeError):
+                    measurement_height = float(
+                        measurement_height
+                    )
+                except (
+                    ValueError,
+                    TypeError
+                ):
                     measurement_height = None
 
             if measurement_unit:
-                measurement_unit = str(measurement_unit)
+
+                measurement_unit = str(
+                    measurement_unit
+                )
 
             if measurement_area is not None:
+
                 try:
-                    measurement_area = float(measurement_area)
-                except (ValueError, TypeError):
+                    measurement_area = float(
+                        measurement_area
+                    )
+                except (
+                    ValueError,
+                    TypeError
+                ):
                     measurement_area = None
 
-            # If area wasn't supplied, calculate it
+            # --------------------------------------------------------
+            # CALCULATE AREA IF NECESSARY
+            # --------------------------------------------------------
+
             if (
                 measurement_area is None
                 and measurement_width is not None
                 and measurement_height is not None
             ):
-                measurement_area = measurement_width * measurement_height
 
-            # ========================================================
-            # BUILD MEASUREMENT OBJECT - ALWAYS CREATE IF DATA EXISTS
-            # ========================================================
+                measurement_area = (
+                    measurement_width
+                    * measurement_height
+                )
+
+            # --------------------------------------------------------
+            # BUILD MEASUREMENT OBJECT
+            # --------------------------------------------------------
 
             final_measurement = None
-            
-            # ALWAYS create measurement object if we have measurement data
-            # Even if is_measurement_product is False, preserve the data
+
             if (
                 measurement_width is not None
                 and measurement_height is not None
                 and measurement_unit
             ):
+
                 final_measurement = {
-                    "width": measurement_width,
-                    "height": measurement_height,
-                    "unit": measurement_unit,
-                    "area": measurement_area
+
+                    "width":
+                        measurement_width,
+
+                    "height":
+                        measurement_height,
+
+                    "unit":
+                        measurement_unit,
+
+                    "area":
+                        measurement_area
                 }
 
-            # ========================================================
+            # --------------------------------------------------------
             # ITEM TOTAL
-            # ========================================================
+            #
+            # Use the frontend total if valid.
+            # Otherwise calculate it.
+            # --------------------------------------------------------
 
-            item_total = item.get("total")
+            item_total = item.get(
+                "total"
+            )
 
             if item_total is not None:
-                try:
-                    item_total = float(item_total)
-                except (ValueError, TypeError):
-                    item_total = item_price * item_qty
-            else:
-                item_total = item_price * item_qty
 
-            # ========================================================
+                try:
+
+                    item_total = float(
+                        item_total
+                    )
+
+                except (
+                    ValueError,
+                    TypeError
+                ):
+
+                    item_total = (
+                        item_price
+                        * item_qty
+                    )
+
+            else:
+
+                item_total = (
+                    item_price
+                    * item_qty
+                )
+
+            # --------------------------------------------------------
             # CHECKED BY
-            # ========================================================
+            # --------------------------------------------------------
 
             checked_by = ""
 
-            if item.get("is_checked", "no") == "yes":
+            if item.get(
+                "is_checked",
+                "no"
+            ) == "yes":
+
                 checked_by = (
                     f"{user.firstname} "
                     f"{user.lastname}"
                 )
 
-            # ========================================================
-            # FINAL ITEM - ALWAYS PRESERVE ALL MEASUREMENT DATA
-            # ========================================================
+            # --------------------------------------------------------
+            # FINAL ITEM
+            # --------------------------------------------------------
 
             prepared_item = {
-                "id": item_id,
-                "qty": item_qty,
-                "name": item.get("name", ""),
-                "price": item_price,
-                "total": item_total,
-                "description": item.get("description", ""),
-                "family": str(item.get("family", "")).strip(),
-                "category": str(item.get("category", "")).strip(),
-                "confirmed": bool(item.get("confirmed", False)),
-                "is_checked_label": str(item.get("is_checked_label", "no")).strip(),
-                "is_checked_dtf": str(item.get("is_checked_dtf", "no")).strip(),
-                "is_checked_large_format": str(item.get("is_checked_large_format", "no")).strip(),
-                "is_checked_digital_printing": str(item.get("is_checked_digital_printing", "no")).strip(),
-                "checked_by": checked_by,
-                "is_vip": item.get("is_vip", "no"),
-                
+
                 # ====================================================
-                # MEASUREMENT FIELDS - ALL PRESERVED
+                # UNIQUE CART LINE
                 # ====================================================
-                
-                "is_measurement_product": is_measurement_product,
-                "measurement": final_measurement,
-                "measurementWidth": measurement_width,
-                "measurementHeight": measurement_height,
-                "measurementUnit": measurement_unit,
-                "measurementArea": measurement_area,
-                "showMeasurement": bool(show_measurement)
+
+                "cart_item_id":
+                    cart_item_id,
+
+                # ====================================================
+                # ACTUAL PRODUCT
+                # ====================================================
+
+                "product_id":
+                    product_id,
+
+                # Keep id for compatibility
+                "id":
+                    product_id,
+
+                # ====================================================
+                # BASIC DATA
+                # ====================================================
+
+                "qty":
+                    item_qty,
+
+                "name":
+                    item.get("name", ""),
+
+                "price":
+                    item_price,
+
+                "total":
+                    item_total,
+
+                "description":
+                    item.get(
+                        "description",
+                        ""
+                    ),
+
+                "family":
+                    str(
+                        item.get(
+                            "family",
+                            ""
+                        )
+                    ).strip(),
+
+                "category":
+                    str(
+                        item.get(
+                            "category",
+                            ""
+                        )
+                    ).strip(),
+
+                "confirmed":
+                    bool(
+                        item.get(
+                            "confirmed",
+                            False
+                        )
+                    ),
+
+                # ====================================================
+                # CHECKING
+                # ====================================================
+
+                "is_checked_label":
+                    str(
+                        item.get(
+                            "is_checked_label",
+                            "no"
+                        )
+                    ).strip(),
+
+                "is_checked_dtf":
+                    str(
+                        item.get(
+                            "is_checked_dtf",
+                            "no"
+                        )
+                    ).strip(),
+
+                "is_checked_large_format":
+                    str(
+                        item.get(
+                            "is_checked_large_format",
+                            "no"
+                        )
+                    ).strip(),
+
+                "is_checked_digital_printing":
+                    str(
+                        item.get(
+                            "is_checked_digital_printing",
+                            "no"
+                        )
+                    ).strip(),
+
+                "checked_by":
+                    checked_by,
+
+                "is_vip":
+                    item.get(
+                        "is_vip",
+                        "no"
+                    ),
+
+                # ====================================================
+                # MEASUREMENTS
+                # ====================================================
+
+                "is_measurement_product":
+                    is_measurement_product,
+
+                "measurement":
+                    final_measurement,
+
+                "measurementWidth":
+                    measurement_width,
+
+                "measurementHeight":
+                    measurement_height,
+
+                "measurementUnit":
+                    measurement_unit,
+
+                "measurementArea":
+                    measurement_area,
+
+                "showMeasurement":
+                    show_measurement
             }
 
             return prepared_item
@@ -11343,18 +11639,57 @@ def hold_and_pay():
         # PREPARE ALL CART ITEMS
         # ============================================================
 
+        incoming_items = []
+
         try:
-            incoming_items = []
 
             for item in data["cartItems"]:
-                incoming_items.append(
-                    prepare_cart_item(item)
+
+                prepared = prepare_cart_item(
+                    item
                 )
 
-        except (ValueError, TypeError, KeyError) as e:
+                incoming_items.append(
+                    prepared
+                )
+
+        except (
+            ValueError,
+            TypeError,
+            KeyError
+        ) as e:
+
             return jsonify({
+                "success": False,
                 "error": str(e)
             }), 400
+
+        # ============================================================
+        # IMPORTANT:
+        # REMOVE DUPLICATE CART ITEM IDS
+        #
+        # We don't want two lines accidentally using
+        # the same cart_item_id.
+        # ============================================================
+
+        seen_cart_ids = set()
+
+        for item in incoming_items:
+
+            cart_item_id = item[
+                "cart_item_id"
+            ]
+
+            if cart_item_id in seen_cart_ids:
+
+                # Generate a new ID for the duplicate
+                item[
+                    "cart_item_id"
+                ] = generate_cart_item_id()
+
+            seen_cart_ids.add(
+                item["cart_item_id"]
+            )
 
         # ============================================================
         # PARSE HOLD ID
@@ -11365,20 +11700,30 @@ def hold_and_pay():
         if hold_id:
 
             try:
-                hold_id = int(hold_id)
 
-            except (ValueError, TypeError):
+                hold_id = int(
+                    hold_id
+                )
+
+            except (
+                ValueError,
+                TypeError
+            ):
+
                 return jsonify({
+                    "success": False,
                     "error": "Invalid hold ID."
                 }), 400
 
-            existing_hold = HeldCart.query.filter_by(
-                id=hold_id,
-                user_id=user.id
-            ).first()
+            existing_hold = (
+                HeldCart.query.filter_by(
+                    id=hold_id,
+                    user_id=user.id
+                ).first()
+            )
 
         # ============================================================
-        # PAYMENT
+        # PAYMENT CALCULATION
         # ============================================================
 
         is_full_payment = (
@@ -11391,6 +11736,10 @@ def hold_and_pay():
 
         if existing_hold:
 
+            # --------------------------------------------------------
+            # EXISTING BALANCE
+            # --------------------------------------------------------
+
             try:
 
                 existing_balance = float(
@@ -11399,9 +11748,16 @@ def hold_and_pay():
                     else 0
                 )
 
-            except (ValueError, TypeError):
+            except (
+                ValueError,
+                TypeError
+            ):
 
                 existing_balance = 0
+
+            # --------------------------------------------------------
+            # LOAD EXISTING ITEMS
+            # --------------------------------------------------------
 
             try:
 
@@ -11418,148 +11774,198 @@ def hold_and_pay():
                 existing_items = []
 
             # --------------------------------------------------------
-            # Existing items indexed by ID
+            # IMPORTANT:
+            #
+            # INDEX BY cart_item_id
+            #
+            # NOT product_id.
             # --------------------------------------------------------
 
             existing_items_dict = {}
 
             for existing_item in existing_items:
 
-                try:
-                    existing_item_id = int(
-                        existing_item.get("id")
+                # ----------------------------------------------------
+                # OLD CART ITEM
+                #
+                # If old data doesn't have cart_item_id,
+                # generate one and preserve it.
+                # ----------------------------------------------------
+
+                old_cart_item_id = (
+                    existing_item.get(
+                        "cart_item_id"
+                    )
+                )
+
+                if not old_cart_item_id:
+
+                    old_cart_item_id = (
+                        generate_cart_item_id()
                     )
 
-                    existing_items_dict[
-                        existing_item_id
-                    ] = existing_item
+                    existing_item[
+                        "cart_item_id"
+                    ] = old_cart_item_id
 
-                except (
-                    ValueError,
-                    TypeError
-                ):
-                    continue
+                old_cart_item_id = str(
+                    old_cart_item_id
+                )
+
+                existing_items_dict[
+                    old_cart_item_id
+                ] = existing_item
 
             # --------------------------------------------------------
-            # Merge items - PRESERVE ALL MEASUREMENT DATA
+            # MERGE CART
+            #
+            # Each cart line is handled independently.
             # --------------------------------------------------------
 
             updated_items = []
 
+            incoming_cart_ids = set()
+
             for item in incoming_items:
 
-                item_id = int(
-                    item["id"]
+                cart_item_id = str(
+                    item["cart_item_id"]
                 )
 
-                # ----------------------------------------------------
-                # IMPORTANT:
-                # Do NOT replace a confirmed item with an incomplete
-                # item. Preserve all measurement data.
-                # ----------------------------------------------------
+                incoming_cart_ids.add(
+                    cart_item_id
+                )
 
-                if (
-                    item_id in existing_items_dict
-                    and existing_items_dict[
-                        item_id
-                    ].get("confirmed", False)
-                ):
-
-                    existing_item = (
-                        existing_items_dict[
-                            item_id
-                        ]
+                existing_item = (
+                    existing_items_dict.get(
+                        cart_item_id
                     )
+                )
 
-                    # Preserve ALL measurement information
-                    if (
-                        not existing_item.get(
-                            "measurement"
-                        )
-                        and item.get(
-                            "measurement"
-                        )
+                # ====================================================
+                # SAME CART LINE
+                # ====================================================
+
+                if existing_item:
+
+                    # ------------------------------------------------
+                    # Preserve confirmed state
+                    # ------------------------------------------------
+
+                    if existing_item.get(
+                        "confirmed"
                     ):
-                        existing_item[
-                            "measurement"
-                        ] = item[
-                            "measurement"
-                        ]
 
-                    if (
-                        existing_item.get(
+                        item["confirmed"] = (
+                            existing_item.get(
+                                "confirmed"
+                            )
+                        )
+
+                    # ------------------------------------------------
+                    # Preserve measurement information
+                    # ------------------------------------------------
+
+                    if not item.get(
+                        "measurement"
+                    ):
+
+                        if existing_item.get(
+                            "measurement"
+                        ):
+
+                            item["measurement"] = (
+                                existing_item.get(
+                                    "measurement"
+                                )
+                            )
+
+                    if item.get(
+                        "measurementWidth"
+                    ) is None:
+
+                        item[
                             "measurementWidth"
-                        ) is None
-                    ):
-                        existing_item[
-                            "measurementWidth"
-                        ] = item.get(
+                        ] = existing_item.get(
                             "measurementWidth"
                         )
 
-                    if (
-                        existing_item.get(
+                    if item.get(
+                        "measurementHeight"
+                    ) is None:
+
+                        item[
                             "measurementHeight"
-                        ) is None
-                    ):
-                        existing_item[
-                            "measurementHeight"
-                        ] = item.get(
+                        ] = existing_item.get(
                             "measurementHeight"
                         )
 
-                    if (
-                        existing_item.get(
-                            "measurementUnit"
-                        ) is None
+                    if not item.get(
+                        "measurementUnit"
                     ):
-                        existing_item[
+
+                        item[
                             "measurementUnit"
-                        ] = item.get(
+                        ] = existing_item.get(
                             "measurementUnit"
                         )
 
-                    # PRESERVE measurementArea field
-                    if (
-                        existing_item.get(
+                    if item.get(
+                        "measurementArea"
+                    ) is None:
+
+                        item[
                             "measurementArea"
-                        ) is None
-                    ):
-                        existing_item[
-                            "measurementArea"
-                        ] = item.get(
+                        ] = existing_item.get(
                             "measurementArea"
                         )
 
-                    # PRESERVE is_measurement_product field
                     if (
-                        existing_item.get(
+                        "is_measurement_product"
+                        not in item
+                    ):
+
+                        item[
                             "is_measurement_product"
-                        ) is None
-                    ):
-                        existing_item[
-                            "is_measurement_product"
-                        ] = item.get(
+                        ] = existing_item.get(
                             "is_measurement_product",
                             False
                         )
 
-                    # PRESERVE showMeasurement field
                     if (
-                        existing_item.get(
-                            "showMeasurement"
-                        ) is None
+                        "showMeasurement"
+                        not in item
                     ):
-                        existing_item[
+
+                        item[
                             "showMeasurement"
-                        ] = item.get(
+                        ] = existing_item.get(
                             "showMeasurement",
                             False
                         )
 
+                    # ------------------------------------------------
+                    # IMPORTANT:
+                    #
+                    # DO NOT use product ID here.
+                    #
+                    # Price belongs to THIS cart_item_id.
+                    #
+                    # Therefore:
+                    #
+                    # item A price = 100
+                    # item B price = 150
+                    #
+                    # can coexist even if product_id is identical.
+                    # ------------------------------------------------
+
                     updated_items.append(
-                        existing_item
+                        item
                     )
+
+                # ====================================================
+                # NEW CART LINE
+                # ====================================================
 
                 else:
 
@@ -11568,15 +11974,25 @@ def hold_and_pay():
                     )
 
             # --------------------------------------------------------
-            # Calculate new total
+            # IMPORTANT:
+            #
+            # Only items sent by the frontend are kept.
+            #
+            # If you want old confirmed items to remain even when
+            # omitted from the frontend, we can change this behavior.
+            # --------------------------------------------------------
+
+            # --------------------------------------------------------
+            # CALCULATE TOTAL
             # --------------------------------------------------------
 
             new_total = (
-                existing_balance + total
+                existing_balance
+                + total
             )
 
             # --------------------------------------------------------
-            # Calculate new balance
+            # BALANCE
             # --------------------------------------------------------
 
             if is_full_payment:
@@ -11586,47 +12002,65 @@ def hold_and_pay():
             else:
 
                 new_balance = (
-                    new_total - amount_paid
+                    new_total
+                    - amount_paid
                 )
 
                 if new_balance < 0:
                     new_balance = 0
 
             # --------------------------------------------------------
-            # Update held order
+            # UPDATE HELD ORDER
             # --------------------------------------------------------
 
             existing_hold.items = json.dumps(
                 updated_items
             )
 
-            existing_hold.total = new_total
+            existing_hold.total = (
+                new_total
+            )
 
             existing_hold.balance = (
                 f"{new_balance:.2f}"
             )
 
             # --------------------------------------------------------
-            # Status
+            # STATUS
             # --------------------------------------------------------
 
             if new_balance <= 0:
 
-                existing_hold.status = "Pending"
-                existing_hold.paid_status = "Success"
+                existing_hold.status = (
+                    "Confirmed"
+                )
+
+                existing_hold.paid_status = (
+                    "Success"
+                )
 
             elif amount_paid > 0:
 
-                existing_hold.status = "Pending"
-                existing_hold.paid_status = "Partial"
+                existing_hold.status = (
+                    "Pending"
+                )
+
+                existing_hold.paid_status = (
+                    "Partial"
+                )
 
             else:
 
-                existing_hold.status = "Pending"
-                existing_hold.paid_status = "Partial"
+                existing_hold.status = (
+                    "Pending"
+                )
+
+                existing_hold.paid_status = (
+                    "Pending"
+                )
 
             # --------------------------------------------------------
-            # Customer
+            # CUSTOMER
             # --------------------------------------------------------
 
             if customer:
@@ -11641,7 +12075,7 @@ def hold_and_pay():
                 )
 
             # --------------------------------------------------------
-            # Payment note
+            # PAYMENT NOTE
             # --------------------------------------------------------
 
             if amount_paid > 0:
@@ -11675,6 +12109,10 @@ def hold_and_pay():
                         payment_note
                     )
 
+            # --------------------------------------------------------
+            # OTHER FIELDS
+            # --------------------------------------------------------
+
             if table:
                 existing_hold.table = table
 
@@ -11684,7 +12122,10 @@ def hold_and_pay():
                 )
 
             order = existing_hold
-            order_id = existing_hold.id
+
+            order_id = (
+                existing_hold.id
+            )
 
         # ============================================================
         # NEW ORDER
@@ -11693,7 +12134,7 @@ def hold_and_pay():
         else:
 
             # --------------------------------------------------------
-            # Calculate balance
+            # BALANCE
             # --------------------------------------------------------
 
             if is_full_payment:
@@ -11703,28 +12144,32 @@ def hold_and_pay():
             else:
 
                 new_balance = (
-                    total - amount_paid
+                    total
+                    - amount_paid
                 )
 
                 if new_balance < 0:
                     new_balance = 0
 
             # --------------------------------------------------------
-            # Check families
+            # DEPARTMENT FLAGS
             # --------------------------------------------------------
 
             contain_drink = any(
-                item.get("family") == "drink"
+                item.get("family")
+                == "drink"
                 for item in incoming_items
             )
 
             contain_food = any(
-                item.get("family") == "food"
+                item.get("family")
+                == "food"
                 for item in incoming_items
             )
 
             contain_dtf = any(
-                item.get("family") == "dtf"
+                item.get("family")
+                == "dtf"
                 for item in incoming_items
             )
 
@@ -11741,12 +12186,13 @@ def hold_and_pay():
             )
 
             contain_label = any(
-                item.get("family") == "label"
+                item.get("family")
+                == "label"
                 for item in incoming_items
             )
 
             # --------------------------------------------------------
-            # Payment note
+            # PAYMENT NOTE
             # --------------------------------------------------------
 
             final_note = note
@@ -11776,22 +12222,22 @@ def hold_and_pay():
                 )
 
             # --------------------------------------------------------
-            # Create HeldCart - STORE COMPLETE ITEMS WITH MEASUREMENTS
+            # CREATE HELD CART
             # --------------------------------------------------------
 
             order = HeldCart(
+
                 user_id=user.id,
 
-                # IMPORTANT:
-                # Measurements are stored here in the items JSON.
-                # incoming_items already contains all measurement data.
                 items=json.dumps(
                     incoming_items
                 ),
 
                 total=total,
 
-                balance=f"{new_balance:.2f}",
+                balance=(
+                    f"{new_balance:.2f}"
+                ),
 
                 customer=(
                     f"{customer.firstname} "
@@ -11809,7 +12255,9 @@ def hold_and_pay():
                     else None
                 ),
 
-                company_name=user.company_name,
+                company_name=(
+                    user.company_name
+                ),
 
                 status=(
                     "Confirmed"
@@ -11880,7 +12328,7 @@ def hold_and_pay():
                 session=(
                     session.open_date
                     if session
-                    else None
+                    else datetime.now()
                 ),
 
                 table=table,
@@ -11903,7 +12351,23 @@ def hold_and_pay():
         db.session.commit()
 
         # ============================================================
-        # EMAIL CONFIRMATION
+        # ITEMS FOR EMAIL / SMS
+        # ============================================================
+
+        try:
+
+            final_items = (
+                json.loads(order.items)
+                if order.items
+                else []
+            )
+
+        except Exception:
+
+            final_items = []
+
+        # ============================================================
+        # EMAIL
         # ============================================================
 
         customer_email = None
@@ -11914,39 +12378,44 @@ def hold_and_pay():
             and customer.email
         ):
 
-            customer_email = customer.email
+            customer_email = (
+                customer.email
+            )
 
         elif data.get("customer_email"):
 
-            customer_email = data.get(
-                "customer_email"
+            customer_email = (
+                data.get("customer_email")
             )
 
             if data.get("customer_name"):
-                customer_name = data.get(
-                    "customer_name"
+
+                customer_name = (
+                    data.get(
+                        "customer_name"
+                    )
                 )
 
         email_sent = False
 
         if (
             customer_email
-            and "@" in str(customer_email)
+            and "@"
+            in str(customer_email)
         ):
 
             try:
 
-                now = datetime.now()
-
                 html_content = f"""
                 <!DOCTYPE html>
                 <html>
+
                 <head>
+
                     <meta charset="UTF-8">
 
                     <title>
-                        Order Confirmation -
-                        Asempahfie Graphics
+                        Order Confirmation
                     </title>
 
                     <style>
@@ -12069,21 +12538,33 @@ def hold_and_pay():
                                 <tbody>
                 """
 
-                items_list = json.loads(
-                    order.items
-                )
+                for item in final_items:
 
-                for item in items_list:
+                    item_qty = float(
+                        item.get(
+                            "qty",
+                            0
+                        )
+                    )
+
+                    item_price = float(
+                        item.get(
+                            "price",
+                            0
+                        )
+                    )
 
                     item_total = (
-                        float(item.get("qty", 0))
-                        * float(item.get("price", 0))
+                        item_qty
+                        * item_price
                     )
 
                     measurement_html = ""
 
-                    measurement = item.get(
-                        "measurement"
+                    measurement = (
+                        item.get(
+                            "measurement"
+                        )
                     )
 
                     if (
@@ -12096,20 +12577,28 @@ def hold_and_pay():
                         )
                     ):
 
-                        width = measurement.get(
-                            "width"
+                        width = (
+                            measurement.get(
+                                "width"
+                            )
                         )
 
-                        height = measurement.get(
-                            "height"
+                        height = (
+                            measurement.get(
+                                "height"
+                            )
                         )
 
-                        unit = measurement.get(
-                            "unit"
+                        unit = (
+                            measurement.get(
+                                "unit"
+                            )
                         )
 
-                        area = measurement.get(
-                            "area"
+                        area = (
+                            measurement.get(
+                                "area"
+                            )
                         )
 
                         if (
@@ -12149,8 +12638,12 @@ def hold_and_pay():
                         <tr>
 
                             <td>
+
                                 <strong>
-                                    {item.get("name", "")}
+                                    {item.get(
+                                        "name",
+                                        ""
+                                    )}
                                 </strong>
 
                                 {measurement_html}
@@ -12158,12 +12651,15 @@ def hold_and_pay():
                             </td>
 
                             <td>
-                                {item.get("qty", 0)}
+                                {item.get(
+                                    "qty",
+                                    0
+                                )}
                             </td>
 
                             <td>
                                 GHS
-                                {float(item.get("price", 0)):.2f}
+                                {item_price:.2f}
                             </td>
 
                             <td>
@@ -12187,7 +12683,7 @@ def hold_and_pay():
                                     Order Total:
                                 </strong>
 
-                                GHS {total:.2f}
+                                GHS {new_total:.2f}
 
                                 <br><br>
 
@@ -12211,25 +12707,36 @@ def hold_and_pay():
                     </div>
 
                 </body>
+
                 </html>
                 """
 
                 from flask_mail import Message
 
-                # Determine order status for email subject
-                order_status = "Order Paid in Full" if new_balance <= 0 else "Order Confirmed"
+                order_status = (
+                    "Order Paid in Full"
+                    if new_balance <= 0
+                    else "Order Confirmed"
+                )
 
                 msg = Message(
+
                     subject=(
-                        f"🎉 {order_status} "
+                        f"🎉 "
+                        f"{order_status} "
                         f"#{order_id} "
                         f"- Asempahfie Graphics"
                     ),
+
                     recipients=[
                         str(customer_email)
                     ],
+
                     html=html_content,
-                    sender="afgghana@gmail.com"
+
+                    sender=(
+                        "afgghana@gmail.com"
+                    )
                 )
 
                 mail.send(msg)
@@ -12244,11 +12751,9 @@ def hold_and_pay():
             except Exception as e:
 
                 print(
-                    f"⚠️ Failed to send email: "
+                    "⚠️ Failed to send email: "
                     f"{str(e)}"
                 )
-
-                email_sent = False
 
         # ============================================================
         # SMS
@@ -12283,14 +12788,10 @@ def hold_and_pay():
                         )
                     )
 
-                    items_list = json.loads(
-                        order.items
-                    )
-
                     item_lines = []
 
                     for index, item in enumerate(
-                        items_list,
+                        final_items,
                         start=1
                     ):
 
@@ -12315,8 +12816,10 @@ def hold_and_pay():
                             f"{item.get('name', '')}"
                         )
 
-                        measurement = item.get(
-                            "measurement"
+                        measurement = (
+                            item.get(
+                                "measurement"
+                            )
                         )
 
                         if (
@@ -12329,20 +12832,28 @@ def hold_and_pay():
                             )
                         ):
 
-                            width = measurement.get(
-                                "width"
+                            width = (
+                                measurement.get(
+                                    "width"
+                                )
                             )
 
-                            height = measurement.get(
-                                "height"
+                            height = (
+                                measurement.get(
+                                    "height"
+                                )
                             )
 
-                            unit = measurement.get(
-                                "unit"
+                            unit = (
+                                measurement.get(
+                                    "unit"
+                                )
                             )
 
-                            area = measurement.get(
-                                "area"
+                            area = (
+                                measurement.get(
+                                    "area"
+                                )
                             )
 
                             if (
@@ -12380,11 +12891,11 @@ def hold_and_pay():
                             item_text
                         )
 
-                    if len(items_list) > 5:
+                    if len(final_items) > 5:
 
                         item_lines.append(
                             f"... and "
-                            f"{len(items_list) - 5}"
+                            f"{len(final_items) - 5}"
                             f" more items"
                         )
 
@@ -12404,7 +12915,8 @@ def hold_and_pay():
 
                         status_text = (
                             f"BALANCE: "
-                            f"GHS {new_balance:.2f}"
+                            f"GHS "
+                            f"{new_balance:.2f}"
                         )
 
                         status_icon = "⏳"
@@ -12420,8 +12932,9 @@ Location: Kokomlemle, Accra
 ITEMS:
 {items_text}
 
-Total: GHS {total:.2f}
+Total: GHS {new_total:.2f}
 Paid: GHS {amount_paid:.2f}
+Balance: GHS {new_balance:.2f}
 Method: {payment_method}
 Date: {now.strftime('%d-%m-%Y %I:%M %p')}
 
@@ -12432,31 +12945,44 @@ Email: afgghana@gmail.com
 Phone: 0243210009 / 0531100380
 """
 
-                    host = "api.smsonlinegh.com"
+                    # ------------------------------------------------
+                    # SMS API
+                    # ------------------------------------------------
 
-                    requestURI = (
+                    host = (
+                        "api.smsonlinegh.com"
+                    )
+
+                    request_uri = (
                         "/v5/message/sms/send"
                     )
 
-                    apiKey = (
+                    api_key = (
                         "a7142fa4296ea493c9e2bd20352edf0d8c4191204fc126b7487408222a4fec27"
                     )
 
                     headers = {
-                        "Host": host,
+
+                        "Host":
+                            host,
+
                         "Content-Type":
                             "application/json",
+
                         "Accept":
                             "application/json",
+
                         "Authorization":
-                            f"key {apiKey}"
+                            f"key {api_key}"
                     }
 
                     msg_data = {
+
                         "text":
                             sms_message.strip(),
 
-                        "type": 0,
+                        "type":
+                            0,
 
                         "sender":
                             "Assempa Fie",
@@ -12466,29 +12992,37 @@ Phone: 0243210009 / 0531100380
                         ]
                     }
 
-                    httpConn = (
+                    http_conn = (
                         httpClient.HTTPConnection(
                             host
                         )
                     )
 
-                    httpConn.request(
+                    http_conn.request(
+
                         "POST",
-                        requestURI,
-                        json.dumps(msg_data),
+
+                        request_uri,
+
+                        json.dumps(
+                            msg_data
+                        ),
+
                         headers
                     )
 
-                    response = (
-                        httpConn.getresponse()
+                    sms_response = (
+                        http_conn.getresponse()
                     )
 
-                    status = response.status
+                    sms_status = (
+                        sms_response.status
+                    )
 
-                    if status == 200:
+                    if sms_status == 200:
 
                         response_data = (
-                            response.read()
+                            sms_response.read()
                         )
 
                         print(
@@ -12501,32 +13035,19 @@ Phone: 0243210009 / 0531100380
                     else:
 
                         print(
-                            "⚠️ SMS sending failed "
-                            f"with status {status}: "
-                            f"{response.read()}"
+                            "⚠️ SMS failed: "
+                            f"HTTP {sms_status} "
+                            f"{sms_response.read()}"
                         )
 
-                        sms_sent = False
-
-                    httpConn.close()
-
-                else:
-
-                    print(
-                        "⚠️ Invalid phone number "
-                        f"format: {clean_phone}"
-                    )
-
-                    sms_sent = False
+                    http_conn.close()
 
             except Exception as e:
 
                 print(
-                    f"⚠️ Failed to send SMS: "
+                    "⚠️ Failed to send SMS: "
                     f"{str(e)}"
                 )
-
-                sms_sent = False
 
         # ============================================================
         # FINAL RESPONSE
@@ -12534,7 +13055,8 @@ Phone: 0243210009 / 0531100380
 
         return jsonify({
 
-            "success": True,
+            "success":
+                True,
 
             "message":
                 "Order processed successfully",
@@ -12546,7 +13068,7 @@ Phone: 0243210009 / 0531100380
                 order_id,
 
             "total":
-                f"{total:.2f}",
+                f"{new_total:.2f}",
 
             "balance":
                 f"{new_balance:.2f}",
@@ -12575,12 +13097,10 @@ Phone: 0243210009 / 0531100380
             "sms_sent":
                 sms_sent,
 
-            # Return the complete items including
-            # measurement information.
+            # Return complete cart lines.
+            # Each one has its own cart_item_id.
             "items":
-                json.loads(order.items)
-                if order.items
-                else []
+                final_items
 
         }), 200
 
@@ -12593,13 +13113,23 @@ Phone: 0243210009 / 0531100380
         db.session.rollback()
 
         print(
-            f"❌ Error in /hsold_and_pay: "
+            f"❌ Error in /hold_and_pay: "
             f"{str(e)}"
         )
 
+        import traceback
+        traceback.print_exc()
+
         return jsonify({
-            "error": str(e)
+
+            "success":
+                False,
+
+            "error":
+                str(e)
+
         }), 500
+
 
 from datetime import datetime, timezone, timedelta
 import json
