@@ -10850,46 +10850,127 @@ Phone: 0243210009 / 0531100380
         traceback.print_exc()
         return jsonify({"error": str(e)}), 500
 
-
-@guest.route("/check_order_item/<int:order_id>/<int:item_id>", methods=["PUT"])
+@guest.route(
+    "/check_order_item/<int:order_id>/<string:item_id>",
+    methods=["PUT"]
+)
 @flask_praetorian.auth_required
 def check_order_item(order_id, item_id):
+
     try:
-        order = HeldCart.query.get_or_404(order_id)
-        current_user = flask_praetorian.current_user()
-        
-        # Parse existing items
+
+        order = HeldCart.query.get_or_404(
+            order_id
+        )
+
+        current_user = (
+            flask_praetorian.current_user()
+        )
+
+        # ------------------------------------------------------
+        # Parse items
+        # ------------------------------------------------------
+
         try:
-            items = json.loads(order.items) if order.items else []
-        except json.JSONDecodeError:
-            items = []
-        
-        # Find and update the specific item
+
+            items = json.loads(
+                order.items
+            ) if order.items else []
+
+        except (
+            json.JSONDecodeError,
+            TypeError
+        ):
+
+            return jsonify({
+                "success": False,
+                "error": "Invalid order items."
+            }), 400
+
+        # ------------------------------------------------------
+        # Find by cart_item_id
+        # ------------------------------------------------------
+
         item_found = False
+
+        checked_by = (
+            f"{current_user.firstname} "
+            f"{current_user.lastname}"
+        ).strip()
+
         for item in items:
-            if item.get('id') == item_id:
-                item['is_checked'] = "yes"
-                item['checked_by'] = str(current_user.firstname + " " + current_user.lastname)
+
+            cart_item_id = str(
+                item.get(
+                    "cart_item_id",
+                    ""
+                )
+            )
+
+            if cart_item_id == str(item_id):
+
+                item["is_checked"] = "yes"
+
+                item["checked_by"] = checked_by
+
                 item_found = True
+
                 break
-        
+
         if not item_found:
-            return jsonify({"error": "Item not found in order"}), 404
-        
-        # Update order items
-        order.items = json.dumps(items)
+
+            return jsonify({
+                "success": False,
+                "error": "Cart item not found."
+            }), 404
+
+        # ------------------------------------------------------
+        # Save
+        # ------------------------------------------------------
+
+        order.items = json.dumps(
+            items
+        )
+
         db.session.commit()
-        
+
         return jsonify({
-            "message": "Item checked successfully",
-            "item_id": item_id,
-            "is_checked": "yes",
-            "checked_by": current_user.firstname + " " + current_user.lastname
+
+            "success": True,
+
+            "message":
+                "Item checked successfully",
+
+            "order_id":
+                order_id,
+
+            "cart_item_id":
+                str(item_id),
+
+            "is_checked":
+                "yes",
+
+            "checked_by":
+                checked_by,
+
+            "items":
+                items
+
         }), 200
-        
+
     except Exception as e:
+
         db.session.rollback()
-        return jsonify({"error": str(e)}), 500
+
+        print(
+            f"Error checking cart item: {e}"
+        )
+
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
+
 
 
 @guest.route('/get_helding_orders_customers', methods=['GET'])
@@ -11043,20 +11124,39 @@ from flask import request, jsonify
 from datetime import datetime
 import json
 import uuid
+import time
+import hashlib
 import http.client as httpClient
-
 
 @guest.route('/hold_and_pay', methods=['POST'])
 @flask_praetorian.auth_required
 def hold_and_pay():
+    """
+    Create/update a HeldCart and process payment.
+
+    IMPORTANT:
+    Product ID and Cart Item ID are different.
+
+    id:
+        The actual product ID.
+        Multiple cart lines may have the same id.
+
+    cart_item_id:
+        Unique ID for ONE specific cart line.
+        This allows:
+            Product A - GHS 100
+            Product A - GHS 150
+
+        to exist independently in the same order.
+    """
 
     try:
-        user = current_user()
+        user = flask_praetorian.current_user()
         data = request.get_json(silent=True)
 
-        # ============================================================
+        # ==========================================================
         # VALIDATION
-        # ============================================================
+        # ==========================================================
 
         if not data:
             return jsonify({
@@ -11072,16 +11172,27 @@ def hold_and_pay():
                 "error": "'cartItems' must be a list."
             }), 400
 
-        # ============================================================
+        # ==========================================================
         # BASIC DATA
-        # ============================================================
+        # ==========================================================
 
         hold_id = data.get("id")
 
         try:
             amount_paid = float(data.get("amount_paid", 0) or 0)
         except (ValueError, TypeError):
-            amount_paid = 0
+            return jsonify({
+                "success": False,
+                "error": "Invalid amount_paid."
+            }), 400
+
+        try:
+            supplied_total = float(data.get("total", 0) or 0)
+        except (ValueError, TypeError):
+            return jsonify({
+                "success": False,
+                "error": "Invalid total."
+            }), 400
 
         if amount_paid < 0:
             amount_paid = 0
@@ -11092,9 +11203,9 @@ def hold_and_pay():
         customer_id = data.get("customer")
         phone_number = data.get("phone_number", "") or ""
 
-        # ============================================================
+        # ==========================================================
         # CUSTOMER
-        # ============================================================
+        # ==========================================================
 
         customer = None
         customer_name = "Valued Customer"
@@ -11108,62 +11219,64 @@ def hold_and_pay():
             except (ValueError, TypeError):
                 customer = None
 
-        if customer:
+            if customer:
 
-            customer_name = (
-                f"{customer.firstname} {customer.lastname}"
-            ).strip()
+                customer_name = (
+                    f"{customer.firstname} "
+                    f"{customer.lastname}"
+                ).strip()
 
-            if hasattr(customer, "phone") and customer.phone:
-                phone_number = customer.phone
+                if hasattr(customer, "phone") and customer.phone:
+                    phone_number = customer.phone
 
-        # ============================================================
-        # PREPARE CART ITEM
-        #
-        # IMPORTANT:
-        # Every individual cart line gets its own cart_item_id.
-        #
-        # Example:
-        #
-        # Product ID = 25
-        #
-        # Line 1:
-        # cart_item_id = abc123
-        #
-        # Line 2:
-        # cart_item_id = xyz789
-        #
-        # Therefore changing the price of line 1 will NOT change line 2.
-        # ============================================================
+        # ==========================================================
+        # UNIQUE CART ITEM ID
+        # ==========================================================
+
+        def generate_cart_item_id():
+            """
+            Generate a unique ID for a specific cart line.
+            """
+
+            return str(uuid.uuid4())
+
+        # ==========================================================
+        # PREPARE ONE CART ITEM
+        # ==========================================================
 
         def prepare_cart_item(item):
 
             if not isinstance(item, dict):
-                raise ValueError("Invalid cart item.")
+                raise ValueError("Each cart item must be an object.")
 
-            # --------------------------------------------------------
-            # UNIQUE CART LINE ID
-            # --------------------------------------------------------
+            # ------------------------------------------------------
+            # PRODUCT ID
+            # ------------------------------------------------------
+
+            product_id = item.get("id")
+
+            if product_id is None or product_id == "":
+                product_id = item.get("productId")
+
+            # Keep product ID as it came from Angular where possible.
+            # This is NOT the unique cart-line ID.
+            if product_id is None or product_id == "":
+                product_id = ""
+
+            # ------------------------------------------------------
+            # CART ITEM ID
+            # ------------------------------------------------------
 
             cart_item_id = item.get("cart_item_id")
 
             if not cart_item_id:
-                cart_item_id = str(uuid.uuid4())
+                cart_item_id = generate_cart_item_id()
+            else:
+                cart_item_id = str(cart_item_id)
 
-            # --------------------------------------------------------
-            # PRODUCT ID
-            # --------------------------------------------------------
-
-            product_id = item.get("id")
-
-            # Keep original ID if possible.
-            # Do NOT use product ID as cart line ID.
-            if product_id is None:
-                product_id = item.get("_id")
-
-            # --------------------------------------------------------
+            # ------------------------------------------------------
             # QUANTITY
-            # --------------------------------------------------------
+            # ------------------------------------------------------
 
             try:
                 qty = int(item.get("qty", 1) or 1)
@@ -11173,25 +11286,46 @@ def hold_and_pay():
             if qty <= 0:
                 qty = 1
 
-            # --------------------------------------------------------
+            # ------------------------------------------------------
             # PRICE
-            # --------------------------------------------------------
+            # ------------------------------------------------------
 
             try:
                 price = float(item.get("price", 0) or 0)
             except (ValueError, TypeError):
                 price = 0
 
-            # --------------------------------------------------------
+            # ------------------------------------------------------
+            # NAME
+            # ------------------------------------------------------
+
+            name = (
+                item.get("name")
+                or item.get("item_name")
+                or ""
+            )
+
+            # ------------------------------------------------------
             # MEASUREMENT
-            # --------------------------------------------------------
+            # ------------------------------------------------------
 
             measurement = item.get("measurement")
 
-            width = item.get("measurementWidth")
-            height = item.get("measurementHeight")
-            unit = item.get("measurementUnit")
-            area = item.get("measurementArea")
+            measurement_width = item.get(
+                "measurementWidth"
+            )
+
+            measurement_height = item.get(
+                "measurementHeight"
+            )
+
+            measurement_unit = item.get(
+                "measurementUnit"
+            )
+
+            measurement_area = item.get(
+                "measurementArea"
+            )
 
             is_measurement_product = bool(
                 item.get(
@@ -11207,124 +11341,173 @@ def hold_and_pay():
                 )
             )
 
-            # --------------------------------------------------------
-            # Read measurement object if supplied
-            # --------------------------------------------------------
+            # ------------------------------------------------------
+            # Read measurement object if available
+            # ------------------------------------------------------
 
             if isinstance(measurement, dict):
 
-                if width is None:
-                    width = measurement.get("width")
+                if measurement_width is None:
+                    measurement_width = measurement.get(
+                        "width"
+                    )
 
-                if height is None:
-                    height = measurement.get("height")
+                if measurement_height is None:
+                    measurement_height = measurement.get(
+                        "height"
+                    )
 
-                if not unit:
-                    unit = measurement.get("unit")
+                if not measurement_unit:
+                    measurement_unit = measurement.get(
+                        "unit"
+                    )
 
-                if area is None:
-                    area = measurement.get("area")
+                if measurement_area is None:
+                    measurement_area = measurement.get(
+                        "area"
+                    )
 
-            # --------------------------------------------------------
+            # ------------------------------------------------------
             # Convert measurement values
-            # --------------------------------------------------------
+            # ------------------------------------------------------
 
-            if width is not None:
-
+            if measurement_width is not None:
                 try:
-                    width = float(width)
+                    measurement_width = float(
+                        measurement_width
+                    )
                 except (ValueError, TypeError):
-                    width = None
+                    measurement_width = None
 
-            if height is not None:
-
+            if measurement_height is not None:
                 try:
-                    height = float(height)
+                    measurement_height = float(
+                        measurement_height
+                    )
                 except (ValueError, TypeError):
-                    height = None
+                    measurement_height = None
 
-            if area is not None:
-
+            if measurement_area is not None:
                 try:
-                    area = float(area)
+                    measurement_area = float(
+                        measurement_area
+                    )
                 except (ValueError, TypeError):
-                    area = None
+                    measurement_area = None
 
-            if unit:
-                unit = str(unit)
+            if measurement_unit:
+                measurement_unit = str(
+                    measurement_unit
+                )
 
-            # --------------------------------------------------------
+            # ------------------------------------------------------
             # Calculate area
-            # --------------------------------------------------------
+            # ------------------------------------------------------
 
             if (
-                area is None
-                and width is not None
-                and height is not None
+                measurement_area is None
+                and measurement_width is not None
+                and measurement_height is not None
             ):
-                area = width * height
+                measurement_area = (
+                    measurement_width
+                    * measurement_height
+                )
 
-            # --------------------------------------------------------
-            # Build measurement object
-            # --------------------------------------------------------
+            # ------------------------------------------------------
+            # Final measurement object
+            # ------------------------------------------------------
 
             final_measurement = None
 
             if (
-                width is not None
-                and height is not None
-                and unit
+                measurement_width is not None
+                and measurement_height is not None
+                and measurement_unit
             ):
 
                 final_measurement = {
-                    "width": width,
-                    "height": height,
-                    "unit": unit,
-                    "area": area
+                    "width": measurement_width,
+                    "height": measurement_height,
+                    "unit": measurement_unit,
+                    "area": measurement_area
                 }
 
-            # --------------------------------------------------------
+            # ------------------------------------------------------
             # ITEM TOTAL
+            # ------------------------------------------------------
+
+            # IMPORTANT:
+            # Price belongs to THIS cart_item_id.
             #
-            # Price is the price of ONE unit.
-            # Total = price * qty.
-            # --------------------------------------------------------
-
-            item_total = price * qty
-
-            # If frontend sent total, we intentionally don't blindly
-            # trust it. This prevents stale totals.
+            # Therefore:
             #
-            # item_total = price * qty
+            # Product ID 10
+            # cart_item_id A
+            # price 100
+            #
+            # Product ID 10
+            # cart_item_id B
+            # price 150
+            #
+            # are completely independent.
 
-            # --------------------------------------------------------
+            try:
+                item_total = float(
+                    item.get(
+                        "total",
+                        price * qty
+                    )
+                )
+            except (ValueError, TypeError):
+                item_total = price * qty
+
+            # Recalculate if total is invalid.
+            if item_total < 0:
+                item_total = price * qty
+
+            # ------------------------------------------------------
             # CHECKED BY
-            # --------------------------------------------------------
+            # ------------------------------------------------------
 
-            checked_by = ""
+            is_checked = item.get(
+                "is_checked",
+                "no"
+            )
 
-            if item.get("is_checked", "no") == "yes":
+            checked_by = item.get(
+                "checked_by",
+                ""
+            ) or ""
+
+            if is_checked == "yes" and not checked_by:
 
                 checked_by = (
                     f"{user.firstname} "
                     f"{user.lastname}"
-                )
+                ).strip()
 
-            # --------------------------------------------------------
+            # ------------------------------------------------------
             # FINAL ITEM
-            # --------------------------------------------------------
+            # ------------------------------------------------------
 
             prepared_item = {
 
-                # UNIQUE CART LINE
+                # ==============================================
+                # CRITICAL IDs
+                # ==============================================
+
                 "cart_item_id": cart_item_id,
 
-                # ORIGINAL PRODUCT ID
                 "id": product_id,
 
-                "qty": qty,
+                # ==============================================
+                # BASIC
+                # ==============================================
 
-                "name": item.get("name", ""),
+                "name": name,
+
+                "qty": qty,
 
                 "price": price,
 
@@ -11333,15 +11516,25 @@ def hold_and_pay():
                 "description": item.get(
                     "description",
                     ""
-                ),
+                ) or "",
 
                 "family": str(
-                    item.get("family", "")
+                    item.get(
+                        "family",
+                        ""
+                    )
                 ).strip(),
 
                 "category": str(
-                    item.get("category", "")
+                    item.get(
+                        "category",
+                        ""
+                    )
                 ).strip(),
+
+                # ==============================================
+                # CHECKING
+                # ==============================================
 
                 "confirmed": bool(
                     item.get(
@@ -11349,6 +11542,10 @@ def hold_and_pay():
                         False
                     )
                 ),
+
+                "is_checked": is_checked,
+
+                "checked_by": checked_by,
 
                 "is_checked_label": str(
                     item.get(
@@ -11378,16 +11575,14 @@ def hold_and_pay():
                     )
                 ).strip(),
 
-                "checked_by": checked_by,
-
                 "is_vip": item.get(
                     "is_vip",
                     "no"
                 ),
 
-                # ----------------------------------------------------
+                # ==============================================
                 # MEASUREMENTS
-                # ----------------------------------------------------
+                # ==============================================
 
                 "is_measurement_product":
                     is_measurement_product,
@@ -11396,16 +11591,16 @@ def hold_and_pay():
                     final_measurement,
 
                 "measurementWidth":
-                    width,
+                    measurement_width,
 
                 "measurementHeight":
-                    height,
+                    measurement_height,
 
                 "measurementUnit":
-                    unit,
+                    measurement_unit,
 
                 "measurementArea":
-                    area,
+                    measurement_area,
 
                 "showMeasurement":
                     show_measurement
@@ -11413,9 +11608,9 @@ def hold_and_pay():
 
             return prepared_item
 
-        # ============================================================
+        # ==========================================================
         # PREPARE ALL ITEMS
-        # ============================================================
+        # ==========================================================
 
         incoming_items = []
 
@@ -11431,30 +11626,44 @@ def hold_and_pay():
 
             return jsonify({
                 "success": False,
-                "error": str(e)
+                "error": f"Invalid cart item: {str(e)}"
             }), 400
 
-        # ============================================================
-        # CALCULATE CART TOTAL
-        #
-        # This is important.
-        #
-        # If the user changes the price of ONE duplicate product,
-        # the total is calculated from that individual cart line.
-        # ============================================================
+        # ==========================================================
+        # CALCULATE CART TOTAL FROM ITEMS
+        # ==========================================================
 
-        calculated_cart_total = sum(
-            float(item.get("price", 0) or 0)
-            *
-            int(item.get("qty", 1) or 1)
-            for item in incoming_items
+        calculated_total = 0
+
+        for item in incoming_items:
+
+            calculated_total += float(
+                item.get("price", 0)
+            ) * int(
+                item.get("qty", 1)
+            )
+
+        calculated_total = round(
+            calculated_total,
+            2
         )
 
-        total = calculated_cart_total
+        # ==========================================================
+        # USE FRONTEND TOTAL IF PROVIDED
+        # ==========================================================
 
-        # ============================================================
-        # HELD ORDER LOOKUP
-        # ============================================================
+        # We normally trust the calculated cart total because
+        # the price belongs to each individual cart_item_id.
+
+        total = calculated_total
+
+        # If there are no items, allow a zero total.
+        if not incoming_items:
+            total = 0
+
+        # ==========================================================
+        # FIND EXISTING HOLD
+        # ==========================================================
 
         existing_hold = None
 
@@ -11474,29 +11683,22 @@ def hold_and_pay():
                 user_id=user.id
             ).first()
 
-        # ============================================================
+            if not existing_hold:
+
+                return jsonify({
+                    "success": False,
+                    "error": "Held order not found."
+                }), 404
+
+        # ==========================================================
         # EXISTING ORDER
-        # ============================================================
+        # ==========================================================
 
         if existing_hold:
 
-            # --------------------------------------------------------
-            # Existing balance
-            # --------------------------------------------------------
-
-            try:
-
-                existing_balance = float(
-                    existing_hold.balance or 0
-                )
-
-            except (ValueError, TypeError):
-
-                existing_balance = 0
-
-            # --------------------------------------------------------
-            # Existing items
-            # --------------------------------------------------------
+            # ------------------------------------------------------
+            # Parse existing items
+            # ------------------------------------------------------
 
             try:
 
@@ -11504,25 +11706,18 @@ def hold_and_pay():
                     existing_hold.items
                 ) if existing_hold.items else []
 
-                if not isinstance(
-                    existing_items,
-                    list
-                ):
-                    existing_items = []
-
-            except Exception:
+            except (
+                json.JSONDecodeError,
+                TypeError
+            ):
 
                 existing_items = []
 
-            # --------------------------------------------------------
-            # IMPORTANT:
-            #
-            # Match by cart_item_id.
-            #
-            # NEVER match duplicate products only by product ID.
-            # --------------------------------------------------------
+            # ------------------------------------------------------
+            # Index existing items by CART ITEM ID
+            # ------------------------------------------------------
 
-            existing_items_by_cart_id = {}
+            existing_by_cart_id = {}
 
             for existing_item in existing_items:
 
@@ -11532,184 +11727,378 @@ def hold_and_pay():
                     )
                 )
 
-                if existing_cart_id:
+                # Older orders may not have cart_item_id.
+                # Give those items one.
+                if not existing_cart_id:
 
-                    existing_items_by_cart_id[
-                        str(existing_cart_id)
-                    ] = existing_item
+                    existing_cart_id = (
+                        generate_cart_item_id()
+                    )
 
-            # --------------------------------------------------------
-            # Merge without collapsing duplicate products
-            # --------------------------------------------------------
+                    existing_item[
+                        "cart_item_id"
+                    ] = existing_cart_id
+
+                existing_by_cart_id[
+                    str(existing_cart_id)
+                ] = existing_item
+
+            # ------------------------------------------------------
+            # Merge incoming items
+            # ------------------------------------------------------
 
             updated_items = []
 
-            for incoming_item in incoming_items:
+            for new_item in incoming_items:
 
-                cart_item_id = str(
-                    incoming_item[
-                        "cart_item_id"
-                    ]
+                cart_id = str(
+                    new_item["cart_item_id"]
                 )
 
-                old_item = (
-                    existing_items_by_cart_id.get(
-                        cart_item_id
-                    )
+                old_item = existing_by_cart_id.get(
+                    cart_id
                 )
 
                 if old_item:
 
-                    # Preserve confirmed status
-                    if old_item.get(
-                        "confirmed"
-                    ):
+                    # ==========================================
+                    # THIS IS THE SAME CART LINE
+                    # ==========================================
 
-                        incoming_item[
-                            "confirmed"
-                        ] = True
+                    # Update price
+                    old_item["price"] = float(
+                        new_item.get(
+                            "price",
+                            old_item.get(
+                                "price",
+                                0
+                            )
+                        )
+                    )
 
-                    # Preserve measurements
-                    if (
-                        not incoming_item.get(
+                    # Update quantity
+                    old_item["qty"] = int(
+                        new_item.get(
+                            "qty",
+                            old_item.get(
+                                "qty",
+                                1
+                            )
+                        )
+                    )
+
+                    # Update total
+                    old_item["total"] = (
+                        old_item["price"]
+                        * old_item["qty"]
+                    )
+
+                    # Update description
+                    old_item["description"] = (
+                        new_item.get(
+                            "description",
+                            old_item.get(
+                                "description",
+                                ""
+                            )
+                        )
+                    )
+
+                    # Update measurement data
+                    old_item["measurement"] = (
+                        new_item.get(
                             "measurement"
                         )
-                        and old_item.get(
-                            "measurement"
-                        )
-                    ):
+                    )
 
-                        incoming_item[
-                            "measurement"
-                        ] = old_item[
-                            "measurement"
+                    old_item[
+                        "measurementWidth"
+                    ] = new_item.get(
+                        "measurementWidth"
+                    )
+
+                    old_item[
+                        "measurementHeight"
+                    ] = new_item.get(
+                        "measurementHeight"
+                    )
+
+                    old_item[
+                        "measurementUnit"
+                    ] = new_item.get(
+                        "measurementUnit"
+                    )
+
+                    old_item[
+                        "measurementArea"
+                    ] = new_item.get(
+                        "measurementArea"
+                    )
+
+                    old_item[
+                        "is_measurement_product"
+                    ] = new_item.get(
+                        "is_measurement_product",
+                        old_item.get(
+                            "is_measurement_product",
+                            False
+                        )
+                    )
+
+                    old_item[
+                        "showMeasurement"
+                    ] = new_item.get(
+                        "showMeasurement",
+                        old_item.get(
+                            "showMeasurement",
+                            False
+                        )
+                    )
+
+                    # Keep checking state if it already exists.
+                    if "is_checked" in new_item:
+                        old_item[
+                            "is_checked"
+                        ] = new_item[
+                            "is_checked"
                         ]
 
-                # ----------------------------------------------------
-                # ALWAYS append the line.
-                #
-                # This is what allows:
-                #
-                # Product A - GHS 10
-                # Product A - GHS 25
-                #
-                # to exist together.
-                # ----------------------------------------------------
+                    if new_item.get("checked_by"):
+                        old_item[
+                            "checked_by"
+                        ] = new_item[
+                            "checked_by"
+                        ]
 
-                updated_items.append(
-                    incoming_item
+                    updated_items.append(
+                        old_item
+                    )
+
+                else:
+
+                    # ==========================================
+                    # BRAND NEW CART LINE
+                    # ==========================================
+
+                    updated_items.append(
+                        new_item
+                    )
+
+            # ------------------------------------------------------
+            # IMPORTANT:
+            # Remove items that are no longer in the incoming cart.
+            #
+            # The incoming cart is treated as the current cart.
+            # ------------------------------------------------------
+
+            incoming_cart_ids = {
+                str(
+                    item["cart_item_id"]
                 )
+                for item in incoming_items
+            }
 
-            # --------------------------------------------------------
-            # Recalculate order total
-            # --------------------------------------------------------
+            # Only retain existing items that are still present.
+            #
+            # This means removing an item from Angular cart
+            # also removes it from the held order.
 
-            new_items_total = sum(
-                float(
+            final_items = []
+
+            for item in updated_items:
+
+                item_cart_id = str(
                     item.get(
-                        "price",
-                        0
-                    ) or 0
+                        "cart_item_id",
+                        ""
+                    )
                 )
-                *
-                int(
-                    item.get(
-                        "qty",
-                        1
-                    ) or 1
+
+                if (
+                    item_cart_id
+                    in incoming_cart_ids
+                ):
+
+                    final_items.append(item)
+
+            # ------------------------------------------------------
+            # Calculate NEW total
+            # ------------------------------------------------------
+
+            new_total = 0
+
+            for item in final_items:
+
+                try:
+                    item_price = float(
+                        item.get(
+                            "price",
+                            0
+                        ) or 0
+                    )
+                except (
+                    ValueError,
+                    TypeError
+                ):
+                    item_price = 0
+
+                try:
+                    item_qty = int(
+                        item.get(
+                            "qty",
+                            1
+                        ) or 1
+                    )
+                except (
+                    ValueError,
+                    TypeError
+                ):
+                    item_qty = 1
+
+                new_total += (
+                    item_price
+                    * item_qty
                 )
-                for item in updated_items
+
+            new_total = round(
+                new_total,
+                2
             )
 
-            # --------------------------------------------------------
-            # IMPORTANT FIX:
-            #
-            # new_total is ALWAYS defined.
-            # --------------------------------------------------------
+            # ======================================================
+            # PREVIOUS ORDER VALUES
+            # ======================================================
 
-            new_total = new_items_total
+            try:
 
-            # --------------------------------------------------------
-            # Calculate new balance
-            #
-            # Existing balance + new payment logic.
-            # --------------------------------------------------------
-
-            if amount_paid >= existing_balance:
-
-                new_balance = 0
-
-            else:
-
-                new_balance = (
-                    existing_balance
-                    - amount_paid
+                previous_total = float(
+                    existing_hold.total
+                    or 0
                 )
 
-                if new_balance < 0:
-                    new_balance = 0
+            except (
+                ValueError,
+                TypeError
+            ):
 
-            # --------------------------------------------------------
-            # Status
-            # --------------------------------------------------------
+                previous_total = 0
+
+            try:
+
+                previous_balance = float(
+                    existing_hold.balance
+                    or 0
+                )
+
+            except (
+                ValueError,
+                TypeError
+            ):
+
+                previous_balance = 0
+
+            # ======================================================
+            # CALCULATE BALANCE
+            # ======================================================
+
+            # If the cart total changes because the user edits
+            # a price, adds an item, or removes an item:
+            #
+            # previous balance
+            # + difference in order total
+            # - new payment
+            #
+            # Example:
+            #
+            # Previous total = 100
+            # Previous balance = 100
+            #
+            # New total = 150
+            # Payment = 50
+            #
+            # New balance = 100 + (150 - 100) - 50
+            #              = 100
+
+            total_difference = (
+                new_total
+                - previous_total
+            )
+
+            new_balance = (
+                previous_balance
+                + total_difference
+                - amount_paid
+            )
+
+            if new_balance < 0:
+                new_balance = 0
+
+            new_balance = round(
+                new_balance,
+                2
+            )
+
+            # ------------------------------------------------------
+            # Determine payment status
+            # ------------------------------------------------------
 
             if new_balance <= 0:
 
-                order_status = "Confirmed"
-                paid_status = "Success"
+                new_status = "Confirmed"
+                new_paid_status = "Success"
 
             elif amount_paid > 0:
 
-                order_status = "Pending"
-                paid_status = "Partial"
+                new_status = "Pending"
+                new_paid_status = "Partial"
 
             else:
 
-                order_status = "Pending"
-                paid_status = "Pending"
+                new_status = "Pending"
+                new_paid_status = "Pending"
 
-            # --------------------------------------------------------
-            # Departments
-            # --------------------------------------------------------
+            # ------------------------------------------------------
+            # Department flags
+            # ------------------------------------------------------
 
             contain_drink = any(
                 item.get("family") == "drink"
-                for item in updated_items
+                for item in final_items
             )
 
             contain_food = any(
                 item.get("family") == "food"
-                for item in updated_items
+                for item in final_items
             )
 
             contain_dtf = any(
                 item.get("family") == "dtf"
-                for item in updated_items
+                for item in final_items
             )
 
             contain_digital_printing = any(
                 item.get("family")
                 == "digital_printing"
-                for item in updated_items
+                for item in final_items
             )
 
             contain_large_format = any(
                 item.get("family")
                 == "large_format"
-                for item in updated_items
+                for item in final_items
             )
 
             contain_label = any(
                 item.get("family") == "label"
-                for item in updated_items
+                for item in final_items
             )
 
-            # --------------------------------------------------------
+            # ------------------------------------------------------
             # Update HeldCart
-            # --------------------------------------------------------
+            # ------------------------------------------------------
 
             existing_hold.items = json.dumps(
-                updated_items
+                final_items
             )
 
             existing_hold.total = new_total
@@ -11718,9 +12107,11 @@ def hold_and_pay():
                 f"{new_balance:.2f}"
             )
 
-            existing_hold.status = order_status
+            existing_hold.status = new_status
 
-            existing_hold.paid_status = paid_status
+            existing_hold.paid_status = (
+                new_paid_status
+            )
 
             existing_hold.payment_method = (
                 payment_method
@@ -11728,27 +12119,22 @@ def hold_and_pay():
 
             existing_hold.table = table
 
-            if customer:
-
-                existing_hold.customer = (
-                    f"{customer.firstname} "
-                    f"{customer.lastname}"
-                ).strip()
-
-                existing_hold.customer_id = (
-                    customer.id
-                )
-
             existing_hold.contain_drink = (
-                "yes" if contain_drink else "no"
+                "yes"
+                if contain_drink
+                else "no"
             )
 
             existing_hold.contain_food = (
-                "yes" if contain_food else "no"
+                "yes"
+                if contain_food
+                else "no"
             )
 
             existing_hold.contain_dtf = (
-                "yes" if contain_dtf else "no"
+                "yes"
+                if contain_dtf
+                else "no"
             )
 
             existing_hold.contain_digital_printing = (
@@ -11769,27 +12155,33 @@ def hold_and_pay():
                 else "no"
             )
 
-            # --------------------------------------------------------
+            # ------------------------------------------------------
+            # Customer
+            # ------------------------------------------------------
+
+            if customer:
+
+                existing_hold.customer = (
+                    f"{customer.firstname} "
+                    f"{customer.lastname}"
+                ).strip()
+
+                existing_hold.customer_id = (
+                    customer.id
+                )
+
+            # ------------------------------------------------------
             # Payment note
-            # --------------------------------------------------------
+            # ------------------------------------------------------
 
             if amount_paid > 0:
 
-                if new_balance <= 0:
-
-                    payment_note = (
-                        f"💰 PAID IN FULL: "
-                        f"GHS {amount_paid:.2f}"
-                    )
-
-                else:
-
-                    payment_note = (
-                        f"💰 Amount Paid: "
-                        f"GHS {amount_paid:.2f} | "
-                        f"Balance: "
-                        f"GHS {new_balance:.2f}"
-                    )
+                payment_note = (
+                    f"💰 Payment: GHS "
+                    f"{amount_paid:.2f} | "
+                    f"Balance: GHS "
+                    f"{new_balance:.2f}"
+                )
 
                 if existing_hold.note:
 
@@ -11800,46 +12192,47 @@ def hold_and_pay():
 
                 else:
 
-                    existing_hold.note = payment_note
+                    existing_hold.note = (
+                        payment_note
+                    )
+
+            elif note:
+
+                existing_hold.note = note
 
             order = existing_hold
-
             order_id = existing_hold.id
 
-        # ============================================================
+            total = new_total
+
+        # ==========================================================
         # NEW ORDER
-        # ============================================================
+        # ==========================================================
 
         else:
 
-            # --------------------------------------------------------
-            # IMPORTANT:
-            # new_total exists here too.
-            # --------------------------------------------------------
+            # ------------------------------------------------------
+            # New order balance
+            # ------------------------------------------------------
 
-            new_total = total
+            new_total = calculated_total
 
-            # --------------------------------------------------------
-            # Calculate balance
-            # --------------------------------------------------------
+            new_balance = (
+                new_total
+                - amount_paid
+            )
 
-            if amount_paid >= new_total:
-
+            if new_balance < 0:
                 new_balance = 0
 
-            else:
+            new_balance = round(
+                new_balance,
+                2
+            )
 
-                new_balance = (
-                    new_total
-                    - amount_paid
-                )
-
-                if new_balance < 0:
-                    new_balance = 0
-
-            # --------------------------------------------------------
-            # Status
-            # --------------------------------------------------------
+            # ------------------------------------------------------
+            # Payment status
+            # ------------------------------------------------------
 
             if new_balance <= 0:
 
@@ -11856,9 +12249,9 @@ def hold_and_pay():
                 order_status = "Pending"
                 paid_status = "Pending"
 
-            # --------------------------------------------------------
+            # ------------------------------------------------------
             # Departments
-            # --------------------------------------------------------
+            # ------------------------------------------------------
 
             contain_drink = any(
                 item.get("family") == "drink"
@@ -11892,39 +12285,30 @@ def hold_and_pay():
                 for item in incoming_items
             )
 
-            # --------------------------------------------------------
+            # ------------------------------------------------------
             # Payment note
-            # --------------------------------------------------------
+            # ------------------------------------------------------
 
             final_note = note
 
             if amount_paid > 0:
 
-                if new_balance <= 0:
-
-                    payment_info = (
-                        f"💰 PAID IN FULL: "
-                        f"GHS {amount_paid:.2f}"
-                    )
-
-                else:
-
-                    payment_info = (
-                        f"💰 Amount Paid: "
-                        f"GHS {amount_paid:.2f} | "
-                        f"Balance: "
-                        f"GHS {new_balance:.2f}"
-                    )
-
-                final_note = (
-                    f"{note} | {payment_info}"
-                    if note
-                    else payment_info
+                payment_note = (
+                    f"💰 Payment: GHS "
+                    f"{amount_paid:.2f} | "
+                    f"Balance: GHS "
+                    f"{new_balance:.2f}"
                 )
 
-            # --------------------------------------------------------
-            # CREATE ORDER
-            # --------------------------------------------------------
+                final_note = (
+                    f"{note} | {payment_note}"
+                    if note
+                    else payment_note
+                )
+
+            # ------------------------------------------------------
+            # Create order
+            # ------------------------------------------------------
 
             order = HeldCart(
 
@@ -11941,11 +12325,11 @@ def hold_and_pay():
                 customer=(
                     f"{customer.firstname} "
                     f"{customer.lastname}"
-                ).strip()
-                if customer
-                else data.get(
-                    "customer",
-                    ""
+                    if customer
+                    else data.get(
+                        "customer",
+                        ""
+                    )
                 ),
 
                 customer_id=(
@@ -11965,7 +12349,7 @@ def hold_and_pay():
                 waiter=(
                     f"{user.firstname} "
                     f"{user.lastname}"
-                ),
+                ).strip(),
 
                 contain_drink=(
                     "yes"
@@ -12004,17 +12388,20 @@ def hold_and_pay():
                 ),
 
                 food_confirm="no",
+
                 drink_confirm="no",
+
                 label_confirm="no",
+
                 dtf_confirm="no",
+
                 large_format_confirm="no",
+
                 digital_printing_confirm="no",
 
-                session=(
-                    session.open_date
-                    if session
-                    else datetime.now()
-                ),
+                # IMPORTANT:
+                # Save an actual datetime.
+                session=datetime.now(),
 
                 table=table,
 
@@ -12029,37 +12416,17 @@ def hold_and_pay():
 
             order_id = order.id
 
-        # ============================================================
+            total = new_total
+
+        # ==========================================================
         # COMMIT
-        # ============================================================
+        # ==========================================================
 
         db.session.commit()
 
-        # ============================================================
-        # FINAL VALUES
-        #
-        # Always read them from the saved order.
-        #
-        # This prevents new_total/new_balance scope problems.
-        # ============================================================
-
-        final_total = float(
-            order.total or 0
-        )
-
-        final_balance = float(
-            order.balance or 0
-        )
-
-        final_items = (
-            json.loads(order.items)
-            if order.items
-            else []
-        )
-
-        # ============================================================
-        # RESPONSE
-        # ============================================================
+        # ==========================================================
+        # RETURN RESPONSE
+        # ==========================================================
 
         return jsonify({
 
@@ -12075,13 +12442,13 @@ def hold_and_pay():
                 order_id,
 
             "total":
-                f"{final_total:.2f}",
+                f"{float(total):.2f}",
 
             "balance":
-                f"{final_balance:.2f}",
+                f"{float(new_balance):.2f}",
 
             "amount_paid":
-                f"{amount_paid:.2f}",
+                f"{float(amount_paid):.2f}",
 
             "status":
                 order.status,
@@ -12090,22 +12457,20 @@ def hold_and_pay():
                 order.paid_status,
 
             "is_held":
-                final_balance > 0,
+                float(new_balance) > 0,
 
             "is_paid":
-                final_balance <= 0,
+                float(new_balance) <= 0,
 
             "is_full_payment":
-                final_balance <= 0,
+                float(new_balance) <= 0,
 
             "items":
-                final_items
+                json.loads(order.items)
+                if order.items
+                else []
 
         }), 200
-
-    # ================================================================
-    # ERROR
-    # ================================================================
 
     except Exception as e:
 
@@ -12115,11 +12480,8 @@ def hold_and_pay():
         traceback.print_exc()
 
         return jsonify({
-
             "success": False,
-
             "error": str(e)
-
         }), 500
 
 
