@@ -12664,7 +12664,7 @@ def send_sms_bulk(phone, message):
             return False
             
     except Exception as e:
-        print(f"⚠️ Failed to send SMS to {phone}: {str(e)}")
+        print(f"⚠️ Failed to sends SMS to {phone}: {str(e)}")
         return False
 
 # ============================================
