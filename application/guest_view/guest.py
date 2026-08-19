@@ -2959,7 +2959,6 @@ def search_income_dates():
 
 
 
-
 @guest.route("/held_cart_report", methods=["POST"])
 @flask_praetorian.auth_required
 def held_cart_report():
@@ -2978,22 +2977,28 @@ def held_cart_report():
         department = data.get("department")
         status = data.get("status")  # pending, confirmed, partial, paid
         
-        # Base query
-        query = HeldCart.query.filter_by(company_name=us.company_name)
+        # Base query - start with all orders
+        query = HeldCart.query
         
-        # Date range filter
+        # Date range filter - FIXED to handle datetime properly
         if date_from and date_to:
             from_date = datetime.strptime(date_from, '%Y-%m-%d').date()
             to_date = datetime.strptime(date_to, '%Y-%m-%d').date()
-            to_date = to_date + timedelta(days=1)  # Include end date
-            query = query.filter(HeldCart.created_at >= from_date, HeldCart.created_at <= to_date)
+            # Add one day to include the end date
+            to_date = to_date + timedelta(days=1)
+            # Convert to datetime for proper comparison
+            from_datetime = datetime.combine(from_date, datetime.min.time())
+            to_datetime = datetime.combine(to_date, datetime.min.time())
+            query = query.filter(HeldCart.session >= from_datetime, HeldCart.session < to_datetime)
         elif date_from:
             from_date = datetime.strptime(date_from, '%Y-%m-%d').date()
-            query = query.filter(HeldCart.created_at >= from_date)
+            from_datetime = datetime.combine(from_date, datetime.min.time())
+            query = query.filter(HeldCart.session >= from_datetime)
         elif date_to:
             to_date = datetime.strptime(date_to, '%Y-%m-%d').date()
             to_date = to_date + timedelta(days=1)
-            query = query.filter(HeldCart.created_at <= to_date)
+            to_datetime = datetime.combine(to_date, datetime.min.time())
+            query = query.filter(HeldCart.session < to_datetime)
         
         # Waiter filter
         if waiter:
@@ -3029,8 +3034,8 @@ def held_cart_report():
             elif status == "confirmed":
                 query = query.filter(HeldCart.status == "Confirmed")
         
-        # Order by created_at descending
-        orders = query.order_by(desc(HeldCart.created_at)).all()
+        # Order by session descending
+        orders = query.order_by(desc(HeldCart.session)).all()
         
         report_data = []
         total_sales = 0
@@ -3042,6 +3047,8 @@ def held_cart_report():
         payment_methods = {}
         department_stats = {}
         waiter_stats = {}
+        status_stats = {}
+        date_stats = {}
         
         for order in orders:
             try:
@@ -3064,6 +3071,10 @@ def held_cart_report():
                 method_key = order.paid_status or "Unknown"
                 payment_methods[method_key] = payment_methods.get(method_key, 0) + order_collected
                 
+                # Status stats
+                status_key = order.status or "Unknown"
+                status_stats[status_key] = status_stats.get(status_key, 0) + 1
+                
                 # Department stats
                 depts = []
                 if order.contain_drink == "yes": depts.append("Bar")
@@ -3080,6 +3091,11 @@ def held_cart_report():
                 if order.waiter:
                     waiter_stats[order.waiter] = waiter_stats.get(order.waiter, 0) + order_collected
                 
+                # Date stats (for daily breakdown)
+                if order.session:
+                    date_key = order.session.strftime('%Y-%m-%d')
+                    date_stats[date_key] = date_stats.get(date_key, 0) + order_collected
+                
                 report_data.append({
                     "id": order.id,
                     "items": items,
@@ -3091,6 +3107,7 @@ def held_cart_report():
                     "note": order.note,
                     "status": order.status,
                     "paid_status": order.paid_status,
+                    "session": order.session.strftime('%Y-%m-%d %H:%M:%S') if order.session else None,
                     "created_at": order.created_at.strftime('%Y-%m-%d %H:%M:%S') if order.created_at else None,
                     "table": order.table,
                     "contain_drink": order.contain_drink,
@@ -3126,16 +3143,15 @@ def held_cart_report():
                 "unique_customers": len(unique_customers),
                 "payment_methods": payment_methods,
                 "department_stats": department_stats,
-                "waiter_stats": waiter_stats
+                "waiter_stats": waiter_stats,
+                "status_stats": status_stats,
+                "date_stats": date_stats
             }
         }), 200
         
     except Exception as e:
         print(f"Error in held_cart_report: {str(e)}")
         return jsonify({"error": str(e)}), 500
-
-
-
 
 
 
@@ -12381,7 +12397,7 @@ def hold_and_pay():
                         status_icon = "⏳"
 
                     sms_message = f"""
-ASSEMFAH FIE GRAPHICS
+ASSEMPAHFIE GRAPHICS
 Order #{order_id}
 Customer: {customer_name}
 Status: {status_icon} {status_text}
