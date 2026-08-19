@@ -11164,12 +11164,8 @@ def hold_and_pay():
             This function ALWAYS preserves measurement fields regardless of is_measurement_product.
             """
 
-            try:
-                item_id = int(item.get("id"))
-            except (ValueError, TypeError):
-                raise ValueError(
-                    f"Invalid item ID: {item.get('id')}"
-                )
+       
+                
 
             try:
                 item_qty = int(item.get("qty", 1))
@@ -11299,7 +11295,7 @@ def hold_and_pay():
             # ========================================================
 
             prepared_item = {
-                "id": item_id,
+                "id": int(item.get("id")),
                 "qty": item_qty,
                 "name": item.get("name", ""),
                 "price": item_price,
