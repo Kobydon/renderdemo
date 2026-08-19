@@ -8013,7 +8013,7 @@ def get_helding_orders():
                 })
 
         except (json.JSONDecodeError, TypeError) as e:
-            print(f"Error decoding JSON for order {order.id}: {e}")  # Debugging
+            print(f"Error decodings JSON for order {order.id}: {e}")  # Debugging
 
     return jsonify(orders_list), 200
 
