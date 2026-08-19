@@ -10055,7 +10055,7 @@ def sales_report():
         # Apply customer filter - FIXED: customer_id is a string
         if customer_filter:
             # Check if customer_filter is a valid string (not empty)
-            if customer_filter and isinstance(customer_filter, str):
+            if customer_filter :
                 # Try to filter by customer_id (string) first
                 query = query.filter(HeldCart.customer_id == customer_filter)
                 # If no results, try filtering by customer name (partial match)
