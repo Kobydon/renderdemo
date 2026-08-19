@@ -10283,7 +10283,7 @@ def search_most_item_two():
                     qty = int(item.get('qty', 0))
                     item_counts[item_name] += qty
             except Exception as e:
-                print(f"Error processing order {order.id}: {e}")
+                print(f"Error processisng order {order.id}: {e}")
                 continue
 
         result = [
