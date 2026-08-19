@@ -10890,74 +10890,213 @@ def check_order_item(order_id, item_id):
 
     try:
 
-        order = HeldCart.query.get_or_404(
-            order_id
-        )
+        # =====================================================
+        # GET ORDER
+        # =====================================================
 
-        current_user = (
-            flask_praetorian.current_user()
-        )
+        order = HeldCart.query.get(order_id)
 
-        # ------------------------------------------------------
-        # Parse items
-        # ------------------------------------------------------
+        if not order:
+            return jsonify({
+                "success": False,
+                "error": "Order not found.",
+                "order_id": order_id
+            }), 404
+
+        current_user = flask_praetorian.current_user()
+
+        # =====================================================
+        # GET USER NAME
+        # =====================================================
+
+        firstname = getattr(
+            current_user,
+            "firstname",
+            ""
+        ) or ""
+
+        lastname = getattr(
+            current_user,
+            "lastname",
+            ""
+        ) or ""
+
+        checked_by = (
+            f"{firstname} {lastname}"
+        ).strip()
+
+        if not checked_by:
+            checked_by = "Unknown"
+
+        # =====================================================
+        # PARSE ITEMS
+        # =====================================================
+
+        if not order.items:
+
+            return jsonify({
+                "success": False,
+                "error": "This order has no items.",
+                "order_id": order_id
+            }), 400
 
         try:
 
-            items = json.loads(
-                order.items
-            ) if order.items else []
+            if isinstance(order.items, str):
+                items = json.loads(order.items)
+            else:
+                items = order.items
 
-        except (
-            json.JSONDecodeError,
-            TypeError
-        ):
+        except (json.JSONDecodeError, TypeError) as e:
+
+            print(
+                f"ITEM JSON ERROR - Order {order_id}: {e}"
+            )
 
             return jsonify({
                 "success": False,
-                "error": "Invalid order items."
+                "error": "Invalid order items JSON.",
+                "order_id": order_id
             }), 400
 
-        # ------------------------------------------------------
-        # Find by cart_item_id
-        # ------------------------------------------------------
+        # =====================================================
+        # MAKE SURE ITEMS IS A LIST
+        # =====================================================
 
-        item_found = False
+        if not isinstance(items, list):
 
-        checked_by = (
-            f"{current_user.firstname} "
-            f"{current_user.lastname}"
-        ).strip()
+            return jsonify({
+                "success": False,
+                "error": "Order items are not stored as a list.",
+                "order_id": order_id
+            }), 400
 
-        for item in items:
+        # =====================================================
+        # NORMALIZE REQUESTED ID
+        # =====================================================
 
-            cart_item_id = str(
-                item.get(
-                    "cart_item_id",
-                    ""
-                )
+        requested_item_id = str(item_id).strip()
+
+        print(
+            "\n================ CHECK ITEM ================"
+        )
+
+        print(
+            f"Order ID: {order_id}"
+        )
+
+        print(
+            f"Requested cart_item_id: "
+            f"{requested_item_id}"
+        )
+
+        print(
+            f"Number of items: {len(items)}"
+        )
+
+        # =====================================================
+        # FIND ITEM
+        # =====================================================
+
+        found_item = None
+        found_index = None
+
+        available_ids = []
+
+        for index, item in enumerate(items):
+
+            if not isinstance(item, dict):
+                continue
+
+            cart_item_id = item.get(
+                "cart_item_id"
             )
 
-            if cart_item_id == str(item_id):
+            if cart_item_id is not None:
 
-                item["is_checked"] = "yes"
+                cart_item_id = str(
+                    cart_item_id
+                ).strip()
 
-                item["checked_by"] = checked_by
+                available_ids.append(
+                    cart_item_id
+                )
 
-                item_found = True
+            print(
+                f"Item {index}: "
+                f"cart_item_id={cart_item_id}"
+            )
+
+            # ---------------------------------------------
+            # Compare UUID as strings
+            # ---------------------------------------------
+
+            if (
+                cart_item_id
+                and cart_item_id == requested_item_id
+            ):
+
+                found_item = item
+                found_index = index
 
                 break
 
-        if not item_found:
+        # =====================================================
+        # ITEM NOT FOUND
+        # =====================================================
+
+        if found_item is None:
+
+            print(
+                "ITEM NOT FOUND"
+            )
+
+            print(
+                "Requested:",
+                requested_item_id
+            )
+
+            print(
+                "Available:",
+                available_ids
+            )
+
+            print(
+                "===========================================\n"
+            )
 
             return jsonify({
+
                 "success": False,
-                "error": "Cart item not found."
+
+                "error":
+                    "Cart item not found.",
+
+                "order_id":
+                    order_id,
+
+                "requested_cart_item_id":
+                    requested_item_id,
+
+                "available_cart_item_ids":
+                    available_ids
+
             }), 404
 
-        # ------------------------------------------------------
-        # Save
-        # ------------------------------------------------------
+        # =====================================================
+        # UPDATE ITEM
+        # =====================================================
+
+        found_item["is_checked"] = "yes"
+
+        found_item["checked_by"] = checked_by
+
+        # Optional
+        found_item["checked_at"] = datetime.utcnow().isoformat()
+
+        # =====================================================
+        # SAVE
+        # =====================================================
 
         order.items = json.dumps(
             items
@@ -10965,27 +11104,43 @@ def check_order_item(order_id, item_id):
 
         db.session.commit()
 
+        print(
+            f"ITEM CHECKED SUCCESSFULLY: "
+            f"{requested_item_id}"
+        )
+
+        print(
+            "===========================================\n"
+        )
+
+        # =====================================================
+        # RESPONSE
+        # =====================================================
+
         return jsonify({
 
             "success": True,
 
             "message":
-                "Item checked successfully",
+                "Item checked successfully.",
 
             "order_id":
                 order_id,
 
             "cart_item_id":
-                str(item_id),
+                requested_item_id,
+
+            "item_index":
+                found_index,
+
+            "item":
+                found_item,
 
             "is_checked":
                 "yes",
 
             "checked_by":
-                checked_by,
-
-            "items":
-                items
+                checked_by
 
         }), 200
 
@@ -10994,14 +11149,24 @@ def check_order_item(order_id, item_id):
         db.session.rollback()
 
         print(
-            f"Error checking cart item: {e}"
+            "\nCHECK ITEM ERROR:"
         )
 
-        return jsonify({
-            "success": False,
-            "error": str(e)
-        }), 500
+        print(
+            str(e)
+        )
 
+        import traceback
+        traceback.print_exc()
+
+        return jsonify({
+
+            "success": False,
+
+            "error":
+                str(e)
+
+        }), 500
 
 
 @guest.route('/get_helding_orders_customers', methods=['GET'])
