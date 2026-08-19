@@ -2984,7 +2984,7 @@ def held_cart_report():
         status = data.get("status")  # pending, confirmed, partial, paid
         
         # Base query
-        query = HeldCart.query.all()
+        query = HeldCart.query
         
         # Date range filter
         if date_from and date_to:
