@@ -10011,109 +10011,80 @@ import json
 from datetime import datetime, timedelta
 import json
 
-
 @guest.route('/sales_report', methods=['POST'])
 @flask_praetorian.auth_required
 def sales_report():
     try:
         user = current_user()
-        data = request.json or {}
-
+        data = request.json
+        
+        # Get date range from request
         date_from = data.get('date_from')
         date_to = data.get('date_to')
-
-        # ---------------------------------------------------------
-        # Base query
-        # ---------------------------------------------------------
+        
+        # Build query - include both Success and Pending paid_status
         query = HeldCart.query.filter_by(
-            user_id=user.id
+            user_id=user.id,
         ).filter(
-            HeldCart.paid_status.in_([
-                'Success',
-                'Pending',
-                'Partial'
-            ])
+            HeldCart.paid_status.in_(['Success', 'Pending','Partial'])
         )
-
-        # ---------------------------------------------------------
-        # Date filtering using HeldCart.session
-        # ---------------------------------------------------------
-        if date_from:
-            from_datetime = datetime.strptime(
-                date_from,
-                '%Y-%m-%d'
-            )
-
-            query = query.filter(
-                HeldCart.session >= from_datetime
-            )
-
-        if date_to:
-            # Add one day so the entire date_to is included
-            to_datetime = (
-                datetime.strptime(
-                    date_to,
-                    '%Y-%m-%d'
-                ) + timedelta(days=1)
-            )
-
-            query = query.filter(
-                HeldCart.session < to_datetime
-            )
-
-        # ---------------------------------------------------------
-        # GET ORDERS
-        #
-        # Latest created_at first
-        # ---------------------------------------------------------
-        orders = query.order_by(
-            HeldCart.created_at.desc()
-        ).all()
-
-        # ---------------------------------------------------------
-        # Calculate totals
-        # ---------------------------------------------------------
-        total_sales = sum(
-            float(order.total or 0)
-            for order in orders
-        )
-
-        total_orders = len(orders)
-
-        total_balance = sum(
-            float(order.balance or 0)
-            for order in orders
-        )
-
-        total_collected = (
-            total_sales - total_balance
-        )
-
-        # ---------------------------------------------------------
-        # Unique customers
-        # ---------------------------------------------------------
-        unique_customers = len(
-            set(
-                order.customer
-                for order in orders
-                if order.customer
-            )
-        )
-
-        # ---------------------------------------------------------
-        # Daily breakdown
-        # ---------------------------------------------------------
-        daily_sales = {}
-
-        for order in orders:
-
-            if order.session:
-                date_key = order.session.strftime(
-                    '%Y-%m-%d'
+        
+        # Apply date filter if provided
+        if date_from and date_to:
+            # If same date, query for that entire day
+            if date_from == date_to:
+                date_str = datetime.strptime(date_from, '%Y-%m-%d').strftime('%Y-%m-%d')
+                # Query for the entire day (from 00:00:00 to 23:59:59)
+                query = query.filter(
+                    HeldCart.session >= date_str + ' 00:00:00',
+                    HeldCart.session <= date_str + ' 23:59:59'
                 )
             else:
+                from_date_str = datetime.strptime(date_from, '%Y-%m-%d').strftime('%Y-%m-%d')
+                to_date_str = datetime.strptime(date_to, '%Y-%m-%d').strftime('%Y-%m-%d')
+                
+                query = query.filter(
+                    HeldCart.session >= from_date_str + ' 00:00:00',
+                    HeldCart.session <= to_date_str + ' 23:59:59'
+                )
+        elif date_from:
+            from_date_str = datetime.strptime(date_from, '%Y-%m-%d').strftime('%Y-%m-%d')
+            query = query.filter(HeldCart.session >= from_date_str + ' 00:00:00')
+        elif date_to:
+            to_date_str = datetime.strptime(date_to, '%Y-%m-%d').strftime('%Y-%m-%d')
+            query = query.filter(HeldCart.session <= to_date_str + ' 23:59:59')
+        
+        # Get all matching orders
+        orders = query.all()
+        
+        # Calculate totals
+        total_sales = sum(order.total for order in orders)
+        total_orders = len(orders)
+        total_balance = sum(float(order.balance) if order.balance else 0 for order in orders)
+        total_collected = total_sales - total_balance
+        
+        # Get unique customers
+        unique_customers = len(set(order.customer for order in orders if order.customer))
+        
+        # Get daily breakdown
+        daily_sales = {}
+        for order in orders:
+            # Parse the session string to datetime for formatting
+            if order.session:
+                try:
+                    # If session is stored as string from datetime.now()
+                    session_date = datetime.strptime(order.session, '%Y-%m-%d %H:%M:%S.%f')
+                    date_key = session_date.strftime('%Y-%m-%d')
+                except ValueError:
+                    # Try alternative format if needed
+                    try:
+                        session_date = datetime.strptime(order.session, '%Y-%m-%d %H:%M:%S')
+                        date_key = session_date.strftime('%Y-%m-%d')
+                    except ValueError:
+                        date_key = order.session[:10] if len(order.session) >= 10 else 'unknown'
+            else:
                 date_key = 'unknown'
-
+                
             if date_key not in daily_sales:
                 daily_sales[date_key] = {
                     'total': 0,
@@ -10122,127 +10093,160 @@ def sales_report():
                     'collected': 0,
                     'orders': []
                 }
-
-            order_total = float(
-                order.total or 0
-            )
-
-            order_balance = float(
-                order.balance or 0
-            )
-
-            order_collected = (
-                order_total - order_balance
-            )
-
-            daily_sales[date_key]['total'] += order_total
+            order_balance = float(order.balance) if order.balance else 0
+            daily_sales[date_key]['total'] += order.total
             daily_sales[date_key]['count'] += 1
             daily_sales[date_key]['balance'] += order_balance
-            daily_sales[date_key]['collected'] += order_collected
-
+            daily_sales[date_key]['collected'] += order.total - order_balance
             daily_sales[date_key]['orders'].append({
                 'id': order.id,
-                'total': order_total,
-                'balance': order_balance,
+                'total': order.total,
+                'balance': order.balance,
                 'customer': order.customer,
-                'created_at': (
-                    order.created_at.strftime(
-                        '%Y-%m-%d %H:%M:%S'
-                    )
-                    if order.created_at
-                    else None
-                )
+                'created_at': order.session if order.session else None
             })
-
-        # ---------------------------------------------------------
-        # Response
-        # ---------------------------------------------------------
+        
+        # Prepare response
         response = {
             'success': True,
-
             'summary': {
-                'total_sales': round(
-                    total_sales,
-                    2
-                ),
+                'total_sales': total_sales,
                 'total_orders': total_orders,
-                'total_balance': round(
-                    total_balance,
-                    2
-                ),
-                'total_collected': round(
-                    total_collected,
-                    2
-                ),
-                'average_order': round(
-                    total_sales / total_orders,
-                    2
-                ) if total_orders > 0 else 0,
+                'total_balance': total_balance,
+                'total_collected': total_collected,
+                'average_order': total_sales / total_orders if total_orders > 0 else 0,
                 'unique_customers': unique_customers,
                 'date_from': date_from,
                 'date_to': date_to
             },
-
             'daily_breakdown': daily_sales,
-
-            # Already sorted by created_at DESC
             'orders': [
                 {
                     'id': order.id,
-                    'total': float(
-                        order.total or 0
-                    ),
-                    'balance': float(
-                        order.balance or 0
-                    ),
-                    'customer': (
-                        order.customer
-                        or 'Walk-in'
-                    ),
-                    'created_at': (
-                        order.created_at.strftime(
-                            '%Y-%m-%d %H:%M:%S'
-                        )
-                        if order.created_at
-                        else None
-                    ),
-                    'session': (
-                        order.session.strftime(
-                            '%Y-%m-%d %H:%M:%S'
-                        )
-                        if order.session
-                        else None
-                    ),
+                    'total': order.total,
+                    'balance': order.balance or "0",
+                    'customer': order.customer or 'Walk-in',
+                    'created_at': order.session if order.session else None,
                     'paid_status': order.paid_status,
                     'status': order.status,
                     'table': order.table,
                     'waiter': order.waiter,
-                    'working_on': order.working_on,
-                    'items': (
-                        json.loads(order.items)
-                        if order.items
-                        else []
-                    )
+                    "working_on": order.working_on,
+                    'items': json.loads(order.items) if order.items else []
                 }
                 for order in orders
             ]
         }
-
+        
         return jsonify(response), 200
-
+        
     except Exception as e:
-        print(
-            f"Error in sales report: {str(e)}"
-        )
-
+        print(f"Error in sales report: {str(e)}")
         import traceback
         traceback.print_exc()
+        return jsonify({"error": str(e)}), 500
+
+@guest.route("/search_income_dates_two", methods=["POST"])
+@flask_praetorian.auth_required
+def search_income_dates_two():
+    try:
+        date = request.json.get("date")
+        date_two = request.json.get("datetwo")
+
+        if not date or not date_two:
+            return jsonify({
+                "status": "error",
+                "message": "Both date and datetwo are required."
+            }), 400
+
+        # Parse dates
+        from datetime import datetime
+        start_date = datetime.strptime(date, '%Y-%m-%d').date()
+        end_date = datetime.strptime(date_two, '%Y-%m-%d').date()
+        end_date = end_date + timedelta(days=1)
+
+        # ✅ Query HeldCart for orders in the date range
+        held_orders = HeldCart.query.filter(
+            db.func.date(HeldCart.session) >= start_date,
+            db.func.date(HeldCart.session) <= end_date       ).all()
+
+        result = []
+        total_sales = 0
+        total_collected = 0
+        total_balance = 0
+
+        for order in held_orders:
+            try:
+                items = json.loads(order.items) if order.items else []
+                order_total = float(order.total) if order.total else 0
+                order_balance = float(order.balance) if order.balance else 0
+                order_collected = order_total - order_balance
+
+                total_sales += order_total
+                total_collected += order_collected
+                total_balance += order_balance
+
+                # Get customer name
+                customer_name = "Walk-in"
+                if order.customer:
+                    try:
+                        customer_id = int(order.customer)
+                        customer = Customer.query.filter_by(id=customer_id).first()
+                        if customer:
+                            customer_name = f"{customer.firstname} {customer.lastname}".strip() or "Walk-in"
+                    except (ValueError, TypeError):
+                        customer_name = order.customer
+
+                for item in items:
+                    item_price = float(item.get('price', 0))
+                    item_qty = int(item.get('qty', 0))
+                    item_total = item_price * item_qty
+
+                    if order_total > 0:
+                        item_collected = (order_collected / order_total) * item_total
+                    else:
+                        item_collected = 0
+
+                    result.append({
+                        "id": order.id,
+                        "name": item.get('name', 'Unknown'),
+                        "amount": round(item_collected, 2),
+                        "quantity": item_qty,
+                        "price": item_price,
+                        "total": round(item_total, 2),
+                        "order_total": round(order_total, 2),
+                        "balance": round(order_balance, 2),
+                        "collected": round(order_collected, 2),
+                        "payment_method":order.payment_method,
+                        "attendant": order.waiter or 'N/A',
+                        "customer": customer_name,
+                        "waiter": order.waiter,
+                        "date": order.created_at.strftime('%Y-%m-%d %H:%M:%S') if order.created_at else None,
+                        "paid_status": order.paid_status,
+                        "order_status": order.status
+                    })
+
+            except Exception as e:
+                print(f"Error processing order {order.id}: {e}")
+                continue
+
+        summary = {
+            "total_sales": round(total_sales, 2),
+            "total_collected": round(total_collected, 2),
+            "total_balance": round(total_balance, 2),
+            "total_orders": len(held_orders),
+            "total_items": len(result)
+        }
 
         return jsonify({
-            "success": False,
-            "error": str(e)
-        }), 500
+            "data": result,
+            "summary": summary
+        }), 200
 
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error in search_income_dates_two: {str(e)}")
+        return jsonify({"error": str(e)}), 500
 
 
 @guest.route("/search_most_item_two", methods=["POST"])
@@ -10283,7 +10287,7 @@ def search_most_item_two():
                     qty = int(item.get('qty', 0))
                     item_counts[item_name] += qty
             except Exception as e:
-                print(f"Error processisng order {order.id}: {e}")
+                print(f"Error processing order {order.id}: {e}")
                 continue
 
         result = [
