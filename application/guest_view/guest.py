@@ -12607,7 +12607,7 @@ Phone: 0243210009 / 0531100380
         db.session.rollback()
 
         print(
-            f"❌ Error in /hold_and_pay: "
+            f"❌ Error in /hsold_and_pay: "
             f"{str(e)}"
         )
 
