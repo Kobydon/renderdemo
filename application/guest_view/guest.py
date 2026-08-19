@@ -2963,12 +2963,13 @@ import json
 from flask import request, jsonify
 from sqlalchemy import desc
 
+
+
 @guest.route("/held_cart_report", methods=["POST"])
 @flask_praetorian.auth_required
 def held_cart_report():
     """
     Generate comprehensive report from HeldCart data with filters
-    Supports filtering by: date range, waiter, cashier, department, status, and customer
     """
     try:
         us = User.query.filter_by(id=flask_praetorian.current_user().id).first()
@@ -2981,7 +2982,6 @@ def held_cart_report():
         method = data.get("method")
         department = data.get("department")
         status = data.get("status")  # pending, confirmed, partial, paid
-        customer_filter = data.get("customer")  # Customer ID or name filter
         
         # Base query
         query = HeldCart.query
@@ -3007,18 +3007,6 @@ def held_cart_report():
         # Cashier filter (stored in waiter field or separate field)
         if cashier:
             query = query.filter(HeldCart.waiter == cashier)
-        
-        # Customer filter - ADDED
-        if customer_filter:
-            try:
-                # Try to convert to int (assuming it's a customer ID)
-                customer_id_int = int(customer_filter)
-                query = query.filter(HeldCart.customer_id == customer_filter)
-            except (ValueError, TypeError):
-                # If it's a string, search by customer name
-                if customer_filter :
-                    # Use ilike for case-insensitive partial match
-                    query = query.filter(HeldCart.customer_id==customer_filter)
         
         # Department filter
         if department:
@@ -3046,7 +3034,7 @@ def held_cart_report():
             elif status == "confirmed":
                 query = query.filter(HeldCart.status == "Confirmed")
         
-        # Order by created_at descending (newest first)
+        # Order by created_at descending
         orders = query.order_by(desc(HeldCart.created_at)).all()
         
         report_data = []
@@ -3059,7 +3047,6 @@ def held_cart_report():
         payment_methods = {}
         department_stats = {}
         waiter_stats = {}
-        daily_breakdown = {}
         
         for order in orders:
             try:
@@ -3098,21 +3085,6 @@ def held_cart_report():
                 if order.waiter:
                     waiter_stats[order.waiter] = waiter_stats.get(order.waiter, 0) + order_collected
                 
-                # Daily breakdown
-                if order.created_at:
-                    date_key = order.created_at.strftime('%Y-%m-%d')
-                    if date_key not in daily_breakdown:
-                        daily_breakdown[date_key] = {
-                            'total': 0,
-                            'balance': 0,
-                            'collected': 0,
-                            'count': 0
-                        }
-                    daily_breakdown[date_key]['total'] += order_total
-                    daily_breakdown[date_key]['balance'] += order_balance
-                    daily_breakdown[date_key]['collected'] += order_collected
-                    daily_breakdown[date_key]['count'] += 1
-                
                 report_data.append({
                     "id": order.id,
                     "items": items,
@@ -3121,7 +3093,6 @@ def held_cart_report():
                     "collected": order_collected,
                     "waiter": order.waiter,
                     "customer": order.customer,
-                    "customer_id": order.customer_id,
                     "note": order.note,
                     "status": order.status,
                     "paid_status": order.paid_status,
@@ -3147,14 +3118,9 @@ def held_cart_report():
         total_orders = len(report_data)
         average_order = total_sales / total_orders if total_orders > 0 else 0
         
-        # Sort daily breakdown by date descending (newest first)
-        sorted_daily_breakdown = dict(sorted(daily_breakdown.items(), key=lambda x: x[0], reverse=True))
-        
         return jsonify({
             "success": True,
             "data": report_data,
-            "orders": report_data,  # For compatibility with frontend
-            "daily_breakdown": sorted_daily_breakdown,
             "summary": {
                 "total_sales": total_sales,
                 "total_balance": total_balance,
@@ -3165,8 +3131,7 @@ def held_cart_report():
                 "unique_customers": len(unique_customers),
                 "payment_methods": payment_methods,
                 "department_stats": department_stats,
-                "waiter_stats": waiter_stats,
-                "date_stats": sorted_daily_breakdown
+                "waiter_stats": waiter_stats
             }
         }), 200
         
@@ -3174,6 +3139,8 @@ def held_cart_report():
         print(f"Error in held_cart_report: {str(e)}")
         db.session.rollback()
         return jsonify({"error": str(e)}), 500
+
+
 
 
 @guest.route("/search_budget_dates",methods=["POST"])
@@ -10039,10 +10006,7 @@ def get_cocktail_setup(item_id):
 
 from datetime import datetime, timedelta
 import json
-from datetime import datetime, timedelta
-import json
-from datetime import datetime, timedelta
-import json
+from sqlalchemy import desc
 
 @guest.route('/sales_report', methods=['POST'])
 @flask_praetorian.auth_required
@@ -10054,12 +10018,13 @@ def sales_report():
         # Get date range from request
         date_from = data.get('date_from')
         date_to = data.get('date_to')
+        customer_filter = data.get('customer')  # Customer filter - string ID or name
         
-        # Build query - include both Success and Pending paid_status
+        # Build query - include Success, Pending, and Partial paid_status
         query = HeldCart.query.filter_by(
             user_id=user.id,
         ).filter(
-            HeldCart.paid_status.in_(['Success', 'Pending','Partial'])
+            HeldCart.paid_status.in_(['Success', 'Pending', 'Partial'])
         )
         
         # Apply date filter if provided
@@ -10087,8 +10052,23 @@ def sales_report():
             to_date_str = datetime.strptime(date_to, '%Y-%m-%d').strftime('%Y-%m-%d')
             query = query.filter(HeldCart.session <= to_date_str + ' 23:59:59')
         
-        # Get all matching orders
-        orders = query.all()
+        # Apply customer filter - FIXED: customer_id is a string
+        if customer_filter:
+            # Check if customer_filter is a valid string (not empty)
+            if customer_filter and isinstance(customer_filter, str):
+                # Try to filter by customer_id (string) first
+                query = query.filter(HeldCart.customer_id == customer_filter)
+                # If no results, try filtering by customer name (partial match)
+                # We'll handle this after fetching results if needed
+            
+        # Get all matching orders - ORDER BY created_at DESC (newest first)
+        orders = query.order_by(desc(HeldCart.created_at)).all()
+        
+        # If customer filter didn't work with ID, try filtering by name
+        if customer_filter and orders and len(orders) == 0:
+            # Try filtering by customer name (case-insensitive partial match)
+            query = query.filter(HeldCart.customer.ilike(f"%{customer_filter}%"))
+            orders = query.order_by(desc(HeldCart.created_at)).all()
         
         # Calculate totals
         total_sales = sum(order.total for order in orders)
@@ -10115,6 +10095,12 @@ def sales_report():
                         date_key = session_date.strftime('%Y-%m-%d')
                     except ValueError:
                         date_key = order.session[:10] if len(order.session) >= 10 else 'unknown'
+            elif order.created_at:
+                # Fallback to created_at if session is not available
+                try:
+                    date_key = order.created_at.strftime('%Y-%m-%d') if hasattr(order.created_at, 'strftime') else str(order.created_at)[:10]
+                except:
+                    date_key = 'unknown'
             else:
                 date_key = 'unknown'
                 
@@ -10136,10 +10122,13 @@ def sales_report():
                 'total': order.total,
                 'balance': order.balance,
                 'customer': order.customer,
-                'created_at': order.session if order.session else None
+                'created_at': order.session if order.session else order.created_at.strftime('%Y-%m-%d %H:%M:%S') if order.created_at else None
             })
         
-        # Prepare response
+        # Sort daily breakdown by date descending (newest first)
+        sorted_daily_sales = dict(sorted(daily_sales.items(), key=lambda x: x[0], reverse=True))
+        
+        # Prepare response with all order details
         response = {
             'success': True,
             'summary': {
@@ -10152,19 +10141,29 @@ def sales_report():
                 'date_from': date_from,
                 'date_to': date_to
             },
-            'daily_breakdown': daily_sales,
+            'daily_breakdown': sorted_daily_sales,
             'orders': [
                 {
                     'id': order.id,
                     'total': order.total,
                     'balance': order.balance or "0",
                     'customer': order.customer or 'Walk-in',
-                    'created_at': order.session if order.session else None,
+                    'customer_id': order.customer_id,
+                    'created_at': order.session if order.session else order.created_at.strftime('%Y-%m-%d %H:%M:%S') if order.created_at else None,
                     'paid_status': order.paid_status,
                     'status': order.status,
                     'table': order.table,
                     'waiter': order.waiter,
-                    "working_on": order.working_on,
+                    'working_on': order.working_on,
+                    'working_on_id': order.working_on_id,
+                    'working_on_label': order.working_on_label,
+                    'working_on_id_label': order.working_on_id_label,
+                    'working_on_large_format': order.working_on_large_format,
+                    'working_on_id_large_format': order.working_on_id_large_format,
+                    'working_on_dtf': order.working_on_dtf,
+                    'working_on_id_dtf': order.working_on_id_dtf,
+                    'working_on_digital_printing': order.working_on_digital_printing,
+                    'working_on_id_digital_printing': order.working_on_id_digital_printing,
                     'items': json.loads(order.items) if order.items else []
                 }
                 for order in orders
@@ -10178,7 +10177,6 @@ def sales_report():
         import traceback
         traceback.print_exc()
         return jsonify({"error": str(e)}), 500
-
 @guest.route("/search_income_dates_two", methods=["POST"])
 @flask_praetorian.auth_required
 def search_income_dates_two():
