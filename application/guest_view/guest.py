@@ -11054,7 +11054,6 @@ def get_customer_payments():
 from datetime import datetime
 import json
 import http.client as httpClient
-
 @guest.route('/hold_and_pay', methods=['POST'])
 @flask_praetorian.auth_required
 def hold_and_pay():
@@ -11155,17 +11154,45 @@ def hold_and_pay():
                     )
 
         # ============================================================
-        # HELPER: PREPARE CART ITEM - FIXED TO ALWAYS PRESERVE MEASUREMENTS
+        # HELPER: PREPARE CART ITEM - FIXED ID HANDLING
         # ============================================================
 
         def prepare_cart_item(item):
             """
             Prepare one cart item while preserving ALL measurement data.
-            This function ALWAYS preserves measurement fields regardless of is_measurement_product.
+            Handles both string and numeric IDs.
             """
 
-       
-                
+            # ========================================================
+            # HANDLE ITEM ID - Support both string and numeric IDs
+            # ========================================================
+            
+            item_id_value = item.get("id")
+            
+            # If ID is None or empty, generate a temporary one
+            if item_id_value is None or item_id_value == "":
+                # Generate a temporary ID based on name and timestamp
+                import time
+                item_id = int(time.time() * 1000)  # Use timestamp as fallback
+            else:
+                try:
+                    # Try to convert to int
+                    item_id = int(item_id_value)
+                except (ValueError, TypeError):
+                    # If it's a string ID, try to use productId if available
+                    if "productId" in item and item.get("productId"):
+                        try:
+                            item_id = int(item.get("productId"))
+                        except (ValueError, TypeError):
+                            # Generate a numeric ID from the string
+                            import hashlib
+                            hash_value = int(hashlib.md5(str(item_id_value).encode()).hexdigest()[:8], 16)
+                            item_id = hash_value
+                    else:
+                        # Generate a numeric ID from the string
+                        import hashlib
+                        hash_value = int(hashlib.md5(str(item_id_value).encode()).hexdigest()[:8], 16)
+                        item_id = hash_value
 
             try:
                 item_qty = int(item.get("qty", 1))
@@ -11295,7 +11322,7 @@ def hold_and_pay():
             # ========================================================
 
             prepared_item = {
-                "id": int(item.get("id")),
+                "id": item_id,
                 "qty": item_qty,
                 "name": item.get("name", ""),
                 "price": item_price,
@@ -12203,15 +12230,19 @@ def hold_and_pay():
 
                 from flask_mail import Message
 
-                msg = Message(
-                    subject=f"Order Confirmation - Asempahfie Graphics (Order #{order_id})",
+                # Determine order status for email subject
+                order_status = "Order Paid in Full" if new_balance <= 0 else "Order Confirmed"
 
+                msg = Message(
+                    subject=(
+                        f"🎉 {order_status} "
+                        f"#{order_id} "
+                        f"- Asempahfie Graphics"
+                    ),
                     recipients=[
                         str(customer_email)
                     ],
-
                     html=html_content,
-
                     sender="afgghana@gmail.com"
                 )
 
@@ -12505,7 +12536,7 @@ Phone: 0243210009 / 0531100380
             except Exception as e:
 
                 print(
-                    f"⚠️ Failed to send SMSs: "
+                    f"⚠️ Failed to send SMS: "
                     f"{str(e)}"
                 )
 
