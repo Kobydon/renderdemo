@@ -2963,13 +2963,12 @@ import json
 from flask import request, jsonify
 from sqlalchemy import desc
 
-
-
 @guest.route("/held_cart_report", methods=["POST"])
 @flask_praetorian.auth_required
 def held_cart_report():
     """
     Generate comprehensive report from HeldCart data with filters
+    Supports filtering by: date range, waiter, cashier, department, status, and customer
     """
     try:
         us = User.query.filter_by(id=flask_praetorian.current_user().id).first()
@@ -2982,6 +2981,7 @@ def held_cart_report():
         method = data.get("method")
         department = data.get("department")
         status = data.get("status")  # pending, confirmed, partial, paid
+        customer_filter = data.get("customer")  # Customer ID or name filter
         
         # Base query
         query = HeldCart.query
@@ -3007,6 +3007,18 @@ def held_cart_report():
         # Cashier filter (stored in waiter field or separate field)
         if cashier:
             query = query.filter(HeldCart.waiter == cashier)
+        
+        # Customer filter - ADDED
+        if customer_filter:
+            try:
+                # Try to convert to int (assuming it's a customer ID)
+                customer_id_int = int(customer_filter)
+                query = query.filter(HeldCart.customer_id == customer_id_int)
+            except (ValueError, TypeError):
+                # If it's a string, search by customer name
+                if customer_filter and isinstance(customer_filter, str):
+                    # Use ilike for case-insensitive partial match
+                    query = query.filter(HeldCart.customer.ilike(f"%{customer_filter}%"))
         
         # Department filter
         if department:
@@ -3034,7 +3046,7 @@ def held_cart_report():
             elif status == "confirmed":
                 query = query.filter(HeldCart.status == "Confirmed")
         
-        # Order by created_at descending
+        # Order by created_at descending (newest first)
         orders = query.order_by(desc(HeldCart.created_at)).all()
         
         report_data = []
@@ -3047,6 +3059,7 @@ def held_cart_report():
         payment_methods = {}
         department_stats = {}
         waiter_stats = {}
+        daily_breakdown = {}
         
         for order in orders:
             try:
@@ -3085,6 +3098,21 @@ def held_cart_report():
                 if order.waiter:
                     waiter_stats[order.waiter] = waiter_stats.get(order.waiter, 0) + order_collected
                 
+                # Daily breakdown
+                if order.created_at:
+                    date_key = order.created_at.strftime('%Y-%m-%d')
+                    if date_key not in daily_breakdown:
+                        daily_breakdown[date_key] = {
+                            'total': 0,
+                            'balance': 0,
+                            'collected': 0,
+                            'count': 0
+                        }
+                    daily_breakdown[date_key]['total'] += order_total
+                    daily_breakdown[date_key]['balance'] += order_balance
+                    daily_breakdown[date_key]['collected'] += order_collected
+                    daily_breakdown[date_key]['count'] += 1
+                
                 report_data.append({
                     "id": order.id,
                     "items": items,
@@ -3093,6 +3121,7 @@ def held_cart_report():
                     "collected": order_collected,
                     "waiter": order.waiter,
                     "customer": order.customer,
+                    "customer_id": order.customer_id,
                     "note": order.note,
                     "status": order.status,
                     "paid_status": order.paid_status,
@@ -3118,9 +3147,14 @@ def held_cart_report():
         total_orders = len(report_data)
         average_order = total_sales / total_orders if total_orders > 0 else 0
         
+        # Sort daily breakdown by date descending (newest first)
+        sorted_daily_breakdown = dict(sorted(daily_breakdown.items(), key=lambda x: x[0], reverse=True))
+        
         return jsonify({
             "success": True,
             "data": report_data,
+            "orders": report_data,  # For compatibility with frontend
+            "daily_breakdown": sorted_daily_breakdown,
             "summary": {
                 "total_sales": total_sales,
                 "total_balance": total_balance,
@@ -3131,7 +3165,8 @@ def held_cart_report():
                 "unique_customers": len(unique_customers),
                 "payment_methods": payment_methods,
                 "department_stats": department_stats,
-                "waiter_stats": waiter_stats
+                "waiter_stats": waiter_stats,
+                "date_stats": sorted_daily_breakdown
             }
         }), 200
         
@@ -3139,8 +3174,6 @@ def held_cart_report():
         print(f"Error in held_cart_report: {str(e)}")
         db.session.rollback()
         return jsonify({"error": str(e)}), 500
-
-
 
 
 @guest.route("/search_budget_dates",methods=["POST"])
