@@ -2966,34 +2966,24 @@ from sqlalchemy import desc
 @flask_praetorian.auth_required
 def held_cart_report():
     """
-    Generate comprehensive report from HeldCart data with filters.
-
-    Supported filters:
-        date_from
-        date_to
-        waiter
-        cashier
-        method
-        department
-        status
+    Generate comprehensive report from HeldCart data with filters
     """
 
     try:
+
         # =====================================================
         # CURRENT USER
         # =====================================================
 
-        current_user = flask_praetorian.current_user()
-
         us = User.query.filter_by(
-            id=current_user.id
+            id=flask_praetorian.current_user().id
         ).first()
 
         # =====================================================
         # REQUEST DATA
         # =====================================================
 
-        data = request.get_json(silent=True) or {}
+        data = request.json or {}
 
         date_from = data.get("date_from")
         date_to = data.get("date_to")
@@ -3003,18 +2993,6 @@ def held_cart_report():
         department = data.get("department")
         status = data.get("status")
 
-        print("\n==============================================")
-        print("HELD CART REPORT")
-        print("==============================================")
-        print("Filters received:")
-        print("date_from:", date_from)
-        print("date_to:", date_to)
-        print("waiter:", waiter)
-        print("cashier:", cashier)
-        print("method:", method)
-        print("department:", department)
-        print("status:", status)
-
         # =====================================================
         # BASE QUERY
         # =====================================================
@@ -3022,89 +3000,54 @@ def held_cart_report():
         query = HeldCart.query
 
         # =====================================================
-        # DATE FROM FILTER
+        # DATE RANGE FILTER
+        # =====================================================
+        #
+        # IMPORTANT:
+        #
+        # We use:
+        #
+        # created_at >= date_from
+        # created_at <  date_to + 1 day
+        #
+        # This makes same-day searches work correctly.
         #
         # Example:
-        # date_from = 2026-08-20
         #
-        # Becomes:
-        # 2026-08-20 00:00:00
+        # date_from = 2026-08-20
+        # date_to   = 2026-08-20
+        #
+        # Result:
+        #
+        # >= 2026-08-20 00:00:00
+        # <  2026-08-21 00:00:00
+        #
         # =====================================================
 
         if date_from:
 
-            try:
+            from_date = datetime.strptime(
+                date_from,
+                "%Y-%m-%d"
+            )
 
-                from_datetime = datetime.strptime(
-                    date_from,
-                    "%Y-%m-%d"
-                )
-
-                query = query.filter(
-                    HeldCart.created_at >= from_datetime
-                )
-
-                print(
-                    "DATE FROM:",
-                    from_datetime
-                )
-
-            except ValueError:
-
-                return jsonify({
-                    "success": False,
-                    "error": (
-                        "Invalid date_from format. "
-                        "Expected YYYY-MM-DD."
-                    )
-                }), 400
-
-        # =====================================================
-        # DATE TO FILTER
-        #
-        # IMPORTANT:
-        #
-        # We use an EXCLUSIVE upper boundary.
-        #
-        # If date_to = 2026-08-20
-        #
-        # we search:
-        #
-        # created_at < 2026-08-21 00:00:00
-        #
-        # This includes the ENTIRE day of August 20.
-        # =====================================================
+            query = query.filter(
+                HeldCart.created_at >= from_date
+            )
 
         if date_to:
 
-            try:
-
-                to_datetime = (
-                    datetime.strptime(
-                        date_to,
-                        "%Y-%m-%d"
-                    )
-                    + timedelta(days=1)
+            to_date = (
+                datetime.strptime(
+                    date_to,
+                    "%Y-%m-%d"
                 )
+                + timedelta(days=1)
+            )
 
-                query = query.filter(
-                    HeldCart.created_at < to_datetime
-                )
-
-                print(
-                    "DATE TO (exclusive):",
-                    to_datetime
-                )
-
-            except ValueError:
-
-                return jsonify({
-                    "success": False,
-                    "error": (
-                        "Invalid date_to format. "
-                        "Expected YYYY-MM-DD."
-                    )
-                }), 400
+            query = query.filter(
+                HeldCart.created_at < to_date
+            )
 
         # =====================================================
         # WAITER FILTER
@@ -3116,21 +3059,8 @@ def held_cart_report():
                 HeldCart.waiter == waiter
             )
 
-            print(
-                "WAITER FILTER:",
-                waiter
-            )
-
         # =====================================================
         # CASHIER FILTER
-        #
-        # FIXED:
-        #
-        # Old:
-        # HeldCart.cashier == waiter
-        #
-        # Correct:
-        # HeldCart.cashier == cashier
         # =====================================================
 
         if cashier:
@@ -3139,21 +3069,11 @@ def held_cart_report():
                 HeldCart.cashier == cashier
             )
 
-            print(
-                "CASHIER FILTER:",
-                cashier
-            )
-
         # =====================================================
         # DEPARTMENT FILTER
         # =====================================================
 
         if department:
-
-            print(
-                "DEPARTMENT FILTER:",
-                department
-            )
 
             if department == "bar":
 
@@ -3197,11 +3117,6 @@ def held_cart_report():
 
         if status:
 
-            print(
-                "STATUS FILTER:",
-                status
-            )
-
             if status == "paid":
 
                 query = query.filter(
@@ -3227,23 +3142,16 @@ def held_cart_report():
                 )
 
         # =====================================================
-        # PAYMENT METHOD FILTER
+        # METHOD FILTER
+        # =====================================================
         #
-        # IMPORTANT:
+        # Keep this according to your existing structure.
+        # If "method" is actually stored in paid_status,
+        # this works as before.
         #
-        # Only use this if `method` corresponds to the
-        # `paid_status` field.
-        #
-        # If you have a separate payment_method column,
-        # replace HeldCart.paid_status with that column.
         # =====================================================
 
         if method:
-
-            print(
-                "PAYMENT METHOD FILTER:",
-                method
-            )
 
             query = query.filter(
                 HeldCart.paid_status == method
@@ -3261,13 +3169,8 @@ def held_cart_report():
             .all()
         )
 
-        print(
-            "ORDERS FOUND:",
-            len(orders)
-        )
-
         # =====================================================
-        # REPORT TOTALS
+        # REPORT DATA
         # =====================================================
 
         report_data = []
@@ -3296,116 +3199,31 @@ def held_cart_report():
                 # PARSE ITEMS
                 # =================================================
 
-                if order.items:
-
-                    try:
-
-                        if isinstance(
-                            order.items,
-                            str
-                        ):
-                            items = json.loads(
-                                order.items
-                            )
-                        else:
-                            items = order.items
-
-                    except (
-                        json.JSONDecodeError,
-                        TypeError
-                    ):
-
-                        print(
-                            f"Invalid items JSON "
-                            f"for order {order.id}"
-                        )
-
-                        items = []
-
-                else:
-
-                    items = []
-
-                # Make sure items is a list
-
-                if not isinstance(
-                    items,
-                    list
-                ):
-                    items = []
-
-                # =================================================
-                # ORDER TOTAL
-                # =================================================
-
-                order_total = float(
-                    order.total
-                    if order.total is not None
-                    else 0
+                items = (
+                    json.loads(order.items)
+                    if order.items
+                    else []
                 )
 
                 # =================================================
-                # BALANCE
+                # CALCULATE TOTALS
                 # =================================================
 
-                order_balance = float(
-                    order.balance
-                    if order.balance is not None
+                order_total = (
+                    float(order.total)
+                    if order.total
                     else 0
                 )
 
-                # =================================================
-                # COLLECTED
-                # =================================================
+                order_balance = (
+                    float(order.balance)
+                    if order.balance
+                    else 0
+                )
 
                 order_collected = (
-                    order_total
-                    - order_balance
+                    order_total - order_balance
                 )
-
-                # =================================================
-                # DISCOUNT
-                # =================================================
-
-                order_discount = float(
-                    getattr(
-                        order,
-                        "discount",
-                        0
-                    ) or 0
-                )
-
-                # =================================================
-                # ITEM QUANTITY
-                # =================================================
-
-                order_item_count = 0
-
-                for item in items:
-
-                    if not isinstance(
-                        item,
-                        dict
-                    ):
-                        continue
-
-                    try:
-
-                        qty = float(
-                            item.get(
-                                "qty",
-                                0
-                            ) or 0
-                        )
-
-                        order_item_count += qty
-
-                    except (
-                        ValueError,
-                        TypeError
-                    ):
-
-                        pass
 
                 # =================================================
                 # GLOBAL TOTALS
@@ -3417,9 +3235,11 @@ def held_cart_report():
 
                 total_collected += order_collected
 
-                total_discount += order_discount
-
-                total_items += order_item_count
+                total_items += sum(
+                    item.get("qty", 0)
+                    for item in items
+                    if isinstance(item, dict)
+                )
 
                 # =================================================
                 # UNIQUE CUSTOMERS
@@ -3432,44 +3252,42 @@ def held_cart_report():
                     )
 
                 # =================================================
-                # PAYMENT STATUS STATISTICS
+                # PAYMENT METHOD STATS
                 # =================================================
 
-                payment_key = (
+                method_key = (
                     order.paid_status
                     or "Unknown"
                 )
 
-                payment_methods[
-                    payment_key
-                ] = (
+                payment_methods[method_key] = (
                     payment_methods.get(
-                        payment_key,
+                        method_key,
                         0
                     )
                     + order_collected
                 )
 
                 # =================================================
-                # DEPARTMENT STATISTICS
+                # DEPARTMENT STATS
                 # =================================================
 
-                departments = []
+                depts = []
 
                 if order.contain_drink == "yes":
-                    departments.append("Bar")
+                    depts.append("Bar")
 
                 if order.contain_food == "yes":
-                    departments.append("Restaurant")
+                    depts.append("Restaurant")
 
                 if order.contain_dtf == "yes":
-                    departments.append("DTF")
+                    depts.append("DTF")
 
                 if (
                     order.contain_digital_printing
                     == "yes"
                 ):
-                    departments.append(
+                    depts.append(
                         "Digital Printing"
                     )
 
@@ -3477,16 +3295,14 @@ def held_cart_report():
                     order.contain_large_format
                     == "yes"
                 ):
-                    departments.append(
+                    depts.append(
                         "Large Format"
                     )
 
                 if order.contain_label == "yes":
-                    departments.append(
-                        "Label"
-                    )
+                    depts.append("Label")
 
-                for dept in departments:
+                for dept in depts:
 
                     department_stats[dept] = (
                         department_stats.get(
@@ -3497,14 +3313,12 @@ def held_cart_report():
                     )
 
                 # =================================================
-                # WAITER STATISTICS
+                # WAITER STATS
                 # =================================================
 
                 if order.waiter:
 
-                    waiter_stats[
-                        order.waiter
-                    ] = (
+                    waiter_stats[order.waiter] = (
                         waiter_stats.get(
                             order.waiter,
                             0
@@ -3513,152 +3327,62 @@ def held_cart_report():
                     )
 
                 # =================================================
-                # REPORT ORDER
+                # REPORT DATA
+                #
+                # KEEPING YOUR ORIGINAL STRUCTURE
                 # =================================================
 
                 report_data.append({
 
                     "id": order.id,
 
-                    "created_at": (
-                        order.created_at.isoformat()
-                        if order.created_at
-                        else None
-                    ),
-
-                    "customer": (
-                        order.customer
-                        or ""
-                    ),
-
-                    "company_name": (
-                        getattr(
-                            order,
-                            "company_name",
-                            ""
-                        )
-                        or ""
-                    ),
-
-                    "waiter": (
-                        order.waiter
-                        or ""
-                    ),
-
-                    "cashier": (
-                        getattr(
-                            order,
-                            "cashier",
-                            ""
-                        )
-                        or ""
-                    ),
-
-                    "status": (
-                        order.status
-                        or ""
-                    ),
-
-                    "paid_status": (
-                        order.paid_status
-                        or ""
-                    ),
+                    "items": items,
 
                     "total": order_total,
 
                     "balance": order_balance,
 
-                    "collected": (
-                        order_collected
-                    ),
+                    "collected": order_collected,
 
-                    "discount": (
-                        order_discount
-                    ),
+                    "waiter": order.waiter,
 
-                    "item_count": (
-                        order_item_count
-                    ),
+                    "cashier": order.cashier,
 
-                    "items": items,
+                    "customer": order.customer,
 
-                    "note": (
-                        getattr(
-                            order,
-                            "note",
-                            ""
-                        )
-                        or ""
-                    ),
+                    "company_name": order.company_name,
 
-                    "contain_drink": (
-                        order.contain_drink
-                        or "no"
-                    ),
+                    "status": order.status,
 
-                    "contain_food": (
-                        order.contain_food
-                        or "no"
-                    ),
+                    "paid_status": order.paid_status,
 
-                    "contain_dtf": (
-                        order.contain_dtf
-                        or "no"
-                    ),
+                    "note": order.note,
 
-                    "contain_digital_printing": (
-                        order.contain_digital_printing
-                        or "no"
-                    ),
-
-                    "contain_large_format": (
-                        order.contain_large_format
-                        or "no"
-                    ),
-
-                    "contain_label": (
-                        order.contain_label
-                        or "no"
+                    "created_at": (
+                        order.created_at.isoformat()
+                        if order.created_at
+                        else None
                     )
                 })
 
-            except Exception as order_error:
+            except Exception as e:
 
                 print(
-                    f"ERROR PROCESSING ORDER "
-                    f"{getattr(order, 'id', 'UNKNOWN')}: "
-                    f"{order_error}"
+                    f"Error processing order "
+                    f"{order.id}: {str(e)}"
                 )
-
-                import traceback
-                traceback.print_exc()
 
                 continue
 
         # =====================================================
-        # FINAL RESPONSE
+        # RESPONSE
+        #
+        # SAME STRUCTURE AS YOUR ORIGINAL RESPONSE
         # =====================================================
 
-        response = {
+        return jsonify({
 
             "success": True,
-
-            "filters": {
-
-                "date_from": date_from,
-
-                "date_to": date_to,
-
-                "waiter": waiter,
-
-                "cashier": cashier,
-
-                "method": method,
-
-                "department": department,
-
-                "status": status
-            },
 
             "orders": report_data,
 
@@ -3680,11 +3404,6 @@ def held_cart_report():
 
                 "total_collected": round(
                     total_collected,
-                    2
-                ),
-
-                "total_discount": round(
-                    total_discount,
                     2
                 ),
 
@@ -3721,40 +3440,11 @@ def held_cart_report():
                 for key, value
                 in waiter_stats.items()
             }
-        }
 
-        print(
-            "REPORT GENERATED SUCCESSFULLY"
-        )
-
-        print(
-            "Total orders:",
-            len(report_data)
-        )
-
-        print(
-            "Total sales:",
-            total_sales
-        )
-
-        print(
-            "Total collected:",
-            total_collected
-        )
-
-        print(
-            "Total balance:",
-            total_balance
-        )
-
-        print(
-            "==============================================\n"
-        )
-
-        return jsonify(response), 200
+        }), 200
 
     # =========================================================
-    # GLOBAL ERROR
+    # ERROR
     # =========================================================
 
     except Exception as e:
@@ -3762,11 +3452,7 @@ def held_cart_report():
         db.session.rollback()
 
         print(
-            "\n=============================================="
-        )
-
-        print(
-            "HELD CART REPORT ERROR:"
+            "\nHELD CART REPORT ERROR:"
         )
 
         print(
@@ -3774,11 +3460,8 @@ def held_cart_report():
         )
 
         import traceback
-        traceback.print_exc()
 
-        print(
-            "==============================================\n"
-        )
+        traceback.print_exc()
 
         return jsonify({
 
