@@ -2979,6 +2979,7 @@ def held_cart_report():
         date_to = data.get("date_to")
         waiter = data.get("waiter")
         cashier = data.get("cashier")
+        user_id = data.get("user_id")
         method = data.get("method")
         department = data.get("department")
         status = data.get("status")  # pending, confirmed, partial, paid
@@ -3002,7 +3003,7 @@ def held_cart_report():
         
         # Waiter filter
         if waiter:
-            query = query.filter(HeldCart.waiter == waiter)
+            query = query.filter(HeldCart.user_id == user_id)
         
         # Cashier filter (stored in waiter field or separate field)
         if cashier:
