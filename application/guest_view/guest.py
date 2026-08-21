@@ -14515,7 +14515,7 @@ def send_sms_bulk(phone, message):
             else:
                 print(f"⚠️ SMS sending failed with status {status}: {response.read()}")
                 httpConn.close()
-                return False
+                return {{"False"}}
         else:
             print(f"⚠️ Invalid phone number format: {clean_phone}")
             return False
@@ -14804,7 +14804,7 @@ def send_messages_background(bulk_id):
                 recipient.error_message = str(e)
                 failed_count += 1
                 db.session.commit()
-                print(f"⚠️ Error sending to {recipient.recipient_name}: {str(e)}")
+                print(f" Error sending to {recipient.recipient_name}: {str(e)}")
         
         # Update bulk message
         bulk_message.sent_count = sent_count
