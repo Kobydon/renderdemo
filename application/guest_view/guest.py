@@ -2223,17 +2223,48 @@ def add_income():
     return resp
 
 
+from flask import jsonify
+from sqlalchemy import func
+from datetime import datetime
+import flask_praetorian
 
-@guest.route("/get_income_list",methods=['GET'])
+@guest.route("/get_income_list", methods=["GET"])
 @flask_praetorian.auth_required
 def get_income_list():
-    # user = User.query.filter_by(id = flask_praetorian.current_user().id).first()
-    us = User.query.filter_by(id = flask_praetorian.current_user().id).first()
-    inc = Income.query.all()
-    result = guest_schema.dump(inc)
-    return jsonify(result)
 
+    try:
 
+        user = flask_praetorian.current_user()
+
+        # Get only successful paid orders for the company
+        sales = HeldCart.query.filter(
+            HeldCart.paid_status == "Success"
+        ).order_by(HeldCart.created_at.asc()).all()
+
+        result = []
+
+        for item in sales:
+
+            result.append({
+                "id": item.id,
+                "total": item.total or 0,
+                "created_at": item.created_at.strftime("%Y-%m-%d %H:%M:%S") if item.created_at else None,
+                "customer": item.customer,
+                "paid_status": item.paid_status,
+                "payment_method": item.payment_method
+            })
+
+        return jsonify({
+            "success": True,
+            "data": result
+        }), 200
+
+    except Exception as e:
+
+        return jsonify({
+            "success": False,
+            "message": str(e)
+        }), 500
 
 @guest.route("/get_income/<id>",methods=['GET'])
 @flask_praetorian.auth_required
