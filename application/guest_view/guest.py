@@ -4398,7 +4398,7 @@ def get_all_session():
 def get_wifi_code():
     us = User.query.filter_by(id = flask_praetorian.current_user().id).first()
     data = request.json  # Get full JSON data
-    print("Received data:", data)  # Debugging log
+    print("Received dassta:", data)  # Debugging log
     days = data.get("days")  # Use .get() to avoid KeyError
     
     if not days:
