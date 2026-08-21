@@ -12099,7 +12099,7 @@ def hold_and_pay():
                 email_sent = True
 
                 print(
-                    "✅ Email sent successfully "
+                    "✅ Email sents successfully "
                     f"to {customer_email}"
                 )
 
