@@ -2431,7 +2431,7 @@ def add_item():
     
     # usr = user.firstname +" " + user.lastname
     created_date=datetime.now()
-    inc = Iteman(name=name,description=description,price=price,quantity="0",is_vip=wholesale,
+    inc = Iteman(name=name,description=description,price=price,quantity="0",is_vip=wholesale,quantity="5000000",
                    created_date=created_date,family=family,category=category,unit=unit,whole_price=request.json["whole_price"])
   
     db.session.add(inc)
@@ -14469,60 +14469,100 @@ from flask_mail import Message
 # ============================================
 # SMS SENDING FUNCTION (USING YOUR API)
 # ============================================
-
 def send_sms_bulk(phone, message):
     """
     Send SMS using your SMS Online GH API
+    Handles both 0XXXXXXXXX and 233XXXXXXXXX formats
+    Returns: (success: bool, message: str)
     """
     try:
-        # Clean phone number - remove spaces and ensure proper format
+        # Clean phone number - remove all non-digit characters
         clean_phone = ''.join(filter(str.isdigit, str(phone)))
         
-        # Ensure it's a valid Ghana number (starts with 0 and is 10 digits)
+        # Normalize Ghana phone number
+        normalized_phone = None
+        
+        # Format 1: 0XXXXXXXXX (10 digits starting with 0)
         if len(clean_phone) == 10 and clean_phone.startswith('0'):
-            # Your SMS API Configuration
-            host = 'api.smsonlinegh.com'
-            requestURI = '/v5/message/sms/send'
-            apiKey = 'a7142fa4296ea493c9e2bd20352edf0d8c4191204fc126b7487408222a4fec27'
-            
-            headers = {
-                'Host': host,
-                'Content-Type': 'application/json',
-                'Accept': 'application/json',
-                'Authorization': f'key {apiKey}'
-            }
-            
-            # Prepare message data
-            msg_data = {
-                'text': message,
-                'type': 0,  # 0 for standard SMS
-                'sender': 'Assempa Fie',  # Sender ID (max 11 characters)
-                'destinations': [clean_phone]
-            }
-            
-            # Send via HTTP
-            httpConn = httpClient.HTTPConnection(host)
-            httpConn.request('POST', requestURI, json.dumps(msg_data), headers)
-            
-            response = httpConn.getresponse()
-            status = response.status
-            
-            if status == 200:
-                response_data = response.read()
-                print(f"✅ SMS sent successfully to {clean_phone}: {response_data}")
-                httpConn.close()
-                return True
-            else:
-                print(f"⚠️ SMS sending failed with status {status}: {response.read()}")
-                httpConn.close()
-                return False
+            normalized_phone = clean_phone
+        
+        # Format 2: 233XXXXXXXXX (12 digits starting with 233)
+        elif len(clean_phone) == 12 and clean_phone.startswith('233'):
+            # Convert to 0XXXXXXXXX format
+            normalized_phone = '0' + clean_phone[3:]
+        
+        # Format 3: 233XXXXXXXX (11 digits - missing one digit)
+        elif len(clean_phone) == 11 and clean_phone.startswith('233'):
+            # Try to fix: take last 8 digits after 233
+            normalized_phone = '0' + clean_phone[3:]
+        
+        # Format 4: 23XXXXXXXX (9 digits - missing one 3)
+        elif len(clean_phone) == 9 and clean_phone.startswith('23'):
+            normalized_phone = '0' + clean_phone[2:]
+        
+        # Format 5: Starts with 0 but has extra digits
+        elif len(clean_phone) > 10 and clean_phone.startswith('0'):
+            normalized_phone = clean_phone[:10]  # Take first 10 digits
+        
+        # Format 6: No prefix but starts with common network codes
+        elif len(clean_phone) == 9:
+            # Ghana network prefixes: 20, 24, 26, 27, 50, 54, 55, 59
+            if clean_phone[:2] in ['20', '24', '26', '27', '50', '54', '55', '59']:
+                normalized_phone = '0' + clean_phone
+        
+        # If not valid, return False with error message
+        if not normalized_phone:
+            error_msg = f"Invalid phone number format: {phone} (cleaned: {clean_phone})"
+            print(f"⚠️ {error_msg}")
+            return False, error_msg
+        
+        # Validate final format
+        if len(normalized_phone) != 10 or not normalized_phone.startswith('0'):
+            error_msg = f"Invalid normalized phone number: {normalized_phone}"
+            print(f"⚠️ {error_msg}")
+            return False, error_msg
+        
+        # Your SMS API Configuration
+        host = 'api.smsonlinegh.com'
+        requestURI = '/v5/message/sms/send'
+        apiKey = 'a7142fa4296ea493c9e2bd20352edf0d8c4191204fc126b7487408222a4fec27'
+        
+        headers = {
+            'Host': host,
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+            'Authorization': f'key {apiKey}'
+        }
+        
+        # Prepare message data
+        msg_data = {
+            'text': message,
+            'type': 0,  # 0 for standard SMS
+            'sender': 'Assempa Fie',  # Sender ID (max 11 characters)
+            'destinations': [normalized_phone]
+        }
+        
+        # Send via HTTP
+        httpConn = httpClient.HTTPConnection(host)
+        httpConn.request('POST', requestURI, json.dumps(msg_data), headers)
+        
+        response = httpConn.getresponse()
+        status = response.status
+        response_data = response.read().decode('utf-8')
+        httpConn.close()
+        
+        if status == 200:
+            print(f"✅ SMS sent successfully to {normalized_phone} (original: {phone})")
+            return True, "Sent successfully"
         else:
-            print(f"⚠️ Invalid phone number format: {clean_phone}")
-            return False
+            error_msg = f"API Error {status}: {response_data}"
+            print(f"⚠️ SMS sending failed: {error_msg}")
+            return False, error_msg
             
     except Exception as e:
-        print(f"⚠️ Failed to sends SMS to {phone}: {str(e)}")
-        return False
+        error_msg = f"Exception: {str(e)}"
+        print(f"⚠️ Failed to send SMS to {phone}: {error_msg}")
+        return False, error_msg
 
 # ============================================
 # EMAIL SENDING FUNCTION (USING YOUR CONFIG)
