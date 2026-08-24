@@ -2431,7 +2431,7 @@ def add_item():
     
     # usr = user.firstname +" " + user.lastname
     created_date=datetime.now()
-    inc = Iteman(name=name,description=description,price=price,quantity="0",is_vip=wholesale,quantity="5000000",
+    inc = Iteman(name=name,description=description,price=price,quantity="0",is_vip=wholesale,quantity="1000000",
                    created_date=created_date,family=family,category=category,unit=unit,whole_price=request.json["whole_price"])
   
     db.session.add(inc)
@@ -9556,39 +9556,33 @@ import http.client as httpClient
 
 from flask_mail import Message
 
-
 @guest.route('/hold_and_pay', methods=['POST'])
 @flask_praetorian.auth_required
 def hold_and_pay():
     """
     Create/update a HeldCart and process payment.
 
-    IMPORTANT:
-    Product ID and Cart Item ID are different.
-
-    id:
-        Actual product ID.
-
-    cart_item_id:
-        Unique ID for one specific cart line.
-
-    Example:
-
-        Product ID 10
-        cart_item_id A
-        price 100
-
-        Product ID 10
-        cart_item_id B
-        price 150
-
-    These are treated as two independent cart lines.
-
-    Also sends:
+    Supports:
+        - Normal orders
+        - Held orders
+        - Partial payments
+        - Full payments
+        - Percentage discounts
+        - Existing cart_item_id logic
+        - Measurements
         - Email confirmation
         - SMS confirmation
 
-    Email/SMS failures do NOT rollback the order.
+    Discount is calculated from the ORIGINAL cart subtotal.
+
+    Example:
+
+        Subtotal       = GHS 100.00
+        Discount       = 10%
+        Discount Amt   = GHS 10.00
+        Total Due      = GHS 90.00
+        Amount Paid    = GHS 90.00
+        Balance        = GHS 0.00
     """
 
     try:
@@ -9606,7 +9600,6 @@ def hold_and_pay():
         # ==========================================================
 
         if not data:
-
             return jsonify({
                 "success": False,
                 "error": "Request body is required."
@@ -9615,27 +9608,25 @@ def hold_and_pay():
         cart_items = data.get("cartItems")
 
         if not isinstance(cart_items, list):
-
             return jsonify({
                 "success": False,
                 "error": "'cartItems' must be a list."
             }), 400
 
         # ==========================================================
-        # BASIC REQUEST DATA
+        # BASIC DATA
         # ==========================================================
 
         hold_id = data.get("id")
 
+        # ----------------------------------------------------------
+        # AMOUNT PAID
+        # ----------------------------------------------------------
+
         try:
-
             amount_paid = float(
-                data.get(
-                    "amount_paid",
-                    0
-                ) or 0
+                data.get("amount_paid", 0) or 0
             )
-
         except (ValueError, TypeError):
 
             return jsonify({
@@ -9643,15 +9634,17 @@ def hold_and_pay():
                 "error": "Invalid amount_paid."
             }), 400
 
+        if amount_paid < 0:
+            amount_paid = 0
+
+        # ----------------------------------------------------------
+        # FRONTEND TOTAL
+        # ----------------------------------------------------------
+
         try:
-
             supplied_total = float(
-                data.get(
-                    "total",
-                    0
-                ) or 0
+                data.get("total", 0) or 0
             )
-
         except (ValueError, TypeError):
 
             return jsonify({
@@ -9659,42 +9652,63 @@ def hold_and_pay():
                 "error": "Invalid total."
             }), 400
 
-        if amount_paid < 0:
-            amount_paid = 0
+        if supplied_total < 0:
+            supplied_total = 0
+
+        # ==========================================================
+        # DISCOUNT
+        # ==========================================================
+
+        try:
+            discount = float(
+                data.get("discount", 0) or 0
+            )
+        except (ValueError, TypeError):
+            discount = 0
+
+        if discount < 0:
+            discount = 0
+
+        if discount > 100:
+            discount = 100
+
+        # ----------------------------------------------------------
+        # DISCOUNT AMOUNT
+        # ----------------------------------------------------------
+
+        try:
+            supplied_discount_amount = float(
+                data.get("discount_amount", 0) or 0
+            )
+        except (ValueError, TypeError):
+            supplied_discount_amount = 0
+
+        if supplied_discount_amount < 0:
+            supplied_discount_amount = 0
+
+        # ==========================================================
+        # OTHER DATA
+        # ==========================================================
 
         payment_method = (
-            data.get(
-                "method",
-                "Cash"
-            )
+            data.get("method", "Cash")
             or "Cash"
         )
 
         note = (
-            data.get(
-                "note",
-                ""
-            )
+            data.get("note", "")
             or ""
         )
 
         table = (
-            data.get(
-                "table",
-                ""
-            )
+            data.get("table", "")
             or ""
         )
 
-        customer_id = data.get(
-            "customer"
-        )
+        customer_id = data.get("customer")
 
         phone_number = (
-            data.get(
-                "phone_number",
-                ""
-            )
+            data.get("phone_number", "")
             or ""
         )
 
@@ -9707,10 +9721,7 @@ def hold_and_pay():
         customer_name = "Valued Customer"
 
         customer_email = (
-            data.get(
-                "customer_email",
-                ""
-            )
+            data.get("customer_email", "")
             or ""
         )
 
@@ -9737,36 +9748,26 @@ def hold_and_pay():
                 ).strip()
 
                 # --------------------------------------------------
-                # CUSTOMER PHONE
+                # PHONE
                 # --------------------------------------------------
 
                 if (
-                    hasattr(
-                        customer,
-                        "phone"
-                    )
+                    hasattr(customer, "phone")
                     and customer.phone
                 ):
 
-                    phone_number = (
-                        customer.phone
-                    )
+                    phone_number = customer.phone
 
                 # --------------------------------------------------
-                # CUSTOMER EMAIL
+                # EMAIL
                 # --------------------------------------------------
 
                 if (
-                    hasattr(
-                        customer,
-                        "email"
-                    )
+                    hasattr(customer, "email")
                     and customer.email
                 ):
 
-                    customer_email = (
-                        customer.email
-                    )
+                    customer_email = customer.email
 
         # ==========================================================
         # FALLBACK CUSTOMER NAME
@@ -9777,10 +9778,8 @@ def hold_and_pay():
             and data.get("customer_name")
         ):
 
-            customer_name = (
-                data.get(
-                    "customer_name"
-                )
+            customer_name = data.get(
+                "customer_name"
             )
 
         # ==========================================================
@@ -9799,10 +9798,7 @@ def hold_and_pay():
 
         def prepare_cart_item(item):
 
-            if not isinstance(
-                item,
-                dict
-            ):
+            if not isinstance(item, dict):
 
                 raise ValueError(
                     "Each cart item must be an object."
@@ -9812,9 +9808,7 @@ def hold_and_pay():
             # PRODUCT ID
             # ======================================================
 
-            product_id = item.get(
-                "id"
-            )
+            product_id = item.get("id")
 
             if (
                 product_id is None
@@ -9895,6 +9889,9 @@ def hold_and_pay():
 
                 price = 0
 
+            if price < 0:
+                price = 0
+
             # ======================================================
             # NAME
             # ======================================================
@@ -9906,7 +9903,7 @@ def hold_and_pay():
             )
 
             # ======================================================
-            # MEASUREMENT DATA
+            # MEASUREMENTS
             # ======================================================
 
             measurement = item.get(
@@ -9943,9 +9940,9 @@ def hold_and_pay():
                 )
             )
 
-            # ======================================================
-            # READ MEASUREMENT OBJECT
-            # ======================================================
+            # ------------------------------------------------------
+            # MEASUREMENT OBJECT
+            # ------------------------------------------------------
 
             if isinstance(
                 measurement,
@@ -10040,7 +10037,7 @@ def hold_and_pay():
                 )
 
             # ======================================================
-            # CALCULATE AREA IF MISSING
+            # CALCULATE AREA
             # ======================================================
 
             if (
@@ -10055,7 +10052,7 @@ def hold_and_pay():
                 )
 
             # ======================================================
-            # FINAL MEASUREMENT OBJECT
+            # FINAL MEASUREMENT
             # ======================================================
 
             final_measurement = None
@@ -10085,29 +10082,16 @@ def hold_and_pay():
             # ITEM TOTAL
             # ======================================================
 
-            try:
+            # IMPORTANT:
+            # Always calculate from price * qty.
+            #
+            # This prevents a stale frontend "total" from
+            # creating inconsistent cart lines.
 
-                item_total = float(
-                    item.get(
-                        "total",
-                        price * qty
-                    )
-                )
-
-            except (
-                ValueError,
-                TypeError
-            ):
-
-                item_total = (
-                    price * qty
-                )
-
-            if item_total < 0:
-
-                item_total = (
-                    price * qty
-                )
+            item_total = round(
+                price * qty,
+                2
+            )
 
             # ======================================================
             # CHECKED BY
@@ -10142,20 +10126,14 @@ def hold_and_pay():
 
             prepared_item = {
 
-                # ==================================================
-                # CRITICAL IDs
-                # ==================================================
-
+                # IDs
                 "cart_item_id":
                     cart_item_id,
 
                 "id":
                     product_id,
 
-                # ==================================================
-                # BASIC INFORMATION
-                # ==================================================
-
+                # Basic
                 "name":
                     name,
 
@@ -10163,7 +10141,7 @@ def hold_and_pay():
                     qty,
 
                 "price":
-                    price,
+                    round(price, 2),
 
                 "total":
                     item_total,
@@ -10190,10 +10168,7 @@ def hold_and_pay():
                         )
                     ).strip(),
 
-                # ==================================================
-                # CHECKING
-                # ==================================================
-
+                # Checking
                 "confirmed":
                     bool(
                         item.get(
@@ -10246,10 +10221,7 @@ def hold_and_pay():
                         "no"
                     ),
 
-                # ==================================================
-                # MEASUREMENTS
-                # ==================================================
-
+                # Measurements
                 "is_measurement_product":
                     is_measurement_product,
 
@@ -10285,9 +10257,7 @@ def hold_and_pay():
             for item in cart_items:
 
                 prepared_item = (
-                    prepare_cart_item(
-                        item
-                    )
+                    prepare_cart_item(item)
                 )
 
                 incoming_items.append(
@@ -10303,74 +10273,128 @@ def hold_and_pay():
             }), 400
 
         # ==========================================================
-        # CALCULATE CART TOTAL
+        # CALCULATE ORIGINAL SUBTOTAL
         # ==========================================================
 
-        calculated_total = 0
+        calculated_subtotal = 0
 
         for item in incoming_items:
 
-            try:
-
-                item_price = float(
-                    item.get(
-                        "price",
-                        0
-                    ) or 0
-                )
-
-            except (
-                ValueError,
-                TypeError
-            ):
-
-                item_price = 0
-
-            try:
-
-                item_qty = int(
-                    item.get(
-                        "qty",
-                        1
-                    ) or 1
-                )
-
-            except (
-                ValueError,
-                TypeError
-            ):
-
-                item_qty = 1
-
-            calculated_total += (
-                item_price
-                * item_qty
+            item_price = float(
+                item.get("price", 0) or 0
             )
 
-        calculated_total = round(
-            calculated_total,
+            item_qty = int(
+                item.get("qty", 1) or 1
+            )
+
+            calculated_subtotal += (
+                item_price * item_qty
+            )
+
+        calculated_subtotal = round(
+            calculated_subtotal,
             2
         )
 
         # ==========================================================
-        # TOTAL
+        # DISCOUNT CALCULATION
+        # ==========================================================
+
+        calculated_discount_amount = round(
+            (
+                calculated_subtotal
+                * discount
+            ) / 100,
+            2
+        )
+
+        calculated_discounted_total = round(
+            calculated_subtotal
+            - calculated_discount_amount,
+            2
+        )
+
+        # ==========================================================
+        # DETERMINE FINAL TOTAL
         # ==========================================================
         #
-        # We calculate the total from each cart line.
+        # Priority:
         #
-        # This is important because two lines can have:
+        # 1. Discount entered by frontend
+        # 2. Supplied discounted total
+        # 3. Original subtotal
         #
-        # Product 10 / cart_item_id A / GHS 100
-        # Product 10 / cart_item_id B / GHS 150
-        #
-        # They must remain independent.
+        # This means your new Angular discount field works.
         #
         # ==========================================================
 
-        total = calculated_total
+        if discount > 0:
 
+            total = (
+                calculated_discounted_total
+            )
+
+            discount_amount = (
+                calculated_discount_amount
+            )
+
+        elif supplied_total > 0:
+
+            total = round(
+                supplied_total,
+                2
+            )
+
+            discount_amount = round(
+                max(
+                    calculated_subtotal
+                    - total,
+                    0
+                ),
+                2
+            )
+
+            # Calculate equivalent discount %
+            if calculated_subtotal > 0:
+
+                discount = round(
+                    (
+                        discount_amount
+                        / calculated_subtotal
+                    ) * 100,
+                    2
+                )
+
+        else:
+
+            total = (
+                calculated_subtotal
+            )
+
+            discount_amount = 0
+            discount = 0
+
+        # Empty cart
         if not incoming_items:
+
+            calculated_subtotal = 0
+            discount = 0
+            discount_amount = 0
             total = 0
+
+        # ==========================================================
+        # IMPORTANT PAYMENT SAFETY
+        # ==========================================================
+
+        # Never allow payment to exceed the amount due.
+
+        if amount_paid > total:
+
+            amount_paid = round(
+                total,
+                2
+            )
 
         # ==========================================================
         # FIND EXISTING HOLD
@@ -10413,13 +10437,13 @@ def hold_and_pay():
                 }), 404
 
         # ==========================================================
-        # EXISTING ORDER
+        # EXISTING HELD ORDER
         # ==========================================================
 
         if existing_hold:
 
             # ======================================================
-            # PARSE EXISTING ITEMS
+            # EXISTING ITEMS
             # ======================================================
 
             try:
@@ -10447,7 +10471,7 @@ def hold_and_pay():
                 existing_items = []
 
             # ======================================================
-            # INDEX BY CART ITEM ID
+            # INDEX EXISTING CART LINES
             # ======================================================
 
             existing_by_cart_id = {}
@@ -10458,7 +10482,6 @@ def hold_and_pay():
                     existing_item,
                     dict
                 ):
-
                     continue
 
                 existing_cart_id = (
@@ -10466,10 +10489,6 @@ def hold_and_pay():
                         "cart_item_id"
                     )
                 )
-
-                # --------------------------------------------------
-                # OLD ORDERS WITHOUT cart_item_id
-                # --------------------------------------------------
 
                 if not existing_cart_id:
 
@@ -10482,13 +10501,11 @@ def hold_and_pay():
                     ] = existing_cart_id
 
                 existing_by_cart_id[
-                    str(
-                        existing_cart_id
-                    )
+                    str(existing_cart_id)
                 ] = existing_item
 
             # ======================================================
-            # MERGE INCOMING ITEMS
+            # MERGE ITEMS
             # ======================================================
 
             updated_items = []
@@ -10509,17 +10526,17 @@ def hold_and_pay():
 
                 if old_item:
 
-                    # ==================================================
-                    # SAME CART LINE
-                    # ==================================================
+                    # ------------------------------------------------
+                    # Preserve cart_item_id
+                    # ------------------------------------------------
 
                     old_item[
                         "cart_item_id"
                     ] = cart_id
 
-                    # --------------------------------------------------
-                    # Product ID
-                    # --------------------------------------------------
+                    # ------------------------------------------------
+                    # Basic information
+                    # ------------------------------------------------
 
                     old_item[
                         "id"
@@ -10531,10 +10548,6 @@ def hold_and_pay():
                         )
                     )
 
-                    # --------------------------------------------------
-                    # Name
-                    # --------------------------------------------------
-
                     old_item[
                         "name"
                     ] = new_item.get(
@@ -10545,37 +10558,17 @@ def hold_and_pay():
                         )
                     )
 
-                    # --------------------------------------------------
-                    # Price
-                    # --------------------------------------------------
-
-                    try:
-
-                        old_item[
-                            "price"
-                        ] = float(
-                            new_item.get(
+                    old_item[
+                        "price"
+                    ] = float(
+                        new_item.get(
+                            "price",
+                            old_item.get(
                                 "price",
-                                old_item.get(
-                                    "price",
-                                    0
-                                )
+                                0
                             )
-                            or 0
-                        )
-
-                    except (
-                        ValueError,
-                        TypeError
-                    ):
-
-                        old_item[
-                            "price"
-                        ] = 0
-
-                    # --------------------------------------------------
-                    # Quantity
-                    # --------------------------------------------------
+                        ) or 0
+                    )
 
                     try:
 
@@ -10602,11 +10595,14 @@ def hold_and_pay():
                         ] = 1
 
                     if old_item["qty"] <= 0:
-                        old_item["qty"] = 1
 
-                    # --------------------------------------------------
-                    # Total
-                    # --------------------------------------------------
+                        old_item[
+                            "qty"
+                        ] = 1
+
+                    # ------------------------------------------------
+                    # ALWAYS RECALCULATE LINE TOTAL
+                    # ------------------------------------------------
 
                     old_item[
                         "total"
@@ -10617,7 +10613,8 @@ def hold_and_pay():
                                 0
                             )
                         )
-                        * int(
+                        *
+                        int(
                             old_item.get(
                                 "qty",
                                 1
@@ -10626,9 +10623,9 @@ def hold_and_pay():
                         2
                     )
 
-                    # --------------------------------------------------
-                    # Basic information
-                    # --------------------------------------------------
+                    # ------------------------------------------------
+                    # Basic fields
+                    # ------------------------------------------------
 
                     old_item[
                         "description"
@@ -10680,9 +10677,9 @@ def hold_and_pay():
                         )
                     )
 
-                    # --------------------------------------------------
-                    # Checking information
-                    # --------------------------------------------------
+                    # ------------------------------------------------
+                    # Checking
+                    # ------------------------------------------------
 
                     old_item[
                         "is_checked"
@@ -10744,12 +10741,9 @@ def hold_and_pay():
                         )
                     )
 
-                    # --------------------------------------------------
+                    # ------------------------------------------------
                     # Measurements
-                    #
-                    # IMPORTANT:
-                    # Preserve all measurement fields.
-                    # --------------------------------------------------
+                    # ------------------------------------------------
 
                     old_item[
                         "is_measurement_product"
@@ -10822,16 +10816,13 @@ def hold_and_pay():
 
                 else:
 
-                    # ==================================================
-                    # BRAND NEW CART LINE
-                    # ==================================================
-
+                    # New cart line
                     updated_items.append(
                         new_item
                     )
 
             # ======================================================
-            # REMOVE CART LINES NO LONGER IN FRONTEND
+            # REMOVE REMOVED CART LINES
             # ======================================================
 
             incoming_cart_ids = {
@@ -10864,10 +10855,10 @@ def hold_and_pay():
                     )
 
             # ======================================================
-            # CALCULATE NEW ORDER TOTAL
+            # ORIGINAL SUBTOTAL AFTER MERGE
             # ======================================================
 
-            new_total = 0
+            merged_subtotal = 0
 
             for item in final_items:
 
@@ -10903,15 +10894,71 @@ def hold_and_pay():
 
                     item_qty = 1
 
-                new_total += (
-                    item_price
-                    * item_qty
+                merged_subtotal += (
+                    item_price * item_qty
                 )
 
-            new_total = round(
-                new_total,
+            merged_subtotal = round(
+                merged_subtotal,
                 2
             )
+
+            # ======================================================
+            # APPLY DISCOUNT TO MERGED ORDER
+            # ======================================================
+
+            if discount > 0:
+
+                new_total = round(
+                    merged_subtotal
+                    -
+                    (
+                        merged_subtotal
+                        * discount
+                        / 100
+                    ),
+                    2
+                )
+
+                discount_amount = round(
+                    merged_subtotal
+                    - new_total,
+                    2
+                )
+
+            elif supplied_total > 0:
+
+                # If frontend supplied a discounted total
+                new_total = round(
+                    supplied_total,
+                    2
+                )
+
+                discount_amount = round(
+                    max(
+                        merged_subtotal
+                        - new_total,
+                        0
+                    ),
+                    2
+                )
+
+                if merged_subtotal > 0:
+
+                    discount = round(
+                        (
+                            discount_amount
+                            / merged_subtotal
+                        )
+                        * 100,
+                        2
+                    )
+
+            else:
+
+                new_total = merged_subtotal
+                discount = 0
+                discount_amount = 0
 
             # ======================================================
             # PREVIOUS TOTAL
@@ -10950,13 +10997,13 @@ def hold_and_pay():
                 previous_balance = 0
 
             # ======================================================
-            # BALANCE
+            # EXISTING ORDER BALANCE
             # ======================================================
             #
-            # Keep the existing balance logic:
+            # If an existing held order is updated:
             #
             # previous balance
-            # + change in order total
+            # + change in total
             # - new payment
             #
             # ======================================================
@@ -10987,19 +11034,16 @@ def hold_and_pay():
             if new_balance <= 0:
 
                 new_status = "Confirmed"
-
                 new_paid_status = "Success"
 
             elif amount_paid > 0:
 
                 new_status = "Pending"
-
                 new_paid_status = "Partial"
 
             else:
 
                 new_status = "Pending"
-
                 new_paid_status = "Pending"
 
             # ======================================================
@@ -11007,44 +11051,34 @@ def hold_and_pay():
             # ======================================================
 
             contain_drink = any(
-                item.get(
-                    "family"
-                ) == "drink"
+                item.get("family") == "drink"
                 for item in final_items
             )
 
             contain_food = any(
-                item.get(
-                    "family"
-                ) == "food"
+                item.get("family") == "food"
                 for item in final_items
             )
 
             contain_dtf = any(
-                item.get(
-                    "family"
-                ) == "dtf"
+                item.get("family") == "dtf"
                 for item in final_items
             )
 
             contain_digital_printing = any(
-                item.get(
-                    "family"
-                ) == "digital_printing"
+                item.get("family")
+                == "digital_printing"
                 for item in final_items
             )
 
             contain_large_format = any(
-                item.get(
-                    "family"
-                ) == "large_format"
+                item.get("family")
+                == "large_format"
                 for item in final_items
             )
 
             contain_label = any(
-                item.get(
-                    "family"
-                ) == "label"
+                item.get("family") == "label"
                 for item in final_items
             )
 
@@ -11135,14 +11169,18 @@ def hold_and_pay():
             # PAYMENT NOTE
             # ======================================================
 
-            if amount_paid > 0:
+            payment_note = (
+                f"💰 Payment: GHS "
+                f"{amount_paid:.2f} | "
+                f"Discount: "
+                f"{discount:.2f}% | "
+                f"Total: GHS "
+                f"{new_total:.2f} | "
+                f"Balance: GHS "
+                f"{new_balance:.2f}"
+            )
 
-                payment_note = (
-                    f"💰 Payment: GHS "
-                    f"{amount_paid:.2f} | "
-                    f"Balance: GHS "
-                    f"{new_balance:.2f}"
-                )
+            if amount_paid > 0:
 
                 if existing_hold.note:
 
@@ -11159,9 +11197,7 @@ def hold_and_pay():
 
             elif note:
 
-                existing_hold.note = (
-                    note
-                )
+                existing_hold.note = note
 
             order = existing_hold
 
@@ -11176,10 +11212,17 @@ def hold_and_pay():
         else:
 
             # ======================================================
-            # NEW ORDER BALANCE
+            # NEW ORDER TOTAL
             # ======================================================
 
-            new_total = calculated_total
+            new_total = round(
+                total,
+                2
+            )
+
+            # ======================================================
+            # NEW ORDER BALANCE
+            # ======================================================
 
             new_balance = (
                 new_total
@@ -11201,19 +11244,16 @@ def hold_and_pay():
             if new_balance <= 0:
 
                 order_status = "Confirmed"
-
                 paid_status = "Success"
 
             elif amount_paid > 0:
 
                 order_status = "Pending"
-
                 paid_status = "Partial"
 
             else:
 
                 order_status = "Pending"
-
                 paid_status = "Pending"
 
             # ======================================================
@@ -11221,44 +11261,34 @@ def hold_and_pay():
             # ======================================================
 
             contain_drink = any(
-                item.get(
-                    "family"
-                ) == "drink"
+                item.get("family") == "drink"
                 for item in incoming_items
             )
 
             contain_food = any(
-                item.get(
-                    "family"
-                ) == "food"
+                item.get("family") == "food"
                 for item in incoming_items
             )
 
             contain_dtf = any(
-                item.get(
-                    "family"
-                ) == "dtf"
+                item.get("family") == "dtf"
                 for item in incoming_items
             )
 
             contain_digital_printing = any(
-                item.get(
-                    "family"
-                ) == "digital_printing"
+                item.get("family")
+                == "digital_printing"
                 for item in incoming_items
             )
 
             contain_large_format = any(
-                item.get(
-                    "family"
-                ) == "large_format"
+                item.get("family")
+                == "large_format"
                 for item in incoming_items
             )
 
             contain_label = any(
-                item.get(
-                    "family"
-                ) == "label"
+                item.get("family") == "label"
                 for item in incoming_items
             )
 
@@ -11268,14 +11298,28 @@ def hold_and_pay():
 
             final_note = note
 
+            payment_note = (
+                f"💰 Payment: GHS "
+                f"{amount_paid:.2f} | "
+                f"Discount: "
+                f"{discount:.2f}% | "
+                f"Discount Amount: GHS "
+                f"{discount_amount:.2f} | "
+                f"Total: GHS "
+                f"{new_total:.2f} | "
+                f"Balance: GHS "
+                f"{new_balance:.2f}"
+            )
+
             if amount_paid > 0:
 
-                payment_note = (
-                    f"💰 Payment: GHS "
-                    f"{amount_paid:.2f} | "
-                    f"Balance: GHS "
-                    f"{new_balance:.2f}"
+                final_note = (
+                    f"{note} | {payment_note}"
+                    if note
+                    else payment_note
                 )
+
+            elif discount > 0:
 
                 final_note = (
                     f"{note} | {payment_note}"
@@ -11295,6 +11339,8 @@ def hold_and_pay():
                     incoming_items
                 ),
 
+                # IMPORTANT
+                # This is now the discounted total.
                 total=new_total,
 
                 balance=(
@@ -11373,15 +11419,10 @@ def hold_and_pay():
                 ),
 
                 food_confirm="no",
-
                 drink_confirm="no",
-
                 label_confirm="no",
-
                 dtf_confirm="no",
-
                 large_format_confirm="no",
-
                 digital_printing_confirm="no",
 
                 session=datetime.now(),
@@ -11404,14 +11445,7 @@ def hold_and_pay():
             total = new_total
 
         # ==========================================================
-        # COMMIT ORDER FIRST
-        # ==========================================================
-        #
-        # IMPORTANT:
-        # Email/SMS should never prevent the order from being saved.
-        #
-        # So we commit before sending notifications.
-        #
+        # COMMIT ORDER
         # ==========================================================
 
         db.session.commit()
@@ -11421,7 +11455,6 @@ def hold_and_pay():
         # ==========================================================
 
         email_sent = False
-
         sms_sent = False
 
         try:
@@ -11470,24 +11503,18 @@ def hold_and_pay():
             )
 
         # ==========================================================
-        # EMAIL CONFIRMATION
+        # EMAIL
         # ==========================================================
 
         if (
             customer_email
             and "@"
-            in str(
-                customer_email
-            )
+            in str(customer_email)
         ):
 
             try:
 
                 now = datetime.now()
-
-                # ==================================================
-                # EMAIL HTML
-                # ==================================================
 
                 html_content = f"""
                 <!DOCTYPE html>
@@ -11694,27 +11721,21 @@ def hold_and_pay():
                             </h3>
 
                             <p>
-
                                 Thank you for choosing
                                 <strong>
                                     Asempahfie Graphics
                                 </strong>.
-
                             </p>
 
                             <p>
-
                                 Your order has been
                                 successfully processed.
-
                             </p>
 
                             <p>
-
                                 <strong>
                                     Order #{order_id}
                                 </strong>
-
                             </p>
 
                             <table class="items-table">
@@ -11786,41 +11807,21 @@ def hold_and_pay():
 
                         item_price = 0
 
-                    try:
+                    item_total = round(
+                        item_price
+                        * item_qty,
+                        2
+                    )
 
-                        item_total = float(
-                            item.get(
-                                "total",
-                                item_price
-                                * item_qty
-                            )
-                            or 0
-                        )
-
-                    except (
-                        ValueError,
-                        TypeError
-                    ):
-
-                        item_total = (
-                            item_price
-                            * item_qty
-                        )
-
-                    # ==============================================
-                    # MEASUREMENT HTML
-                    # ==============================================
+                    # ------------------------------------------------
+                    # MEASUREMENT
+                    # ------------------------------------------------
 
                     measurement_html = ""
 
                     measurement = item.get(
                         "measurement"
                     )
-
-                    # ------------------------------------------------
-                    # Use measurement object first.
-                    # Also support measurement fields directly.
-                    # ------------------------------------------------
 
                     if not isinstance(
                         measurement,
@@ -11991,7 +11992,7 @@ def hold_and_pay():
                     """
 
                 # ==================================================
-                # EMAIL FOOTER / TOTAL
+                # EMAIL TOTAL
                 # ==================================================
 
                 html_content += f"""
@@ -12001,6 +12002,26 @@ def hold_and_pay():
                             </table>
 
                             <div class="total-section">
+
+                                <strong>
+                                    Subtotal:
+                                </strong>
+
+                                GHS
+                                {calculated_subtotal:.2f}
+
+                                <br>
+
+                                Discount:
+                                {discount:.2f}%
+
+                                <br>
+
+                                Discount Amount:
+                                GHS
+                                {discount_amount:.2f}
+
+                                <br>
 
                                 <strong>
                                     Order Total:
@@ -12065,30 +12086,23 @@ def hold_and_pay():
                 </body>
 
                 </html>
+
                 """
 
-                # ==================================================
-                # SEND EMAIL
-                # ==================================================
-
                 msg = Message(
-
                     subject=(
                         "Order Confirmation - "
                         "Asempahfie Graphics "
                         f"(Order #{order_id})"
                     ),
-
                     recipients=[
                         str(
                             customer_email
                         )
                     ],
-
                     html=html_content,
-
                     sender=(
-                        "afgghana@gmail.com"
+                        "afghana@gmail.com"
                     )
                 )
 
@@ -12113,16 +12127,12 @@ def hold_and_pay():
                 )
 
         # ==========================================================
-        # SMS CONFIRMATION
+        # SMS
         # ==========================================================
 
         if phone_number:
 
             try:
-
-                # ==================================================
-                # CLEAN PHONE
-                # ==================================================
 
                 clean_phone = "".join(
                     filter(
@@ -12133,20 +12143,12 @@ def hold_and_pay():
                     )
                 )
 
-                # ==================================================
-                # GHANA LOCAL NUMBER
-                # ==================================================
-
                 if (
                     len(clean_phone) == 10
                     and clean_phone.startswith("0")
                 ):
 
                     now = datetime.now()
-
-                    # ==================================================
-                    # ATTENDANT
-                    # ==================================================
 
                     attendant = (
                         order.waiter
@@ -12157,9 +12159,9 @@ def hold_and_pay():
                         ).strip()
                     )
 
-                    # ==================================================
+                    # ------------------------------------------------
                     # SMS ITEMS
-                    # ==================================================
+                    # ------------------------------------------------
 
                     item_lines = []
 
@@ -12202,35 +12204,16 @@ def hold_and_pay():
 
                             item_price = 0
 
-                        try:
-
-                            item_total = float(
-                                item.get(
-                                    "total",
-                                    item_price
-                                    * item_qty
-                                )
-                                or 0
-                            )
-
-                        except (
-                            ValueError,
-                            TypeError
-                        ):
-
-                            item_total = (
-                                item_price
-                                * item_qty
-                            )
+                        item_total = round(
+                            item_price
+                            * item_qty,
+                            2
+                        )
 
                         item_text = (
                             f"{index}. "
                             f"{item.get('name', '')}"
                         )
-
-                        # ==========================================
-                        # MEASUREMENT
-                        # ==========================================
 
                         measurement = item.get(
                             "measurement"
@@ -12369,9 +12352,9 @@ def hold_and_pay():
                             item_text
                         )
 
-                    # ==================================================
+                    # ------------------------------------------------
                     # LIMIT SMS ITEMS
-                    # ==================================================
+                    # ------------------------------------------------
 
                     if len(
                         notification_items
@@ -12387,9 +12370,9 @@ def hold_and_pay():
                         item_lines
                     )
 
-                    # ==================================================
-                    # PAYMENT STATUS
-                    # ==================================================
+                    # ------------------------------------------------
+                    # STATUS
+                    # ------------------------------------------------
 
                     if order_balance <= 0:
 
@@ -12409,9 +12392,9 @@ def hold_and_pay():
 
                         status_icon = "⏳"
 
-                    # ==================================================
+                    # ------------------------------------------------
                     # SMS MESSAGE
-                    # ==================================================
+                    # ------------------------------------------------
 
                     sms_message = f"""
 ASSEMFAH FIE GRAPHICS
@@ -12424,6 +12407,9 @@ Location: Kokomlemle, Accra
 ITEMS:
 {items_text}
 
+Subtotal: GHS {calculated_subtotal:.2f}
+Discount: {discount:.2f}%
+Discount Amount: GHS {discount_amount:.2f}
 Total: GHS {order_total:.2f}
 Paid: GHS {amount_paid:.2f}
 Balance: GHS {order_balance:.2f}
@@ -12437,9 +12423,9 @@ Email: afgghana@gmail.com
 Phone: 0243210009 / 0531100380
 """
 
-                    # ==================================================
+                    # ------------------------------------------------
                     # SMS ONLINE GH
-                    # ==================================================
+                    # ------------------------------------------------
 
                     host = (
                         "api.smsonlinegh.com"
@@ -12454,16 +12440,11 @@ Phone: 0243210009 / 0531100380
                     )
 
                     headers = {
-
-                        "Host":
-                            host,
-
+                        "Host": host,
                         "Content-Type":
                             "application/json",
-
                         "Accept":
                             "application/json",
-
                         "Authorization":
                             f"key {apiKey}"
                     }
@@ -12484,10 +12465,6 @@ Phone: 0243210009 / 0531100380
                         ]
                     }
 
-                    # ==================================================
-                    # OPEN CONNECTION
-                    # ==================================================
-
                     httpConn = (
                         httpClient.HTTPConnection(
                             host,
@@ -12498,15 +12475,11 @@ Phone: 0243210009 / 0531100380
                     try:
 
                         httpConn.request(
-
                             "POST",
-
                             requestURI,
-
                             json.dumps(
                                 msg_data
                             ),
-
                             headers
                         )
 
@@ -12525,10 +12498,6 @@ Phone: 0243210009 / 0531100380
                     finally:
 
                         httpConn.close()
-
-                    # ==================================================
-                    # SMS RESPONSE
-                    # ==================================================
 
                     if status == 200:
 
@@ -12555,8 +12524,6 @@ Phone: 0243210009 / 0531100380
                         "⚠️ Invalid phone number "
                         f"format: {clean_phone}"
                     )
-
-                    sms_sent = False
 
             except Exception as e:
 
@@ -12585,6 +12552,19 @@ Phone: 0243210009 / 0531100380
             "order_id":
                 order_id,
 
+            # ------------------------------------------------------
+            # FINANCIAL INFORMATION
+            # ------------------------------------------------------
+
+            "subtotal":
+                f"{float(calculated_subtotal):.2f}",
+
+            "discount":
+                f"{float(discount):.2f}",
+
+            "discount_amount":
+                f"{float(discount_amount):.2f}",
+
             "total":
                 f"{float(total):.2f}",
 
@@ -12593,6 +12573,10 @@ Phone: 0243210009 / 0531100380
 
             "amount_paid":
                 f"{float(amount_paid):.2f}",
+
+            # ------------------------------------------------------
+            # STATUS
+            # ------------------------------------------------------
 
             "status":
                 order.status,
@@ -12609,11 +12593,19 @@ Phone: 0243210009 / 0531100380
             "is_full_payment":
                 float(new_balance) <= 0,
 
+            # ------------------------------------------------------
+            # NOTIFICATIONS
+            # ------------------------------------------------------
+
             "email_sent":
                 email_sent,
 
             "sms_sent":
                 sms_sent,
+
+            # ------------------------------------------------------
+            # ITEMS
+            # ------------------------------------------------------
 
             "items":
                 json.loads(
@@ -12645,7 +12637,6 @@ Phone: 0243210009 / 0531100380
                 str(e)
 
         }), 500
-
 @guest.route("/get_account_group/<id>",methods=['GET'])
 @flask_praetorian.auth_required
 def get_account_group(id):
