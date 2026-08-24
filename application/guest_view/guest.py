@@ -2431,7 +2431,7 @@ def add_item():
     
     # usr = user.firstname +" " + user.lastname
     created_date=datetime.now()
-    inc = Iteman(name=name,description=description,price=price,quantity="0",is_vip=wholesale,quantity="1000000",
+    inc = Iteman(name=name,description=description,price=price,is_vip=wholesale,quantity="1000000",
                    created_date=created_date,family=family,category=category,unit=unit,whole_price=request.json["whole_price"])
   
     db.session.add(inc)
