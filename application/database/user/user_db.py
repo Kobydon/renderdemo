@@ -384,7 +384,7 @@ class HeldCart(db.Model):
     drink_confirm = db.Column(db.String(200))
     food_confirm_at = db.Column(db.String(200))
     drink_confirm_at = db.Column(db.String(200))
-    note= db.Column(db.String(200))
+    note= db.Column(db.String(1000000))
     customer=db.Column(db.String(200))
     delivery_status = db.Column(db.String(50), default='pending')  # pending, in_delivery, delivered
     delivered_by = db.Column(db.String(200))

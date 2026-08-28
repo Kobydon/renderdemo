@@ -7752,6 +7752,7 @@ def get_helding_ordersa():
                                        "items": filtered_items,
                                        "total": order.total,
                                        "balance":order.balance,
+                                       "created_at":order.created_at,
                                        "note": order.note,
                                        "waiter": order.waiter,
                                        "company_name": order.company_name,
@@ -7889,7 +7890,8 @@ def get_helding_orders_processed_drinks():
                                         "working_on_id_dtf": order.working_on_id_dtf,
                                         "working_on_digital_printing": order.working_on_digital_printing,
                                         "working_on_id_digital_printing": order.working_on_id_digital_printing,
-                                        "customer": order.customer
+                                        "customer": order.customer,
+                                        "created_at":order.created_at,
                                 })
 
         except (json.JSONDecodeError, TypeError) as e:
@@ -8013,7 +8015,8 @@ def get_helding_orders_label_processed():
                                        "working_on_id_dtf": order.working_on_id_dtf,
                                        "working_on_digital_printing": order.working_on_digital_printing,
                                        "working_on_id_digital_printing": order.working_on_id_digital_printing,  # Format the datetime
-                                        "customer":order.customer
+                                        "customer":order.customer,
+                                           "created_at":order.created_at
                 })
 
         except (json.JSONDecodeError, TypeError) as e:
@@ -8729,7 +8732,8 @@ def get_helding_orders_dtf_processed():
                                         "working_on_id_dtf": order.working_on_id_dtf,
                                         "working_on_digital_printing": order.working_on_digital_printing,
                                         "working_on_id_digital_printing": order.working_on_id_digital_printing, # Format the datetime
-                                        "order.customer": order.customer
+                                        "order.customer": order.customer,
+                                        "created_at":order.created_at,
                 })
 
         except (json.JSONDecodeError, TypeError) as e:
