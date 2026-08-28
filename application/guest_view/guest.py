@@ -7826,6 +7826,7 @@ def get_helding_orders_drinks():
                                        "working_on_digital_printing": order.working_on_digital_printing,
                                        "working_on_id_digital_printing": order.working_on_id_digital_printing,
                                         "customer":order.customer,
+                                        "created_at":order.created_at
 
                 })
 
@@ -11226,37 +11227,7 @@ from flask_mail import Message
 @guest.route('/hold_and_pay', methods=['POST'])
 @flask_praetorian.auth_required
 def hold_and_pay():
-    """
-    Create/update a HeldCart and process payment.
-
-    Supports:
-        - Normal orders
-        - Held orders
-        - Partial payments
-        - Full payments
-        - Balance-only payments (FIXED)
-        - Percentage discounts
-        - Existing cart_item_id logic
-        - Measurements
-        - Email confirmation
-        - SMS confirmation
-
-    Discount is calculated from the ORIGINAL cart subtotal.
-
-    Example:
-        Subtotal       = GHS 100.00
-        Discount       = 10%
-        Discount Amt   = GHS 10.00
-        Total Due      = GHS 90.00
-        Amount Paid    = GHS 90.00
-        Balance        = GHS 0.00
-
-    BALANCE PAYMENT EXAMPLE:
-        Existing Balance = GHS 50.00
-        is_balance_payment = True
-        amount_paid = GHS 50.00
-        New Balance = GHS 0.00
-    """
+  
 
     try:
         # ==========================================================
