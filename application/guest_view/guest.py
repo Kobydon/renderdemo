@@ -12339,7 +12339,7 @@ def hold_and_pay():
 
                     # SMS Message
                     sms_message = f"""
-ASSEMFAH FIE GRAPHICS
+ASSEMPAH FIE GRAPHICS
 Order #{order_id}
 Customer: {customer_name}
 Status: {status_icon} {status_text}
