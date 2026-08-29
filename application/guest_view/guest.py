@@ -11966,7 +11966,7 @@ def hold_and_pay():
                 digital_printing_confirm="no",
                 session=datetime.now(),
                 table=table,
-                note=final_note,
+                note=note,
                 payment_method=payment_method
             )
 
