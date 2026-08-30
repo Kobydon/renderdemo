@@ -1039,3 +1039,19 @@ class MessageRecipient(db.Model):
     
     def __repr__(self):
         return f"<MessageRecipient(id={self.id}, name={self.recipient_name}, sent={self.sent})>"
+
+
+
+class Sms(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    message = db.Column(db.String(2000000))
+    receiver = db.Column(db.Float, nullable=False)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    status = db.Column(db.String(1000000))
+  
+
+class SmsBundle(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    size = db.Column(db.String(2000000))
+  
+  

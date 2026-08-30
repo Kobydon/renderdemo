@@ -186,6 +186,76 @@ def get_all_guest():
     return jsonify(results)
 
 
+# Flask API endpoints (add to your existing routes)
+from flask import jsonify, request
+from datetime import datetime, timezone
+from sqlalchemy import desc
+
+@guest.route("/get_messages_sent", methods=["GET"])
+@flask_praetorian.auth_required
+def get_messages_sent():
+    # Get all messages ordered by latest first
+    sms_messages = Sms.query.order_by(desc(Sms.created_at)).all()
+    
+    result = []
+    for sms in sms_messages:
+        result.append({
+            "id": sms.id,
+            "message": sms.message,
+            "receiver": sms.receiver,
+            "created_at": sms.created_at.isoformat() if sms.created_at else None,
+            "status": sms.status
+        })
+    
+    return jsonify(result), 200
+
+@guest.route("/get_remaining_bundle", methods=["GET"])
+@flask_praetorian.auth_required
+def get_remaining_bundle():
+    # Get all bundles (assuming you want the latest or aggregate)
+    bundles = SmsBundle.query.all()
+    
+    # Calculate total bundle size and used messages
+    total_bundle_size = 0
+    for bundle in bundles:
+        try:
+            total_bundle_size += int(bundle.size)
+        except (ValueError, TypeError):
+            total_bundle_size += 0
+    
+    # Count total messages sent
+    total_sent = Sms.query.count()
+    
+    remaining = max(0, total_bundle_size - total_sent)
+    
+    return jsonify({
+        "size": total_bundle_size,
+        "remaining": remaining
+    }), 200
+
+# Alternative if you need to track bundle usage differently:
+@guest.route("/get_remaining_bundle_v2", methods=["GET"])
+@flask_praetorian.auth_required
+def get_remaining_bundle_v2():
+    # If you have a single bundle with a size field
+    bundle = SmsBundle.query.first()
+    if not bundle:
+        return jsonify({"size": 0, "remaining": 0}), 200
+    
+    try:
+        bundle_size = int(bundle.size)
+    except (ValueError, TypeError):
+        bundle_size = 0
+    
+    total_sent = Sms.query.count()
+    remaining = max(0, bundle_size - total_sent)
+    
+    return jsonify({
+        "size": bundle_size,
+        "remaining": remaining
+    }), 200
+    
+
 
 @guest.route("/add_expense",methods=['POST'])
 @flask_praetorian.auth_required
@@ -12397,12 +12467,18 @@ Phone: 0243210009 / 0531100380
                         response = httpConn.getresponse()
                         response_body = response.read()
                         status = response.status
+                        
 
                     finally:
                         httpConn.close()
 
                     if status == 200:
                         print(f"✅ SMS sent successfully: {response_body}")
+                        sms = Sms(receiver=clean_phone,message=sms_message.strip(),status="sent")
+                        sms_bundle = SmsBundle.query.filter_by(id="1").first()
+                        sms_bundle.size = int(sms_bundle.size)- 1
+                        db.session.add(sms)
+                        db.session.commit() 
                         sms_sent = True
                     else:
                         print(f"⚠️ SMS sending failed with status {status}: {response_body}")
@@ -12410,7 +12486,9 @@ Phone: 0243210009 / 0531100380
 
                 else:
                     print(f"⚠️ Invalid phone number format: {clean_phone}")
-
+                    sms = Sms(receiver=clean_phone,message=sms_message.strip(),status="failed")
+                    db.session.add(sms)
+                    db.session.commit()
             except Exception as e:
                 sms_sent = False
                 print(f"⚠️ Failed to send SMS: {str(e)}")
@@ -12438,6 +12516,8 @@ Phone: 0243210009 / 0531100380
             "sms_sent": sms_sent,
             "items": json.loads(order.items) if order.items else []
         }), 200
+
+    
 
     # ==============================================================
     # ERROR HANDLING
