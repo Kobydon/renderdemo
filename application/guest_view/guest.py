@@ -5774,7 +5774,7 @@ def hold_order():
                 <head>
                     <meta charset="UTF-8">
                     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-                    <title>Order Confirmation - Asempahfie Graphics</title>
+                    <title>Order Confirmation - A Graphics</title>
                     <style>
                         body {{
                             font-family: 'Segoe UI', Arial, sans-serif;
@@ -5972,7 +5972,7 @@ def hold_order():
                 <body>
                     <div class="email-container">
                         <div class="header">
-                            <h1>Asempahfie Graphics</h1>
+                            <h1>A Graphics</h1>
                             <div class="subtitle">📍 Kokomlemle, Accra • 📞 0243210009</div>
                         </div>
                         
@@ -5980,7 +5980,7 @@ def hold_order():
                             <div class="greeting">Dear <span>{customer_name}</span>,</div>
                             
                             <p style="color: #555; font-size: 15px; line-height: 1.6;">
-                                Thank you for choosing <strong>Asempahfie Graphics</strong>! 🎉
+                                Thank you for choosing <strong>A Graphics</strong>! 🎉
                                 We are delighted to confirm that your <strong>{order_type}</strong> has been received 
                                 and is currently being processed.
                             </p>
@@ -6052,7 +6052,7 @@ def hold_order():
                                 📢 Need assistance? Reach out to us!
                             </p>
                             <p style="color: #666; font-size: 13px; margin: 0;">
-                                📞 Call: 0243210009 • 📧 Email: info@asempahfiegraphics.com
+                                📞 Call: 0243210009 • 📧 Email: info@Agraphics.com
                             </p>
                             <p style="color: #666; font-size: 13px; margin: 5px 0;">
                                 📍 Visit us: Kokomlemle, Accra (Opposite the Police Station)
@@ -6060,12 +6060,12 @@ def hold_order():
                         </div>
                         
                         <div class="footer">
-                            <div class="shop-name">✨ Asempahfie Graphics ✨</div>
+                            <div class="shop-name">✨ A Graphics ✨</div>
                             <div class="shop-info">📍 Kokomlemle, Accra</div>
                             <div class="shop-info">📞 0243210009</div>
-                            <div class="shop-info">📧 info@asempahfiegraphics.com</div>
+                            <div class="shop-info">📧 info@Agraphics.com</div>
                             <p style="margin-top: 15px; font-size: 12px; color: #aaa;">
-                                © {now.year} Asempahfie Graphics. All rights reserved.
+                                © {now.year} A Graphics. All rights reserved.
                             </p>
                             <p style="font-size: 11px; color: #bbb; margin: 5px 0 0;">
                                 This is an automated confirmation. Please do not reply to this email.
@@ -6084,7 +6084,7 @@ def hold_order():
                 # mail = Mail(current_app)
                 
                 msg = Message(
-                    subject=f"🎉 Order Confirmed! #{order_id} - Asempahfie Graphics",
+                    subject=f"🎉 Order Confirmed! #{order_id} - A Graphics",
                     recipients=[str(customer_email)],
                     html=html_content, sender="afgghana@gmail.com"
                 )
@@ -6414,7 +6414,7 @@ def hold_order_customer():
                 <head>
                     <meta charset="UTF-8">
                     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-                    <title>Order Confirmation - Asempahfie Graphics</title>
+                    <title>Order Confirmation - A Graphics</title>
                     <style>
                         body {{
                             font-family: 'Segoe UI', Arial, sans-serif;
@@ -6623,7 +6623,7 @@ def hold_order_customer():
                 <body>
                     <div class="email-container">
                         <div class="header">
-                            <h1>Asempahfie Graphics</h1>
+                            <h1>A Graphics</h1>
                             <div class="subtitle">📍 Kokomlemle, Accra • 📞 0243210009</div>
                         </div>
                         
@@ -6631,7 +6631,7 @@ def hold_order_customer():
                             <div class="greeting">Dear <span>{customer_name}</span>,</div>
                             
                             <p style="color: #555; font-size: 15px; line-height: 1.6;">
-                                Thank you for choosing <strong>Asempahfie Graphics</strong>! 🎉
+                                Thank you for choosing <strong>A Graphics</strong>! 🎉
                                 We are delighted to confirm that your <strong>{order_type}</strong> has been received 
                                 and is currently being processed.
                             </p>
@@ -6732,7 +6732,7 @@ def hold_order_customer():
                                 📢 Need assistance? Reach out to us!
                             </p>
                             <p style="color: #666; font-size: 13px; margin: 0;">
-                                📞 Call: 0243210009 • 📧 Email: info@asempahfiegraphics.com
+                                📞 Call: 0243210009 • 📧 Email: info@Agraphics.com
                             </p>
                             <p style="color: #666; font-size: 13px; margin: 5px 0;">
                                 📍 Visit us: Kokomlemle, Accra (Opposite the Police Station)
@@ -6740,12 +6740,12 @@ def hold_order_customer():
                         </div>
                         
                         <div class="footer">
-                            <div class="shop-name">✨ Asempahfie Graphics ✨</div>
+                            <div class="shop-name">✨ A Graphics ✨</div>
                             <div class="shop-info">📍 Kokomlemle, Accra</div>
                             <div class="shop-info">📞 0243210009</div>
-                            <div class="shop-info">📧 info@asempahfiegraphics.com</div>
+                            <div class="shop-info">📧 info@Agraphics.com</div>
                             <p style="margin-top: 15px; font-size: 12px; color: #aaa;">
-                                © {now.year} Asempahfie Graphics. All rights reserved.
+                                © {now.year} A Graphics. All rights reserved.
                             </p>
                             <p style="font-size: 11px; color: #bbb; margin: 5px 0 0;">
                                 This is an automated confirmation. Please do not reply to this email.
@@ -6766,7 +6766,7 @@ def hold_order_customer():
                     mail = Mail(current_app)
                 
                 msg = Message(
-                    subject=f"🎉 Order Confirmed! #{order_id} - Asempahfie Graphics",
+                    subject=f"🎉 Order Confirmed! #{order_id} - A Graphics",
                     recipients=[str(customer_email)],
                     html=html_content,
                     sender="afgghana@gmail.com"
@@ -8345,7 +8345,7 @@ def send_delivery_email(order_id, customer_name, customer_email, delivered_by, c
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Order Delivered - Asempahfie Graphics</title>
+        <title>Order Delivered - A Graphics</title>
         <style>
             body {{
                 font-family: 'Segoe UI', Arial, sans-serif;
@@ -8563,7 +8563,7 @@ def send_delivery_email(order_id, customer_name, customer_email, delivered_by, c
     <body>
         <div class="email-container">
             <div class="header">
-                <h1>🎨 Asempahfie Graphics</h1>
+                <h1>🎨 A Graphics</h1>
                 <div class="subtitle">📍 Kokomlemle, Accra • 📞 0243210009</div>
             </div>
             
@@ -8613,7 +8613,7 @@ def send_delivery_email(order_id, customer_name, customer_email, delivered_by, c
                 </div>
                 
                 <div class="thank-you">
-                    <p>🙏 Thank you for choosing <strong>Asempahfie Graphics</strong>!</p>
+                    <p>🙏 Thank you for choosing <strong>A Graphics</strong>!</p>
                     <p style="font-size: 13px; margin-top: 8px;">We hope you love your order. We look forward to serving you again!</p>
                 </div>
                 
@@ -8623,11 +8623,11 @@ def send_delivery_email(order_id, customer_name, customer_email, delivered_by, c
             </div>
             
             <div class="footer">
-                <div class="shop-name">✨ Asempahfie Graphics ✨</div>
+                <div class="shop-name">✨ A Graphics ✨</div>
                 <div class="shop-info">📍 Kokomlemle, Accra • 📞 0243210009</div>
-                <div class="shop-info">📧 info@asempahfiegraphics.com</div>
+                <div class="shop-info">📧 info@Agraphics.com</div>
                 <p style="margin-top: 10px; font-size: 11px; color: #bbb;">
-                    © {datetime.now().year} Asempahfie Graphics. All rights reserved.
+                    © {datetime.now().year} A Graphics. All rights reserved.
                 </p>
             </div>
         </div>
@@ -8642,7 +8642,7 @@ def send_delivery_email(order_id, customer_name, customer_email, delivered_by, c
     # mail = Mail(current_app)
     
     msg = Message(
-        subject=f"✅ Order #{order_id} Delivered! - Asempahfie Graphics", html=html_content, sender="afgghana@gmail.com",
+        subject=f"✅ Order #{order_id} Delivered! - A Graphics", html=html_content, sender="afgghana@gmail.com",
         recipients=[customer_email], 
        
     )
@@ -10613,7 +10613,7 @@ def cutting_order(order_id):
                 <head>
                     <meta charset="UTF-8">
                     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-                    <title>Order Ready for Pickup - Asempahfie Graphics</title>
+                    <title>Order Ready for Pickup - A Graphics</title>
                     <style>
                         body {{
                             font-family: 'Segoe UI', Arial, sans-serif;
@@ -10866,11 +10866,11 @@ def cutting_order(order_id):
                         </div>
                         
                         <div class="footer">
-                            <div class="shop-name">✨ Asempahfie Graphics ✨</div>
+                            <div class="shop-name">✨ A Graphics ✨</div>
                             <div class="shop-info">📍 Kokomlemle, Accra • 📞 0243210009</div>
-                            <div class="shop-info">📧 info@asempahfiegraphics.com</div>
+                            <div class="shop-info">📧 info@Agraphics.com</div>
                             <p style="margin-top: 10px; font-size: 11px; color: #bbb;">
-                                © {now.year} Asempahfie Graphics. All rights reserved.
+                                © {now.year} A Graphics. All rights reserved.
                             </p>
                         </div>
                     </div>
@@ -10882,7 +10882,7 @@ def cutting_order(order_id):
                 from flask_mail import Message
                 
                 msg = Message(
-                    subject=f"✅ Order #{order_id} - Ready for Pickup - Asempahfie Graphics",
+                    subject=f"✅ Order #{order_id} - Ready for Pickup - A Graphics",
                     html=html_content,
                     sender="afgghana@gmail.com",
                     recipients=[customer_email]
@@ -10898,7 +10898,8 @@ def cutting_order(order_id):
         else:
             print(f"ℹ️ No email provided for order #{order_id}, skipping email notification")
 
-        # ========== SEND SMS CONFIRMATION ==========
+        # ========== SEND 
+        #  CONFIRMATION ==========
         if phone_number:
             try:
                 # Clean phone number - remove spaces and ensure proper format
@@ -11286,7 +11287,6 @@ def check_order_item(order_id, item_id):
 
         }), 500
 
-
 from flask import request, jsonify
 from datetime import datetime
 import json
@@ -11297,8 +11297,6 @@ from flask_mail import Message
 @guest.route('/hold_and_pay', methods=['POST'])
 @flask_praetorian.auth_required
 def hold_and_pay():
-  
-
     try:
         # ==========================================================
         # CURRENT USER
@@ -11785,34 +11783,13 @@ def hold_and_pay():
             merged_subtotal = round(merged_subtotal, 2)
 
             # ======================================================
+            # BALANCE PAYMENT LOGIC
             # ======================================================
-            # ======================================================
-            # CRITICAL FIX: BALANCE PAYMENT LOGIC
-            # ======================================================
-            # ======================================================
-            # ======================================================
-
             if is_balance_payment:
-                # ==================================================
-                # BALANCE PAYMENT - ONLY PAYING OUTSTANDING BALANCE
-                # ==================================================
-                #
-                # When is_balance_payment is True:
-                #   - The cart items are just for display/reference
-                #   - We ONLY deduct the amount_paid from the existing balance
-                #   - The total remains unchanged
-                #   - No discounts apply to balance payments
-                #   - The order total should NOT change
-                #
-                # ==================================================
-
-                # NEW TOTAL stays the same as previous total
+                # Balance payment - only paying outstanding balance
                 new_total = previous_total
-
-                # NEW BALANCE = previous balance - amount paid
                 new_balance = previous_balance - amount_paid
 
-                # Ensure balance doesn't go negative
                 if new_balance < 0:
                     new_balance = 0
 
@@ -11822,28 +11799,13 @@ def hold_and_pay():
                 discount = 0
                 discount_amount = 0
 
-                # Log for debugging
                 print(f"💰 BALANCE PAYMENT:")
                 print(f"   Previous Balance: {previous_balance}")
                 print(f"   Amount Paid: {amount_paid}")
                 print(f"   New Balance: {new_balance}")
-                print(f"   Previous Total: {previous_total}")
-                print(f"   New Total: {new_total}")
 
             else:
-                # ==================================================
-                # NORMAL PAYMENT - PAYING FOR ITEMS IN CART
-                # ==================================================
-                #
-                # When is_balance_payment is False:
-                #   - This is a normal order or adding items
-                #   - Calculate new total from merged items
-                #   - Apply discount if any
-                #   - New balance = previous balance + change in total - payment
-                #
-                # ==================================================
-
-                # Apply discount to merged subtotal
+                # Normal payment - paying for items in cart
                 if discount > 0:
                     new_total = round(merged_subtotal - (merged_subtotal * discount / 100), 2)
                     discount_amount = round(merged_subtotal - new_total, 2)
@@ -11861,18 +11823,15 @@ def hold_and_pay():
                 total_difference = new_total - previous_total
                 new_balance = previous_balance + total_difference - amount_paid
 
-                # Ensure balance doesn't go negative
                 if new_balance < 0:
                     new_balance = 0
 
                 new_balance = round(new_balance, 2)
 
-                # Log for debugging
                 print(f"💰 NORMAL PAYMENT:")
                 print(f"   Previous Balance: {previous_balance}")
                 print(f"   Previous Total: {previous_total}")
                 print(f"   New Total: {new_total}")
-                print(f"   Total Difference: {total_difference}")
                 print(f"   Amount Paid: {amount_paid}")
                 print(f"   New Balance: {new_balance}")
 
@@ -11917,16 +11876,12 @@ def hold_and_pay():
             existing_hold.contain_large_format = "yes" if contain_large_format else "no"
             existing_hold.contain_label = "yes" if contain_label else "no"
 
-            # ======================================================
-            # CUSTOMER
-            # ======================================================
+            # Customer
             if customer:
                 existing_hold.customer = f"{customer.firstname} {customer.lastname}".strip()
                 existing_hold.customer_id = customer.id
 
-            # ======================================================
-            # PAYMENT NOTE
-            # ======================================================
+            # Payment note
             payment_note = (
                 f"💰 Payment: GHS {amount_paid:.2f} | "
                 f"Discount: {discount:.2f}% | "
@@ -12085,7 +12040,7 @@ def hold_and_pay():
                 <head>
                     <meta charset="UTF-8">
                     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-                    <title>Order Confirmation - Asempahfie Graphics</title>
+                    <title>Order Confirmation - A Graphics</title>
                     <style>
                         body {{
                             font-family: Arial, sans-serif;
@@ -12164,14 +12119,14 @@ def hold_and_pay():
                 <body>
                     <div class="email-container">
                         <div class="header">
-                            <h1>Asempahfie Graphics</h1>
+                            <h1>A Graphics</h1>
                             <div style="color:#ddd;font-size:14px;margin-top:8px;">
                                 Kokomlemle, Accra • 0243210009
                             </div>
                         </div>
                         <div class="content">
                             <h3>Dear {customer_name},</h3>
-                            <p>Thank you for choosing <strong>Asempahfie Graphics</strong>.</p>
+                            <p>Thank you for choosing <strong>A Graphics</strong>.</p>
                             """
 
                 if is_balance_payment:
@@ -12297,7 +12252,7 @@ def hold_and_pay():
                             </div>
                         </div>
                         <div class="footer">
-                            Thank you for choosing Asempahfie Graphics.
+                            Thank you for choosing A Graphics.
                             <br><br>
                             Email: afgghana@gmail.com
                             <br>
@@ -12309,7 +12264,7 @@ def hold_and_pay():
                 """
 
                 msg = Message(
-                    subject=f"Order Confirmation - Asempahfie Graphics (Order #{order_id})",
+                    subject=f"Order Confirmation - Assempa Fie Graphics (Order #{order_id})",
                     recipients=[str(customer_email)],
                     html=html_content,
                     sender="afghana@gmail.com"
@@ -12324,12 +12279,13 @@ def hold_and_pay():
                 print(f"⚠️ Failed to send email: {str(e)}")
 
         # ==========================================================
-        # SMS
+        # SMS - FIXED VERSION
         # ==========================================================
         if phone_number:
             try:
                 clean_phone = "".join(filter(str.isdigit, str(phone_number)))
 
+                # Validate phone number format
                 if len(clean_phone) == 10 and clean_phone.startswith("0"):
                     now = datetime.now()
                     attendant = order.waiter if order.waiter else f"{user.firstname} {user.lastname}".strip()
@@ -12407,7 +12363,7 @@ def hold_and_pay():
                         status_text = f"BALANCE: GHS {order_balance:.2f}"
                         status_icon = "⏳"
 
-                    # SMS Message
+                    # Build SMS message
                     sms_message = f"""
 ASSEMPAH FIE GRAPHICS
 Order #{order_id}
@@ -12428,14 +12384,16 @@ Balance: GHS {order_balance:.2f}
 Method: {payment_method}
 Date: {now.strftime('%d-%m-%Y %I:%M %p')}
 
-Thank you for choosing Asempahfie Graphics!
+Thank you for choosing A Graphics!
 
 Contact Us:
 Email: afgghana@gmail.com
 Phone: 0243210009 / 0531100380
 """
 
-                    # Send SMS via SMS Online GH
+                    # ==========================================================
+                    # SEND SMS VIA SMS ONLINE GH API
+                    # ==========================================================
                     host = "api.smsonlinegh.com"
                     requestURI = "/v5/message/sms/send"
                     apiKey = "a7142fa4296ea493c9e2bd20352edf0d8c4191204fc126b7487408222a4fec27"
@@ -12465,33 +12423,114 @@ Phone: 0243210009 / 0531100380
                         )
 
                         response = httpConn.getresponse()
-                        response_body = response.read()
+                        response_body = response.read().decode('utf-8')
                         status = response.status
+
+                        # ==========================================================
+                        # FIXED: Handle SMS response and save to database
+                        # ==========================================================
+                        if status == 200:
+                            print(f"✅ SMS sent successfully to {clean_phone}")
+                            print(f"   Response: {response_body}")
+                            
+                            # Save successful SMS to database
+                            sms = Sms(
+                                receiver=float(clean_phone),
+                                message=sms_message.strip(),
+                                status="sent"
+                            )
+                            db.session.add(sms)
+                            
+                            # Update bundle size (decrement by 1)
+                            try:
+                                sms_bundle = SmsBundle.query.filter_by(id="1").first()
+                                if sms_bundle:
+                                    current_size = int(sms_bundle.size)
+                                    if current_size > 0:
+                                        sms_bundle.size = str(current_size - 1)
+                                        db.session.add(sms_bundle)
+                                        print(f"📦 Bundle updated: {current_size} → {current_size - 1}")
+                                    else:
+                                        print("⚠️ Bundle is already empty")
+                                else:
+                                    print("⚠️ Bundle not found")
+                            except (ValueError, TypeError) as bundle_error:
+                                print(f"⚠️ Error updating bundle: {str(bundle_error)}")
+                            
+                            db.session.commit()
+                            sms_sent = True
+                            
+                        else:
+                            print(f"⚠️ SMS sending failed with status {status}")
+                            print(f"   Response: {response_body}")
+                            
+                            # Save failed SMS to database
+                            sms = Sms(
+                                receiver=float(clean_phone),
+                                message=sms_message.strip(),
+                                status="failed"
+                            )
+                            db.session.add(sms)
+                            db.session.commit()
+                            sms_sent = False
+
+                    except Exception as api_error:
+                        print(f"⚠️ SMS API error: {str(api_error)}")
                         
+                        # Save failed SMS due to API error
+                        try:
+                            sms = Sms(
+                                receiver=float(clean_phone),
+                                message=sms_message.strip(),
+                                status="failed"
+                            )
+                            db.session.add(sms)
+                            db.session.commit()
+                        except Exception as db_error:
+                            print(f"⚠️ Failed to save SMS record: {str(db_error)}")
+                            db.session.rollback()
+                        
+                        sms_sent = False
 
                     finally:
                         httpConn.close()
 
-                    if status == 200:
-                        print(f"✅ SMS sent successfully: {response_body}")
-                        sms = Sms(receiver=clean_phone,message=sms_message.strip(),status="sent")
-                        sms_bundle = SmsBundle.query.filter_by(id="1").first()
-                        sms_bundle.size = int(sms_bundle.size)- 1
-                        db.session.add(sms)
-                        db.session.commit() 
-                        sms_sent = True
-                    else:
-                        print(f"⚠️ SMS sending failed with status {status}: {response_body}")
-                        sms_sent = False
-
                 else:
+                    # Invalid phone number format
                     print(f"⚠️ Invalid phone number format: {clean_phone}")
-                    sms = Sms(receiver=clean_phone,message=sms_message.strip(),status="failed")
-                    db.session.add(sms)
-                    db.session.commit()
+                    
+                    # Save failed SMS for invalid number
+                    try:
+                        sms = Sms(
+                            receiver=float(clean_phone) if clean_phone else 0,
+                            message=f"Order #{order_id} - Invalid phone number: {phone_number}",
+                            status="failed"
+                        )
+                        db.session.add(sms)
+                        db.session.commit()
+                    except Exception as db_error:
+                        print(f"⚠️ Failed to save SMS record: {str(db_error)}")
+                        db.session.rollback()
+                    
+                    sms_sent = False
+
             except Exception as e:
-                sms_sent = False
                 print(f"⚠️ Failed to send SMS: {str(e)}")
+                sms_sent = False
+                
+                # Try to save error record
+                try:
+                    if phone_number:
+                        clean_phone = "".join(filter(str.isdigit, str(phone_number)))
+                        sms = Sms(
+                            receiver=float(clean_phone) if clean_phone else 0,
+                            message=f"Order #{order_id} - SMS error: {str(e)[:200]}",
+                            status="failed"
+                        )
+                        db.session.add(sms)
+                        db.session.commit()
+                except:
+                    db.session.rollback()
 
         # ==========================================================
         # FINAL RESPONSE
@@ -12517,8 +12556,6 @@ Phone: 0243210009 / 0531100380
             "items": json.loads(order.items) if order.items else []
         }), 200
 
-    
-
     # ==============================================================
     # ERROR HANDLING
     # ==============================================================
@@ -12531,6 +12568,7 @@ Phone: 0243210009 / 0531100380
             "success": False,
             "error": str(e)
         }), 500
+
 @guest.route('/get_helding_orders_customers', methods=['GET'])
 @flask_praetorian.auth_required
 def get_helding_orders_customers():
@@ -12788,7 +12826,7 @@ def send_sms_bulk(phone, message):
 # EMAIL SENDING FUNCTION (USING YOUR CONFIG)
 # ============================================
 
-def send_email_bulk(to_email, subject, message, company_name="Asempahfie Graphics"):
+def send_email_bulk(to_email, subject, message, company_name="A Graphics"):
     """
     Send Email using your Flask-Mail configuration
     """
@@ -13042,7 +13080,7 @@ def send_messages_background(bulk_id):
                         to_email=recipient.recipient_email,
                         subject=bulk_message.subject or 'Bulk Message',
                         message=message_text,
-                        company_name=bulk_message.company_name or "Asempahfie Graphics"
+                        company_name=bulk_message.company_name or "A Graphics"
                     )
                     if email_sent:
                         success = True
