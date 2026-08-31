@@ -10020,8 +10020,7 @@ def balance_sheet():
         # Credit sales that haven't been fully paid
         receivable_records = HeldCart.query.filter(
             HeldCart.company_name == company_name,
-            HeldCart.paid_status.in_(["Pending", "Partial"]),
-            HeldCart.status.in_(["completed", "paid"]),  # Only completed orders
+            HeldCart.paid_status.in_(["Pending", "Partial"]),# Only completed orders
             func.date(HeldCart.session) >= start.date(),
             func.date(HeldCart.session) <= end.date()
         ).all()
