@@ -9983,8 +9983,8 @@ def balance_sheet():
         # -----------------------------------------------------
         # Convert session string to datetime for proper comparison
         income_records = HeldCart.query.filter(
-            HeldCart.company_name == company_name,
-            HeldCart.status.in_(["completed", "paid"]),  # Only completed sales
+        
+            HeldCart.paid_status.in_(["Success", "success"]),  # Only completed sales
             func.date(HeldCart.session) >= start.date(),
             func.date(HeldCart.session) <= end.date()
         ).all()
