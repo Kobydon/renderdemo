@@ -12287,7 +12287,7 @@ def hold_and_pay():
                 clean_phone = "".join(filter(str.isdigit, str(phone_number)))
 
                 # Validate phone number format
-                if len(clean_phone) == 10 and clean_phone.startswith("0"):
+                if len(clean_phone) == 10:
                     now = datetime.now()
                     attendant = order.waiter if order.waiter else f"{user.firstname} {user.lastname}".strip()
 
