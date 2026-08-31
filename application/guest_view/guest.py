@@ -7838,6 +7838,7 @@ def get_helding_ordersa():
                                        "working_on_id_dtf": order.working_on_id_dtf,
                                        "working_on_digital_printing": order.working_on_digital_printing,
                                         "customer":order.customer,
+                                        "created_at":order.created_at,
                                        "working_on_id_digital_printing": order.working_on_id_digital_printing, # Format the datetime
                 })
 
@@ -8024,7 +8025,8 @@ def get_helding_orders_label():
                                         "working_on_id_dtf": order.working_on_id_dtf,
                                         "working_on_digital_printing": order.working_on_digital_printing,
                                         "working_on_id_digital_printing": order.working_on_id_digital_printing,
-                                         "customer":order.customer
+                                         "customer":order.customer,
+                                         "created_at":order.created_at
                 })
 
         except (json.JSONDecodeError, TypeError) as e:
