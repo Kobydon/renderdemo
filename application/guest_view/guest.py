@@ -3101,7 +3101,7 @@ def held_cart_report():
             )
 
             query = query.filter(
-                HeldCart.session >= from_date
+                HeldCart.created_at >= from_date
             )
 
         if date_to:
@@ -3111,7 +3111,7 @@ def held_cart_report():
             ) + timedelta(days=1)
 
             query = query.filter(
-                HeldCart.session < to_date
+                HeldCart.created_at < to_date
             )
 
         # Waiter filter
