@@ -41,7 +41,7 @@ def get_online_users():
         
         # Query users with role 'online' or 'admin'
         online_users_list = User.query.filter(
-            User.roles.in_(['online','customer','admin']),
+            User.roles.in_(['online','customer','admin','large_format','digital_printing','label','dtf']),
             User.id.in_(online_user_ids) if online_user_ids else False
         ).all()
         
@@ -58,7 +58,7 @@ def get_online_users():
         
         # Also get offline users with role 'online' or 'admin'
         offline_users = User.query.filter(
-            User.roles.in_(['online','customer','admin']),
+            User.roles.in_(['online','customer','admin','large_format','digital_printing','label','dtf']),
             User.id.in_(online_user_ids) if online_user_ids else True
         ).all()
         
