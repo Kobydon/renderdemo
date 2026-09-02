@@ -11311,7 +11311,7 @@ def hold_and_pay():
         if not data:
             return jsonify({
                 "success": False,
-                "error": "Request body is requireds."
+                "error": "Request body is required."
             }), 400
 
         cart_items = data.get("cartItems")
