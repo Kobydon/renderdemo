@@ -11295,20 +11295,58 @@ import uuid
 import http.client as httpClient
 from flask_mail import Message
 
+
+
 @guest.route('/hold_and_pay', methods=['POST'])
 @flask_praetorian.auth_required
 def hold_and_pay():
+    """
+    Create/update a HeldCart and process payment.
+
+    IMPORTANT:
+    Product ID and Cart Item ID are different.
+
+    id:
+        Actual product ID.
+
+    cart_item_id:
+        Unique ID for one specific cart line.
+
+    Example:
+
+        Product ID 10
+        cart_item_id A
+        price 100
+
+        Product ID 10
+        cart_item_id B
+        price 150
+
+    These are treated as two independent cart lines.
+
+    Also sends:
+        - Email confirmation
+        - SMS confirmation
+
+    Email/SMS failures do NOT rollback the order.
+    """
+
     try:
+
         # ==========================================================
         # CURRENT USER
         # ==========================================================
+
         user = flask_praetorian.current_user()
+
         data = request.get_json(silent=True)
 
         # ==========================================================
         # VALIDATION
         # ==========================================================
+
         if not data:
+
             return jsonify({
                 "success": False,
                 "error": "Request body is required."
@@ -11317,246 +11355,661 @@ def hold_and_pay():
         cart_items = data.get("cartItems")
 
         if not isinstance(cart_items, list):
+
             return jsonify({
                 "success": False,
                 "error": "'cartItems' must be a list."
             }), 400
 
         # ==========================================================
-        # BASIC DATA
+        # BASIC REQUEST DATA
         # ==========================================================
+
         hold_id = data.get("id")
 
-        # ==========================================================
-        # AMOUNT PAID
-        # ==========================================================
         try:
-            amount_paid = float(data.get("amount_paid", 0) or 0)
+
+            amount_paid = float(
+                data.get(
+                    "amount_paid",
+                    0
+                ) or 0
+            )
+
         except (ValueError, TypeError):
+
             return jsonify({
                 "success": False,
                 "error": "Invalid amount_paid."
             }), 400
 
-        if amount_paid < 0:
-            amount_paid = 0
-
-        # ==========================================================
-        # CHECK FOR BALANCE PAYMENT FLAG
-        # ==========================================================
-        is_balance_payment = data.get("is_balance_payment", False)
-        existing_balance_from_frontend = float(data.get("existing_balance", 0) or 0)
-
-        # ==========================================================
-        # FRONTEND TOTAL
-        # ==========================================================
         try:
-            supplied_total = float(data.get("total", 0) or 0)
+
+            supplied_total = float(
+                data.get(
+                    "total",
+                    0
+                ) or 0
+            )
+
         except (ValueError, TypeError):
+
             return jsonify({
                 "success": False,
                 "error": "Invalid total."
             }), 400
 
-        if supplied_total < 0:
-            supplied_total = 0
+        if amount_paid < 0:
+            amount_paid = 0
 
-        # ==========================================================
-        # DISCOUNT
-        # ==========================================================
-        try:
-            discount = float(data.get("discount", 0) or 0)
-        except (ValueError, TypeError):
-            discount = 0
+        payment_method = (
+            data.get(
+                "method",
+                "Cash"
+            )
+            or "Cash"
+        )
 
-        if discount < 0:
-            discount = 0
-        if discount > 100:
-            discount = 100
+        note = (
+            data.get(
+                "note",
+                ""
+            )
+            or ""
+        )
 
-        # ==========================================================
-        # DISCOUNT AMOUNT
-        # ==========================================================
-        try:
-            supplied_discount_amount = float(data.get("discount_amount", 0) or 0)
-        except (ValueError, TypeError):
-            supplied_discount_amount = 0
+        table = (
+            data.get(
+                "table",
+                ""
+            )
+            or ""
+        )
 
-        if supplied_discount_amount < 0:
-            supplied_discount_amount = 0
+        customer_id = data.get(
+            "customer"
+        )
 
-        # ==========================================================
-        # OTHER DATA
-        # ==========================================================
-        payment_method = data.get("method", "Cash") or "Cash"
-        note = data.get("note", "") or ""
-        table = data.get("table", "") or ""
-        customer_id = data.get("customer")
-        phone_number = data.get("phone_number", "") or ""
+        phone_number = (
+            data.get(
+                "phone_number",
+                ""
+            )
+            or ""
+        )
 
         # ==========================================================
         # CUSTOMER
         # ==========================================================
+
         customer = None
+
         customer_name = "Valued Customer"
-        customer_email = data.get("customer_email", "") or ""
+
+        customer_email = (
+            data.get(
+                "customer_email",
+                ""
+            )
+            or ""
+        )
 
         if customer_id:
+
             try:
-                customer = Customer.query.filter_by(id=int(customer_id)).first()
-            except (ValueError, TypeError):
+
+                customer = Customer.query.filter_by(
+                    id=int(customer_id)
+                ).first()
+
+            except (
+                ValueError,
+                TypeError
+            ):
+
                 customer = None
 
             if customer:
-                customer_name = f"{customer.firstname} {customer.lastname}".strip()
-                if hasattr(customer, "phone") and customer.phone:
-                    phone_number = customer.phone
-                if hasattr(customer, "email") and customer.email:
-                    customer_email = customer.email
+
+                customer_name = (
+                    f"{customer.firstname} "
+                    f"{customer.lastname}"
+                ).strip()
+
+                # --------------------------------------------------
+                # CUSTOMER PHONE
+                # --------------------------------------------------
+
+                if (
+                    hasattr(
+                        customer,
+                        "phone"
+                    )
+                    and customer.phone
+                ):
+
+                    phone_number = (
+                        customer.phone
+                    )
+
+                # --------------------------------------------------
+                # CUSTOMER EMAIL
+                # --------------------------------------------------
+
+                if (
+                    hasattr(
+                        customer,
+                        "email"
+                    )
+                    and customer.email
+                ):
+
+                    customer_email = (
+                        customer.email
+                    )
 
         # ==========================================================
         # FALLBACK CUSTOMER NAME
         # ==========================================================
-        if customer_name == "Valued Customer" and data.get("customer_name"):
-            customer_name = data.get("customer_name")
+
+        if (
+            customer_name == "Valued Customer"
+            and data.get("customer_name")
+        ):
+
+            customer_name = (
+                data.get(
+                    "customer_name"
+                )
+            )
 
         # ==========================================================
         # UNIQUE CART ITEM ID
         # ==========================================================
+
         def generate_cart_item_id():
-            return str(uuid.uuid4())
+
+            return str(
+                uuid.uuid4()
+            )
 
         # ==========================================================
         # PREPARE ONE CART ITEM
         # ==========================================================
-        def prepare_cart_item(item):
-            if not isinstance(item, dict):
-                raise ValueError("Each cart item must be an object.")
 
-            # Product ID
-            product_id = item.get("id")
-            if product_id is None or product_id == "":
-                product_id = item.get("productId")
-            if product_id is None or product_id == "":
+        def prepare_cart_item(item):
+
+            if not isinstance(
+                item,
+                dict
+            ):
+
+                raise ValueError(
+                    "Each cart item must be an object."
+                )
+
+            # ======================================================
+            # PRODUCT ID
+            # ======================================================
+
+            product_id = item.get(
+                "id"
+            )
+
+            if (
+                product_id is None
+                or product_id == ""
+            ):
+
+                product_id = item.get(
+                    "productId"
+                )
+
+            if (
+                product_id is None
+                or product_id == ""
+            ):
+
                 product_id = ""
 
-            # Cart Item ID
-            cart_item_id = item.get("cart_item_id")
-            if not cart_item_id:
-                cart_item_id = generate_cart_item_id()
-            else:
-                cart_item_id = str(cart_item_id)
+            # ======================================================
+            # CART ITEM ID
+            # ======================================================
 
-            # Quantity
+            cart_item_id = item.get(
+                "cart_item_id"
+            )
+
+            if not cart_item_id:
+
+                cart_item_id = (
+                    generate_cart_item_id()
+                )
+
+            else:
+
+                cart_item_id = str(
+                    cart_item_id
+                )
+
+            # ======================================================
+            # QUANTITY
+            # ======================================================
+
             try:
-                qty = int(item.get("qty", 1) or 1)
-            except (ValueError, TypeError):
+
+                qty = int(
+                    item.get(
+                        "qty",
+                        1
+                    ) or 1
+                )
+
+            except (
+                ValueError,
+                TypeError
+            ):
+
                 qty = 1
+
             if qty <= 0:
                 qty = 1
 
-            # Price
+            # ======================================================
+            # PRICE
+            # ======================================================
+
             try:
-                price = float(item.get("price", 0) or 0)
-            except (ValueError, TypeError):
+
+                price = float(
+                    item.get(
+                        "price",
+                        0
+                    ) or 0
+                )
+
+            except (
+                ValueError,
+                TypeError
+            ):
+
                 price = 0
-            if price < 0:
-                price = 0
 
-            # Name
-            name = item.get("name") or item.get("item_name") or ""
+            # ======================================================
+            # NAME
+            # ======================================================
 
-            # Measurements
-            measurement = item.get("measurement")
-            measurement_width = item.get("measurementWidth")
-            measurement_height = item.get("measurementHeight")
-            measurement_unit = item.get("measurementUnit")
-            measurement_area = item.get("measurementArea")
-            is_measurement_product = bool(item.get("is_measurement_product", False))
-            show_measurement = bool(item.get("showMeasurement", is_measurement_product))
+            name = (
+                item.get("name")
+                or item.get("item_name")
+                or ""
+            )
 
-            if isinstance(measurement, dict):
+            # ======================================================
+            # MEASUREMENT DATA
+            # ======================================================
+
+            measurement = item.get(
+                "measurement"
+            )
+
+            measurement_width = item.get(
+                "measurementWidth"
+            )
+
+            measurement_height = item.get(
+                "measurementHeight"
+            )
+
+            measurement_unit = item.get(
+                "measurementUnit"
+            )
+
+            measurement_area = item.get(
+                "measurementArea"
+            )
+
+            is_measurement_product = bool(
+                item.get(
+                    "is_measurement_product",
+                    False
+                )
+            )
+
+            show_measurement = bool(
+                item.get(
+                    "showMeasurement",
+                    is_measurement_product
+                )
+            )
+
+            # ======================================================
+            # READ MEASUREMENT OBJECT
+            # ======================================================
+
+            if isinstance(
+                measurement,
+                dict
+            ):
+
                 if measurement_width is None:
-                    measurement_width = measurement.get("width")
-                if measurement_height is None:
-                    measurement_height = measurement.get("height")
-                if not measurement_unit:
-                    measurement_unit = measurement.get("unit")
-                if measurement_area is None:
-                    measurement_area = measurement.get("area")
 
-            # Convert measurements
+                    measurement_width = (
+                        measurement.get(
+                            "width"
+                        )
+                    )
+
+                if measurement_height is None:
+
+                    measurement_height = (
+                        measurement.get(
+                            "height"
+                        )
+                    )
+
+                if not measurement_unit:
+
+                    measurement_unit = (
+                        measurement.get(
+                            "unit"
+                        )
+                    )
+
+                if measurement_area is None:
+
+                    measurement_area = (
+                        measurement.get(
+                            "area"
+                        )
+                    )
+
+            # ======================================================
+            # CONVERT MEASUREMENTS
+            # ======================================================
+
             if measurement_width is not None:
+
                 try:
-                    measurement_width = float(measurement_width)
-                except (ValueError, TypeError):
+
+                    measurement_width = float(
+                        measurement_width
+                    )
+
+                except (
+                    ValueError,
+                    TypeError
+                ):
+
                     measurement_width = None
 
             if measurement_height is not None:
+
                 try:
-                    measurement_height = float(measurement_height)
-                except (ValueError, TypeError):
+
+                    measurement_height = float(
+                        measurement_height
+                    )
+
+                except (
+                    ValueError,
+                    TypeError
+                ):
+
                     measurement_height = None
 
             if measurement_area is not None:
+
                 try:
-                    measurement_area = float(measurement_area)
-                except (ValueError, TypeError):
+
+                    measurement_area = float(
+                        measurement_area
+                    )
+
+                except (
+                    ValueError,
+                    TypeError
+                ):
+
                     measurement_area = None
 
             if measurement_unit:
-                measurement_unit = str(measurement_unit)
 
-            # Calculate area
-            if measurement_area is None and measurement_width is not None and measurement_height is not None:
-                measurement_area = measurement_width * measurement_height
+                measurement_unit = str(
+                    measurement_unit
+                )
 
-            # Final measurement
+            # ======================================================
+            # CALCULATE AREA IF MISSING
+            # ======================================================
+
+            if (
+                measurement_area is None
+                and measurement_width is not None
+                and measurement_height is not None
+            ):
+
+                measurement_area = (
+                    measurement_width
+                    * measurement_height
+                )
+
+            # ======================================================
+            # FINAL MEASUREMENT OBJECT
+            # ======================================================
+
             final_measurement = None
-            if measurement_width is not None and measurement_height is not None and measurement_unit:
+
+            if (
+                measurement_width is not None
+                and measurement_height is not None
+                and measurement_unit
+            ):
+
                 final_measurement = {
-                    "width": measurement_width,
-                    "height": measurement_height,
-                    "unit": measurement_unit,
-                    "area": measurement_area
+
+                    "width":
+                        measurement_width,
+
+                    "height":
+                        measurement_height,
+
+                    "unit":
+                        measurement_unit,
+
+                    "area":
+                        measurement_area
                 }
 
-            # Item total
-            item_total = round(price * qty, 2)
+            # ======================================================
+            # ITEM TOTAL
+            # ======================================================
 
-            # Checked by
-            is_checked = item.get("is_checked", "no")
-            checked_by = item.get("checked_by", "") or ""
+            try:
 
-            if is_checked == "yes" and not checked_by:
-                checked_by = f"{user.firstname} {user.lastname}".strip()
+                item_total = float(
+                    item.get(
+                        "total",
+                        price * qty
+                    )
+                )
 
-            # Final item
+            except (
+                ValueError,
+                TypeError
+            ):
+
+                item_total = (
+                    price * qty
+                )
+
+            if item_total < 0:
+
+                item_total = (
+                    price * qty
+                )
+
+            # ======================================================
+            # CHECKED BY
+            # ======================================================
+
+            is_checked = item.get(
+                "is_checked",
+                "no"
+            )
+
+            checked_by = (
+                item.get(
+                    "checked_by",
+                    ""
+                )
+                or ""
+            )
+
+            if (
+                is_checked == "yes"
+                and not checked_by
+            ):
+
+                checked_by = (
+                    f"{user.firstname} "
+                    f"{user.lastname}"
+                ).strip()
+
+            # ======================================================
+            # FINAL ITEM
+            # ======================================================
+
             prepared_item = {
-                "cart_item_id": cart_item_id,
-                "id": product_id,
-                "name": name,
-                "qty": qty,
-                "price": round(price, 2),
-                "total": item_total,
-                "description": item.get("description", "") or "",
-                "family": str(item.get("family", "")).strip(),
-                "category": str(item.get("category", "")).strip(),
-                "confirmed": bool(item.get("confirmed", False)),
-                "is_checked": is_checked,
-                "checked_by": checked_by,
-                "is_checked_label": str(item.get("is_checked_label", "no")).strip(),
-                "is_checked_dtf": str(item.get("is_checked_dtf", "no")).strip(),
-                "is_checked_large_format": str(item.get("is_checked_large_format", "no")).strip(),
-                "is_checked_digital_printing": str(item.get("is_checked_digital_printing", "no")).strip(),
-                "is_vip": item.get("is_vip", "no"),
-                "is_measurement_product": is_measurement_product,
-                "measurement": final_measurement,
-                "measurementWidth": measurement_width,
-                "measurementHeight": measurement_height,
-                "measurementUnit": measurement_unit,
-                "measurementArea": measurement_area,
-                "showMeasurement": show_measurement
+
+                # ==================================================
+                # CRITICAL IDs
+                # ==================================================
+
+                "cart_item_id":
+                    cart_item_id,
+
+                "id":
+                    product_id,
+
+                # ==================================================
+                # BASIC INFORMATION
+                # ==================================================
+
+                "name":
+                    name,
+
+                "qty":
+                    qty,
+
+                "price":
+                    price,
+
+                "total":
+                    item_total,
+
+                "description":
+                    item.get(
+                        "description",
+                        ""
+                    ) or "",
+
+                "family":
+                    str(
+                        item.get(
+                            "family",
+                            ""
+                        )
+                    ).strip(),
+
+                "category":
+                    str(
+                        item.get(
+                            "category",
+                            ""
+                        )
+                    ).strip(),
+
+                # ==================================================
+                # CHECKING
+                # ==================================================
+
+                "confirmed":
+                    bool(
+                        item.get(
+                            "confirmed",
+                            False
+                        )
+                    ),
+
+                "is_checked":
+                    is_checked,
+
+                "checked_by":
+                    checked_by,
+
+                "is_checked_label":
+                    str(
+                        item.get(
+                            "is_checked_label",
+                            "no"
+                        )
+                    ).strip(),
+
+                "is_checked_dtf":
+                    str(
+                        item.get(
+                            "is_checked_dtf",
+                            "no"
+                        )
+                    ).strip(),
+
+                "is_checked_large_format":
+                    str(
+                        item.get(
+                            "is_checked_large_format",
+                            "no"
+                        )
+                    ).strip(),
+
+                "is_checked_digital_printing":
+                    str(
+                        item.get(
+                            "is_checked_digital_printing",
+                            "no"
+                        )
+                    ).strip(),
+
+                "is_vip":
+                    item.get(
+                        "is_vip",
+                        "no"
+                    ),
+
+                # ==================================================
+                # MEASUREMENTS
+                # ==================================================
+
+                "is_measurement_product":
+                    is_measurement_product,
+
+                "measurement":
+                    final_measurement,
+
+                "measurementWidth":
+                    measurement_width,
+
+                "measurementHeight":
+                    measurement_height,
+
+                "measurementUnit":
+                    measurement_unit,
+
+                "measurementArea":
+                    measurement_area,
+
+                "showMeasurement":
+                    show_measurement
             }
 
             return prepared_item
@@ -11564,448 +12017,1145 @@ def hold_and_pay():
         # ==========================================================
         # PREPARE ALL ITEMS
         # ==========================================================
+
         incoming_items = []
 
         try:
+
             for item in cart_items:
-                prepared_item = prepare_cart_item(item)
-                incoming_items.append(prepared_item)
+
+                prepared_item = (
+                    prepare_cart_item(
+                        item
+                    )
+                )
+
+                incoming_items.append(
+                    prepared_item
+                )
+
         except Exception as e:
+
             return jsonify({
                 "success": False,
-                "error": f"Invalid cart item: {str(e)}"
+                "error":
+                    f"Invalid cart item: {str(e)}"
             }), 400
 
         # ==========================================================
-        # CALCULATE ORIGINAL SUBTOTAL
+        # CALCULATE CART TOTAL
         # ==========================================================
-        calculated_subtotal = 0
+
+        calculated_total = 0
+
         for item in incoming_items:
-            item_price = float(item.get("price", 0) or 0)
-            item_qty = int(item.get("qty", 1) or 1)
-            calculated_subtotal += (item_price * item_qty)
 
-        calculated_subtotal = round(calculated_subtotal, 2)
+            try:
+
+                item_price = float(
+                    item.get(
+                        "price",
+                        0
+                    ) or 0
+                )
+
+            except (
+                ValueError,
+                TypeError
+            ):
+
+                item_price = 0
+
+            try:
+
+                item_qty = int(
+                    item.get(
+                        "qty",
+                        1
+                    ) or 1
+                )
+
+            except (
+                ValueError,
+                TypeError
+            ):
+
+                item_qty = 1
+
+            calculated_total += (
+                item_price
+                * item_qty
+            )
+
+        calculated_total = round(
+            calculated_total,
+            2
+        )
 
         # ==========================================================
-        # DISCOUNT CALCULATION
+        # TOTAL
         # ==========================================================
-        calculated_discount_amount = round((calculated_subtotal * discount) / 100, 2)
-        calculated_discounted_total = round(calculated_subtotal - calculated_discount_amount, 2)
+        #
+        # We calculate the total from each cart line.
+        #
+        # This is important because two lines can have:
+        #
+        # Product 10 / cart_item_id A / GHS 100
+        # Product 10 / cart_item_id B / GHS 150
+        #
+        # They must remain independent.
+        #
+        # ==========================================================
 
-        # ==========================================================
-        # DETERMINE FINAL TOTAL
-        # ==========================================================
-        if discount > 0:
-            total = calculated_discounted_total
-            discount_amount = calculated_discount_amount
-        elif supplied_total > 0:
-            total = round(supplied_total, 2)
-            discount_amount = round(max(calculated_subtotal - total, 0), 2)
-            if calculated_subtotal > 0:
-                discount = round((discount_amount / calculated_subtotal) * 100, 2)
-        else:
-            total = calculated_subtotal
-            discount_amount = 0
-            discount = 0
+        total = calculated_total
 
-        # Empty cart
         if not incoming_items:
-            calculated_subtotal = 0
-            discount = 0
-            discount_amount = 0
             total = 0
-
-        # ==========================================================
-        # IMPORTANT PAYMENT SAFETY
-        # ==========================================================
-        if amount_paid > total:
-            amount_paid = round(total, 2)
 
         # ==========================================================
         # FIND EXISTING HOLD
         # ==========================================================
+
         existing_hold = None
 
         if hold_id:
+
             try:
-                hold_id = int(hold_id)
-            except (ValueError, TypeError):
+
+                hold_id = int(
+                    hold_id
+                )
+
+            except (
+                ValueError,
+                TypeError
+            ):
+
                 return jsonify({
                     "success": False,
-                    "error": "Invalid hold ID."
+                    "error":
+                        "Invalid hold ID."
                 }), 400
 
-            existing_hold = HeldCart.query.filter_by(
-                id=hold_id,
-                user_id=user.id
-            ).first()
+            existing_hold = (
+                HeldCart.query.filter_by(
+                    id=hold_id,
+                    user_id=user.id
+                ).first()
+            )
 
             if not existing_hold:
+
                 return jsonify({
                     "success": False,
-                    "error": "Held order not found."
+                    "error":
+                        "Held order not found."
                 }), 404
 
         # ==========================================================
-        # EXISTING HELD ORDER
+        # EXISTING ORDER
         # ==========================================================
+
         if existing_hold:
-            # ======================================================
-            # GET PREVIOUS VALUES
-            # ======================================================
-            try:
-                previous_balance = float(existing_hold.balance or 0)
-            except (ValueError, TypeError):
-                previous_balance = 0
-
-            try:
-                previous_total = float(existing_hold.total or 0)
-            except (ValueError, TypeError):
-                previous_total = 0
 
             # ======================================================
-            # EXISTING ITEMS
+            # PARSE EXISTING ITEMS
             # ======================================================
+
             try:
-                existing_items = json.loads(existing_hold.items) if existing_hold.items else []
-                if not isinstance(existing_items, list):
+
+                existing_items = (
+                    json.loads(
+                        existing_hold.items
+                    )
+                    if existing_hold.items
+                    else []
+                )
+
+                if not isinstance(
+                    existing_items,
+                    list
+                ):
+
                     existing_items = []
-            except (json.JSONDecodeError, TypeError):
+
+            except (
+                json.JSONDecodeError,
+                TypeError
+            ):
+
                 existing_items = []
 
             # ======================================================
-            # INDEX EXISTING CART LINES
+            # INDEX BY CART ITEM ID
             # ======================================================
+
             existing_by_cart_id = {}
 
             for existing_item in existing_items:
-                if not isinstance(existing_item, dict):
+
+                if not isinstance(
+                    existing_item,
+                    dict
+                ):
+
                     continue
 
-                existing_cart_id = existing_item.get("cart_item_id")
+                existing_cart_id = (
+                    existing_item.get(
+                        "cart_item_id"
+                    )
+                )
+
+                # --------------------------------------------------
+                # OLD ORDERS WITHOUT cart_item_id
+                # --------------------------------------------------
+
                 if not existing_cart_id:
-                    existing_cart_id = generate_cart_item_id()
-                    existing_item["cart_item_id"] = existing_cart_id
 
-                existing_by_cart_id[str(existing_cart_id)] = existing_item
+                    existing_cart_id = (
+                        generate_cart_item_id()
+                    )
+
+                    existing_item[
+                        "cart_item_id"
+                    ] = existing_cart_id
+
+                existing_by_cart_id[
+                    str(
+                        existing_cart_id
+                    )
+                ] = existing_item
 
             # ======================================================
-            # MERGE ITEMS
+            # MERGE INCOMING ITEMS
             # ======================================================
+
             updated_items = []
 
             for new_item in incoming_items:
-                cart_id = str(new_item["cart_item_id"])
-                old_item = existing_by_cart_id.get(cart_id)
+
+                cart_id = str(
+                    new_item[
+                        "cart_item_id"
+                    ]
+                )
+
+                old_item = (
+                    existing_by_cart_id.get(
+                        cart_id
+                    )
+                )
 
                 if old_item:
-                    # Preserve cart_item_id
-                    old_item["cart_item_id"] = cart_id
 
-                    # Basic information
-                    old_item["id"] = new_item.get("id", old_item.get("id", ""))
-                    old_item["name"] = new_item.get("name", old_item.get("name", ""))
-                    old_item["price"] = float(new_item.get("price", old_item.get("price", 0)) or 0)
+                    # ==================================================
+                    # SAME CART LINE
+                    # ==================================================
+
+                    old_item[
+                        "cart_item_id"
+                    ] = cart_id
+
+                    # --------------------------------------------------
+                    # Product ID
+                    # --------------------------------------------------
+
+                    old_item[
+                        "id"
+                    ] = new_item.get(
+                        "id",
+                        old_item.get(
+                            "id",
+                            ""
+                        )
+                    )
+
+                    # --------------------------------------------------
+                    # Name
+                    # --------------------------------------------------
+
+                    old_item[
+                        "name"
+                    ] = new_item.get(
+                        "name",
+                        old_item.get(
+                            "name",
+                            ""
+                        )
+                    )
+
+                    # --------------------------------------------------
+                    # Price
+                    # --------------------------------------------------
 
                     try:
-                        old_item["qty"] = int(new_item.get("qty", old_item.get("qty", 1)) or 1)
-                    except (ValueError, TypeError):
-                        old_item["qty"] = 1
+
+                        old_item[
+                            "price"
+                        ] = float(
+                            new_item.get(
+                                "price",
+                                old_item.get(
+                                    "price",
+                                    0
+                                )
+                            )
+                            or 0
+                        )
+
+                    except (
+                        ValueError,
+                        TypeError
+                    ):
+
+                        old_item[
+                            "price"
+                        ] = 0
+
+                    # --------------------------------------------------
+                    # Quantity
+                    # --------------------------------------------------
+
+                    try:
+
+                        old_item[
+                            "qty"
+                        ] = int(
+                            new_item.get(
+                                "qty",
+                                old_item.get(
+                                    "qty",
+                                    1
+                                )
+                            )
+                            or 1
+                        )
+
+                    except (
+                        ValueError,
+                        TypeError
+                    ):
+
+                        old_item[
+                            "qty"
+                        ] = 1
 
                     if old_item["qty"] <= 0:
                         old_item["qty"] = 1
 
-                    # ALWAYS RECALCULATE LINE TOTAL
-                    old_item["total"] = round(
-                        float(old_item.get("price", 0)) * int(old_item.get("qty", 1)),
+                    # --------------------------------------------------
+                    # Total
+                    # --------------------------------------------------
+
+                    old_item[
+                        "total"
+                    ] = round(
+                        float(
+                            old_item.get(
+                                "price",
+                                0
+                            )
+                        )
+                        * int(
+                            old_item.get(
+                                "qty",
+                                1
+                            )
+                        ),
                         2
                     )
 
-                    # Basic fields
-                    old_item["description"] = new_item.get("description", old_item.get("description", ""))
-                    old_item["family"] = new_item.get("family", old_item.get("family", ""))
-                    old_item["category"] = new_item.get("category", old_item.get("category", ""))
-                    old_item["confirmed"] = new_item.get("confirmed", old_item.get("confirmed", False))
-                    old_item["is_vip"] = new_item.get("is_vip", old_item.get("is_vip", "no"))
+                    # --------------------------------------------------
+                    # Basic information
+                    # --------------------------------------------------
 
-                    # Checking
-                    old_item["is_checked"] = new_item.get("is_checked", old_item.get("is_checked", "no"))
-                    if new_item.get("checked_by"):
-                        old_item["checked_by"] = new_item["checked_by"]
+                    old_item[
+                        "description"
+                    ] = new_item.get(
+                        "description",
+                        old_item.get(
+                            "description",
+                            ""
+                        )
+                    )
 
-                    old_item["is_checked_label"] = new_item.get("is_checked_label", old_item.get("is_checked_label", "no"))
-                    old_item["is_checked_dtf"] = new_item.get("is_checked_dtf", old_item.get("is_checked_dtf", "no"))
-                    old_item["is_checked_large_format"] = new_item.get("is_checked_large_format", old_item.get("is_checked_large_format", "no"))
-                    old_item["is_checked_digital_printing"] = new_item.get("is_checked_digital_printing", old_item.get("is_checked_digital_printing", "no"))
+                    old_item[
+                        "family"
+                    ] = new_item.get(
+                        "family",
+                        old_item.get(
+                            "family",
+                            ""
+                        )
+                    )
 
+                    old_item[
+                        "category"
+                    ] = new_item.get(
+                        "category",
+                        old_item.get(
+                            "category",
+                            ""
+                        )
+                    )
+
+                    old_item[
+                        "confirmed"
+                    ] = new_item.get(
+                        "confirmed",
+                        old_item.get(
+                            "confirmed",
+                            False
+                        )
+                    )
+
+                    old_item[
+                        "is_vip"
+                    ] = new_item.get(
+                        "is_vip",
+                        old_item.get(
+                            "is_vip",
+                            "no"
+                        )
+                    )
+
+                    # --------------------------------------------------
+                    # Checking information
+                    # --------------------------------------------------
+
+                    old_item[
+                        "is_checked"
+                    ] = new_item.get(
+                        "is_checked",
+                        old_item.get(
+                            "is_checked",
+                            "no"
+                        )
+                    )
+
+                    if new_item.get(
+                        "checked_by"
+                    ):
+
+                        old_item[
+                            "checked_by"
+                        ] = new_item[
+                            "checked_by"
+                        ]
+
+                    old_item[
+                        "is_checked_label"
+                    ] = new_item.get(
+                        "is_checked_label",
+                        old_item.get(
+                            "is_checked_label",
+                            "no"
+                        )
+                    )
+
+                    old_item[
+                        "is_checked_dtf"
+                    ] = new_item.get(
+                        "is_checked_dtf",
+                        old_item.get(
+                            "is_checked_dtf",
+                            "no"
+                        )
+                    )
+
+                    old_item[
+                        "is_checked_large_format"
+                    ] = new_item.get(
+                        "is_checked_large_format",
+                        old_item.get(
+                            "is_checked_large_format",
+                            "no"
+                        )
+                    )
+
+                    old_item[
+                        "is_checked_digital_printing"
+                    ] = new_item.get(
+                        "is_checked_digital_printing",
+                        old_item.get(
+                            "is_checked_digital_printing",
+                            "no"
+                        )
+                    )
+
+                    # --------------------------------------------------
                     # Measurements
-                    old_item["is_measurement_product"] = new_item.get("is_measurement_product", old_item.get("is_measurement_product", False))
-                    old_item["measurement"] = new_item.get("measurement", old_item.get("measurement"))
-                    old_item["measurementWidth"] = new_item.get("measurementWidth", old_item.get("measurementWidth"))
-                    old_item["measurementHeight"] = new_item.get("measurementHeight", old_item.get("measurementHeight"))
-                    old_item["measurementUnit"] = new_item.get("measurementUnit", old_item.get("measurementUnit"))
-                    old_item["measurementArea"] = new_item.get("measurementArea", old_item.get("measurementArea"))
-                    old_item["showMeasurement"] = new_item.get("showMeasurement", old_item.get("showMeasurement", False))
+                    #
+                    # IMPORTANT:
+                    # Preserve all measurement fields.
+                    # --------------------------------------------------
 
-                    updated_items.append(old_item)
+                    old_item[
+                        "is_measurement_product"
+                    ] = new_item.get(
+                        "is_measurement_product",
+                        old_item.get(
+                            "is_measurement_product",
+                            False
+                        )
+                    )
+
+                    old_item[
+                        "measurement"
+                    ] = new_item.get(
+                        "measurement",
+                        old_item.get(
+                            "measurement"
+                        )
+                    )
+
+                    old_item[
+                        "measurementWidth"
+                    ] = new_item.get(
+                        "measurementWidth",
+                        old_item.get(
+                            "measurementWidth"
+                        )
+                    )
+
+                    old_item[
+                        "measurementHeight"
+                    ] = new_item.get(
+                        "measurementHeight",
+                        old_item.get(
+                            "measurementHeight"
+                        )
+                    )
+
+                    old_item[
+                        "measurementUnit"
+                    ] = new_item.get(
+                        "measurementUnit",
+                        old_item.get(
+                            "measurementUnit"
+                        )
+                    )
+
+                    old_item[
+                        "measurementArea"
+                    ] = new_item.get(
+                        "measurementArea",
+                        old_item.get(
+                            "measurementArea"
+                        )
+                    )
+
+                    old_item[
+                        "showMeasurement"
+                    ] = new_item.get(
+                        "showMeasurement",
+                        old_item.get(
+                            "showMeasurement",
+                            False
+                        )
+                    )
+
+                    updated_items.append(
+                        old_item
+                    )
+
                 else:
-                    # New cart line
-                    updated_items.append(new_item)
+
+                    # ==================================================
+                    # BRAND NEW CART LINE
+                    # ==================================================
+
+                    updated_items.append(
+                        new_item
+                    )
 
             # ======================================================
-            # REMOVE REMOVED CART LINES
+            # REMOVE CART LINES NO LONGER IN FRONTEND
             # ======================================================
-            incoming_cart_ids = {str(item["cart_item_id"]) for item in incoming_items}
+
+            incoming_cart_ids = {
+                str(
+                    item[
+                        "cart_item_id"
+                    ]
+                )
+                for item in incoming_items
+            }
 
             final_items = []
+
             for item in updated_items:
-                item_cart_id = str(item.get("cart_item_id", ""))
-                if item_cart_id in incoming_cart_ids:
-                    final_items.append(item)
+
+                item_cart_id = str(
+                    item.get(
+                        "cart_item_id",
+                        ""
+                    )
+                )
+
+                if (
+                    item_cart_id
+                    in incoming_cart_ids
+                ):
+
+                    final_items.append(
+                        item
+                    )
 
             # ======================================================
-            # CALCULATE MERGED SUBTOTAL
+            # CALCULATE NEW ORDER TOTAL
             # ======================================================
-            merged_subtotal = 0
+
+            new_total = 0
+
             for item in final_items:
+
                 try:
-                    item_price = float(item.get("price", 0) or 0)
-                except (ValueError, TypeError):
+
+                    item_price = float(
+                        item.get(
+                            "price",
+                            0
+                        ) or 0
+                    )
+
+                except (
+                    ValueError,
+                    TypeError
+                ):
+
                     item_price = 0
 
                 try:
-                    item_qty = int(item.get("qty", 1) or 1)
-                except (ValueError, TypeError):
+
+                    item_qty = int(
+                        item.get(
+                            "qty",
+                            1
+                        ) or 1
+                    )
+
+                except (
+                    ValueError,
+                    TypeError
+                ):
+
                     item_qty = 1
 
-                merged_subtotal += (item_price * item_qty)
+                new_total += (
+                    item_price
+                    * item_qty
+                )
 
-            merged_subtotal = round(merged_subtotal, 2)
+            new_total = round(
+                new_total,
+                2
+            )
 
             # ======================================================
-            # BALANCE PAYMENT LOGIC
+            # PREVIOUS TOTAL
             # ======================================================
-            if is_balance_payment:
-                # Balance payment - only paying outstanding balance
-                new_total = previous_total
-                new_balance = previous_balance - amount_paid
 
-                if new_balance < 0:
-                    new_balance = 0
+            try:
 
-                new_balance = round(new_balance, 2)
+                previous_total = float(
+                    existing_hold.total
+                    or 0
+                )
 
-                # No discount for balance payments
-                discount = 0
-                discount_amount = 0
+            except (
+                ValueError,
+                TypeError
+            ):
 
-                print(f"💰 BALANCE PAYMENT:")
-                print(f"   Previous Balance: {previous_balance}")
-                print(f"   Amount Paid: {amount_paid}")
-                print(f"   New Balance: {new_balance}")
+                previous_total = 0
 
-            else:
-                # Normal payment - paying for items in cart
-                if discount > 0:
-                    new_total = round(merged_subtotal - (merged_subtotal * discount / 100), 2)
-                    discount_amount = round(merged_subtotal - new_total, 2)
-                elif supplied_total > 0:
-                    new_total = round(supplied_total, 2)
-                    discount_amount = round(max(merged_subtotal - new_total, 0), 2)
-                    if merged_subtotal > 0:
-                        discount = round((discount_amount / merged_subtotal) * 100, 2)
-                else:
-                    new_total = merged_subtotal
-                    discount = 0
-                    discount_amount = 0
+            # ======================================================
+            # PREVIOUS BALANCE
+            # ======================================================
 
-                # Calculate new balance
-                total_difference = new_total - previous_total
-                new_balance = previous_balance + total_difference - amount_paid
+            try:
 
-                if new_balance < 0:
-                    new_balance = 0
+                previous_balance = float(
+                    existing_hold.balance
+                    or 0
+                )
 
-                new_balance = round(new_balance, 2)
+            except (
+                ValueError,
+                TypeError
+            ):
 
-                print(f"💰 NORMAL PAYMENT:")
-                print(f"   Previous Balance: {previous_balance}")
-                print(f"   Previous Total: {previous_total}")
-                print(f"   New Total: {new_total}")
-                print(f"   Amount Paid: {amount_paid}")
-                print(f"   New Balance: {new_balance}")
+                previous_balance = 0
+
+            # ======================================================
+            # BALANCE
+            # ======================================================
+            #
+            # Keep the existing balance logic:
+            #
+            # previous balance
+            # + change in order total
+            # - new payment
+            #
+            # ======================================================
+
+            total_difference = (
+                new_total
+                - previous_total
+            )
+
+            new_balance = (
+                previous_balance
+                + total_difference
+                - amount_paid
+            )
+
+            if new_balance < 0:
+                new_balance = 0
+
+            new_balance = round(
+                new_balance,
+                2
+            )
 
             # ======================================================
             # PAYMENT STATUS
             # ======================================================
+
             if new_balance <= 0:
+
                 new_status = "Confirmed"
+
                 new_paid_status = "Success"
+
             elif amount_paid > 0:
+
                 new_status = "Pending"
+
                 new_paid_status = "Partial"
+
             else:
+
                 new_status = "Pending"
+
                 new_paid_status = "Pending"
 
             # ======================================================
             # DEPARTMENT FLAGS
             # ======================================================
-            contain_drink = any(item.get("family") == "drink" for item in final_items)
-            contain_food = any(item.get("family") == "food" for item in final_items)
-            contain_dtf = any(item.get("family") == "dtf" for item in final_items)
-            contain_digital_printing = any(item.get("family") == "digital_printing" for item in final_items)
-            contain_large_format = any(item.get("family") == "large_format" for item in final_items)
-            contain_label = any(item.get("family") == "label" for item in final_items)
+
+            contain_drink = any(
+                item.get(
+                    "family"
+                ) == "drink"
+                for item in final_items
+            )
+
+            contain_food = any(
+                item.get(
+                    "family"
+                ) == "food"
+                for item in final_items
+            )
+
+            contain_dtf = any(
+                item.get(
+                    "family"
+                ) == "dtf"
+                for item in final_items
+            )
+
+            contain_digital_printing = any(
+                item.get(
+                    "family"
+                ) == "digital_printing"
+                for item in final_items
+            )
+
+            contain_large_format = any(
+                item.get(
+                    "family"
+                ) == "large_format"
+                for item in final_items
+            )
+
+            contain_label = any(
+                item.get(
+                    "family"
+                ) == "label"
+                for item in final_items
+            )
 
             # ======================================================
             # UPDATE HELD ORDER
             # ======================================================
-            existing_hold.items = json.dumps(final_items)
-            existing_hold.total = new_total
-            existing_hold.balance = f"{new_balance:.2f}"
-            existing_hold.status = new_status
-            existing_hold.paid_status = new_paid_status
-            existing_hold.payment_method = payment_method
-            existing_hold.table = table
 
-            existing_hold.contain_drink = "yes" if contain_drink else "no"
-            existing_hold.contain_food = "yes" if contain_food else "no"
-            existing_hold.contain_dtf = "yes" if contain_dtf else "no"
-            existing_hold.contain_digital_printing = "yes" if contain_digital_printing else "no"
-            existing_hold.contain_large_format = "yes" if contain_large_format else "no"
-            existing_hold.contain_label = "yes" if contain_label else "no"
-
-            # Customer
-            if customer:
-                existing_hold.customer = f"{customer.firstname} {customer.lastname}".strip()
-                existing_hold.customer_id = customer.id
-
-            # Payment note
-            payment_note = (
-                f"💰 Payment: GHS {amount_paid:.2f} | "
-                f"Discount: {discount:.2f}% | "
-                f"Total: GHS {new_total:.2f} | "
-                f"Balance: GHS {new_balance:.2f}"
+            existing_hold.items = json.dumps(
+                final_items
             )
 
-            if is_balance_payment:
-                payment_note = f"💳 BALANCE PAYMENT: GHS {amount_paid:.2f} | Remaining Balance: GHS {new_balance:.2f}"
+            existing_hold.total = (
+                new_total
+            )
+
+            existing_hold.balance = (
+                f"{new_balance:.2f}"
+            )
+
+            existing_hold.status = (
+                new_status
+            )
+
+            existing_hold.paid_status = (
+                new_paid_status
+            )
+
+            existing_hold.payment_method = (
+                payment_method
+            )
+
+            existing_hold.table = (
+                table
+            )
+
+            existing_hold.contain_drink = (
+                "yes"
+                if contain_drink
+                else "no"
+            )
+
+            existing_hold.contain_food = (
+                "yes"
+                if contain_food
+                else "no"
+            )
+
+            existing_hold.contain_dtf = (
+                "yes"
+                if contain_dtf
+                else "no"
+            )
+
+            existing_hold.contain_digital_printing = (
+                "yes"
+                if contain_digital_printing
+                else "no"
+            )
+
+            existing_hold.contain_large_format = (
+                "yes"
+                if contain_large_format
+                else "no"
+            )
+
+            existing_hold.contain_label = (
+                "yes"
+                if contain_label
+                else "no"
+            )
+
+            # ======================================================
+            # CUSTOMER
+            # ======================================================
+
+            if customer:
+
+                existing_hold.customer = (
+                    f"{customer.firstname} "
+                    f"{customer.lastname}"
+                ).strip()
+
+                existing_hold.customer_id = (
+                    customer.id
+                )
+
+            # ======================================================
+            # PAYMENT NOTE
+            # ======================================================
 
             if amount_paid > 0:
+
+                payment_note = (
+                    f"💰 Payment: GHS "
+                    f"{amount_paid:.2f} | "
+                    f"Balance: GHS "
+                    f"{new_balance:.2f}"
+                )
+
                 if existing_hold.note:
-                    existing_hold.note = f"{existing_hold.note} | {payment_note}"
+
+                    existing_hold.note = (
+                        f"{existing_hold.note} | "
+                        f"{payment_note}"
+                    )
+
                 else:
-                    existing_hold.note = payment_note
+
+                    existing_hold.note = (
+                        payment_note
+                    )
+
             elif note:
-                existing_hold.note = note
+
+                existing_hold.note = (
+                    note
+                )
 
             order = existing_hold
+
             order_id = existing_hold.id
+
             total = new_total
 
         # ==========================================================
         # NEW ORDER
         # ==========================================================
+
         else:
-            # ======================================================
-            # NEW ORDER TOTAL
-            # ======================================================
-            new_total = round(total, 2)
 
             # ======================================================
             # NEW ORDER BALANCE
             # ======================================================
-            new_balance = new_total - amount_paid
+
+            new_total = calculated_total
+
+            new_balance = (
+                new_total
+                - amount_paid
+            )
+
             if new_balance < 0:
                 new_balance = 0
-            new_balance = round(new_balance, 2)
+
+            new_balance = round(
+                new_balance,
+                2
+            )
 
             # ======================================================
             # PAYMENT STATUS
             # ======================================================
+
             if new_balance <= 0:
+
                 order_status = "Confirmed"
+
                 paid_status = "Success"
+
             elif amount_paid > 0:
+
                 order_status = "Pending"
+
                 paid_status = "Partial"
+
             else:
+
                 order_status = "Pending"
+
                 paid_status = "Pending"
 
             # ======================================================
             # DEPARTMENT FLAGS
             # ======================================================
-            contain_drink = any(item.get("family") == "drink" for item in incoming_items)
-            contain_food = any(item.get("family") == "food" for item in incoming_items)
-            contain_dtf = any(item.get("family") == "dtf" for item in incoming_items)
-            contain_digital_printing = any(item.get("family") == "digital_printing" for item in incoming_items)
-            contain_large_format = any(item.get("family") == "large_format" for item in incoming_items)
-            contain_label = any(item.get("family") == "label" for item in incoming_items)
+
+            contain_drink = any(
+                item.get(
+                    "family"
+                ) == "drink"
+                for item in incoming_items
+            )
+
+            contain_food = any(
+                item.get(
+                    "family"
+                ) == "food"
+                for item in incoming_items
+            )
+
+            contain_dtf = any(
+                item.get(
+                    "family"
+                ) == "dtf"
+                for item in incoming_items
+            )
+
+            contain_digital_printing = any(
+                item.get(
+                    "family"
+                ) == "digital_printing"
+                for item in incoming_items
+            )
+
+            contain_large_format = any(
+                item.get(
+                    "family"
+                ) == "large_format"
+                for item in incoming_items
+            )
+
+            contain_label = any(
+                item.get(
+                    "family"
+                ) == "label"
+                for item in incoming_items
+            )
 
             # ======================================================
             # PAYMENT NOTE
             # ======================================================
+
             final_note = note
 
-            payment_note = (
-                f"💰 Payment: GHS {amount_paid:.2f} | "
-                f"Discount: {discount:.2f}% | "
-                f"Discount Amount: GHS {discount_amount:.2f} | "
-                f"Total: GHS {new_total:.2f} | "
-                f"Balance: GHS {new_balance:.2f}"
-            )
-
             if amount_paid > 0:
-                final_note = f"{note} | {payment_note}" if note else payment_note
-            elif discount > 0:
-                final_note = f"{note} | {payment_note}" if note else payment_note
+
+                payment_note = (
+                    f"💰 Payment: GHS "
+                    f"{amount_paid:.2f} | "
+                    f"Balance: GHS "
+                    f"{new_balance:.2f}"
+                )
+
+                final_note = (
+                    f"{note} | {payment_note}"
+                    if note
+                    else payment_note
+                )
 
             # ======================================================
             # CREATE HELD CART
             # ======================================================
+
             order = HeldCart(
+
                 user_id=user.id,
-                items=json.dumps(incoming_items),
+
+                items=json.dumps(
+                    incoming_items
+                ),
+
                 total=new_total,
-                balance=f"{new_balance:.2f}",
-                customer=f"{customer.firstname} {customer.lastname}" if customer else data.get("customer", ""),
-                customer_id=customer.id if customer else None,
-                company_name=user.company_name,
-                status=order_status,
-                paid_status=paid_status,
+
+                balance=(
+                    f"{new_balance:.2f}"
+                ),
+
+                customer=(
+                    f"{customer.firstname} "
+                    f"{customer.lastname}"
+                    if customer
+                    else data.get(
+                        "customer",
+                        ""
+                    )
+                ),
+
+                customer_id=(
+                    customer.id
+                    if customer
+                    else None
+                ),
+
+                company_name=(
+                    user.company_name
+                ),
+
+                status=(
+                    order_status
+                ),
+
+                paid_status=(
+                    paid_status
+                ),
+
                 onetime="no",
-                waiter=f"{user.firstname} {user.lastname}".strip(),
-                contain_drink="yes" if contain_drink else "no",
-                contain_food="yes" if contain_food else "no",
-                contain_dtf="yes" if contain_dtf else "no",
-                contain_digital_printing="yes" if contain_digital_printing else "no",
-                contain_large_format="yes" if contain_large_format else "no",
-                contain_label="yes" if contain_label else "no",
+
+                waiter=(
+                    f"{user.firstname} "
+                    f"{user.lastname}"
+                ).strip(),
+
+                contain_drink=(
+                    "yes"
+                    if contain_drink
+                    else "no"
+                ),
+
+                contain_food=(
+                    "yes"
+                    if contain_food
+                    else "no"
+                ),
+
+                contain_dtf=(
+                    "yes"
+                    if contain_dtf
+                    else "no"
+                ),
+
+                contain_digital_printing=(
+                    "yes"
+                    if contain_digital_printing
+                    else "no"
+                ),
+
+                contain_large_format=(
+                    "yes"
+                    if contain_large_format
+                    else "no"
+                ),
+
+                contain_label=(
+                    "yes"
+                    if contain_label
+                    else "no"
+                ),
+
                 food_confirm="no",
+
                 drink_confirm="no",
+
                 label_confirm="no",
+
                 dtf_confirm="no",
+
                 large_format_confirm="no",
+
                 digital_printing_confirm="no",
+
                 session=datetime.now(),
+
                 table=table,
-                note=note,
+
+                note=final_note,
+
                 payment_method=payment_method
             )
 
-            db.session.add(order)
+            db.session.add(
+                order
+            )
+
             db.session.flush()
 
             order_id = order.id
+
             total = new_total
 
         # ==========================================================
-        # COMMIT ORDER
+        # COMMIT ORDER FIRST
         # ==========================================================
+        #
+        # IMPORTANT:
+        # Email/SMS should never prevent the order from being saved.
+        #
+        # So we commit before sending notifications.
+        #
+        # ==========================================================
+
         db.session.commit()
+
 
         # ==========================================================
         # NOTIFICATION VALUES
