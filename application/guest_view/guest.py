@@ -12273,7 +12273,7 @@ def hold_and_pay():
 
                 mail.send(msg)
                 email_sent = True
-                print(f"✅ Email sent successfully to {customer_email}")
+                print(f"✅ Emails sent successfully to {customer_email}")
 
             except Exception as e:
                 email_sent = False
