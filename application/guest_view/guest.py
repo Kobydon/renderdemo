@@ -8149,6 +8149,7 @@ def get_helding_orders_dtf():
                                         "working_on_digital_printing": order.working_on_digital_printing,
                                         "working_on_id_digital_printing": order.working_on_id_digital_printing,
                                          "customer":order.customer,
+                                         "created_at":order.created_at
                 })
 
         except (json.JSONDecodeError, TypeError) as e:
@@ -9369,7 +9370,8 @@ def add_customer():
             company_name=user.company_name,
             email=email,
             dob=dob,
-            created_date=datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            created_date=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            created_by=user.firstname +" "+user.lastname
         )
         hashed_password = guard.hash_password(phone)
         

@@ -785,7 +785,7 @@ class Customer(db.Model):
     phone = db.Column(db.String(400))
     coupon_value = db.Column(db.String(400))
     coupon_applied = db.Column(db.String(400))
-    
+    created_by = db.Column(db.String(400))
     def __init__(self, **kwargs):
         super(Customer, self).__init__(**kwargs)
         if not self.customer_id:
