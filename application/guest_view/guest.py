@@ -9791,7 +9791,7 @@ def detailed_report():
                     "payment_date": payment.payment_date
                 })
             except Exception as e:
-                print(f"Error processing POS payment {payment.id}: {e}")
+                print(f"Errors processing POS payment {payment.id}: {e}")
                 continue
         
         # ===================== REFUNDS =====================
