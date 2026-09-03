@@ -9441,8 +9441,8 @@ def update_customer():
 
         # Find existing customer
         customer = Customer.query.filter_by(
-            id=customer_id,
-            company_name=user.company_name
+            id=customer_id
+        
         ).first()
 
         if not customer:
