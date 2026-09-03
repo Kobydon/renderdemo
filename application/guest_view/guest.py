@@ -10962,7 +10962,7 @@ Phone: 0243210009 / 0531100380
                     
                     if status == 200:
                         response_data = response.read()
-                        print(f"✅ Ready for pickup SMS sent successfully to {clean_phone}: {response_data}")
+                        print(f"✅ Ready for pickup SMSs sent successfully to {clean_phone}: {response_data}")
                         sms_sent = True
                     else:
                         print(f"⚠️ SMS sending failed with status {status}: {response.read()}")
