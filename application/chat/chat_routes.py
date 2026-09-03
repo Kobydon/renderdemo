@@ -75,6 +75,7 @@ def get_online_users():
         return jsonify(result), 200
         
     except Exception as e:
+        db.session.rollback()
         print(f"❌ Error getting online users: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
@@ -96,6 +97,7 @@ def get_chat_messages(receiver_id):
         return jsonify(result), 200
         
     except Exception as e:
+        db.session.rollback()
         print(f"❌ Error getting messages: {str(e)}")
         return jsonify({'error': str(e)}), 500
     
@@ -187,5 +189,6 @@ def get_unread_count():
         return jsonify({'unread_count': unread_count}), 200
         
     except Exception as e:
+        db.session.rollback()                   
         print(f"❌ Error getting unread count: {str(e)}")
         return jsonify({'error': str(e)}), 500
