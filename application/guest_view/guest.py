@@ -8697,6 +8697,7 @@ def get_helding_orders_givers():
                 "working_on_id_dtf": order.working_on_id_dtf,
                 "working_on_digital_printing": order.working_on_digital_printing,
                 "working_on_id_digital_printing": order.working_on_id_digital_printing,
+                "created_at":order.created_at
             })
 
         except (json.JSONDecodeError, TypeError) as e:
@@ -11298,6 +11299,8 @@ from flask_mail import Message
 @guest.route('/hold_and_pay', methods=['POST'])
 @flask_praetorian.auth_required
 def hold_and_pay():
+  
+
     try:
         # ==========================================================
         # CURRENT USER
@@ -11784,29 +11787,87 @@ def hold_and_pay():
             merged_subtotal = round(merged_subtotal, 2)
 
             # ======================================================
-            # BALANCE PAYMENT LOGIC
             # ======================================================
+            # ======================================================
+            # CRITICAL FIX: BALANCE PAYMENT LOGIC
+            # ======================================================
+            # ======================================================
+            # ======================================================
+
             if is_balance_payment:
-                # Balance payment - only paying outstanding balance
-                new_total = previous_total
-                new_balance = previous_balance - amount_paid
+    # ======================================================
+    # BALANCE PAYMENT
+            # ======================================================
 
-                if new_balance < 0:
-                    new_balance = 0
+            # The database balance is the source of truth.
+                        balance_before_payment = round(previous_balance, 2)
 
-                new_balance = round(new_balance, 2)
+                        # Never allow payment to exceed outstanding balance.
+                        amount_paid = min(
+                            round(amount_paid, 2),
+                            balance_before_payment
+                        )
 
-                # No discount for balance payments
-                discount = 0
-                discount_amount = 0
+                        # Calculate remaining balance.
+                        new_balance = round(
+                            balance_before_payment - amount_paid,
+                            2
+                        )
 
-                print(f"💰 BALANCE PAYMENT:")
-                print(f"   Previous Balance: {previous_balance}")
-                print(f"   Amount Paid: {amount_paid}")
-                print(f"   New Balance: {new_balance}")
+                        # Original order total NEVER changes.
+                        new_total = previous_total
+
+                        # Balance payments do not modify discounts.
+                        discount = 0
+                        discount_amount = 0
+
+                        print("======================================")
+                        print("💳 BALANCE PAYMENT")
+                        print(f"Order ID: {existing_hold.id}")
+                        print(f"Original Total: {previous_total:.2f}")
+                        print(f"Balance Before: {balance_before_payment:.2f}")
+                        print(f"Amount Paid: {amount_paid:.2f}")
+                        print(f"Balance After: {new_balance:.2f}")
+                        print("======================================")
+
+                                  
+                        new_total = previous_total
+
+                        # NEW BALANCE = previous balance - amount paid
+                        new_balance = previous_balance - amount_paid
+
+                        # Ensure balance doesn't go negative
+                        if new_balance < 0:
+                            new_balance = 0
+
+                        new_balance = round(new_balance, 2)
+
+                        # No discount for balance payments
+                        discount = 0
+                        discount_amount = 0
+
+                        # Log for debugging
+                        print(f"💰 BALANCE PAYMENT:")
+                        print(f"   Previous Balance: {previous_balance}")
+                        print(f"   Amount Paid: {amount_paid}")
+                        print(f"   New Balance: {new_balance}")
+                        print(f"   Previous Total: {previous_total}")
+                        print(f"   New Total: {new_total}")
 
             else:
-                # Normal payment - paying for items in cart
+                # ==================================================
+                # NORMAL PAYMENT - PAYING FOR ITEMS IN CART
+                # ==================================================
+                #
+                # When is_balance_payment is False:
+                #   - This is a normal order or adding items
+                #   - Calculate new total from merged items
+                #   - Apply discount if any
+                #   - New balance = previous balance + change in total - payment
+                #
+                # ==================================================
+
+                # Apply discount to merged subtotal
                 if discount > 0:
                     new_total = round(merged_subtotal - (merged_subtotal * discount / 100), 2)
                     discount_amount = round(merged_subtotal - new_total, 2)
@@ -11824,15 +11885,18 @@ def hold_and_pay():
                 total_difference = new_total - previous_total
                 new_balance = previous_balance + total_difference - amount_paid
 
+                # Ensure balance doesn't go negative
                 if new_balance < 0:
                     new_balance = 0
 
                 new_balance = round(new_balance, 2)
 
+                # Log for debugging
                 print(f"💰 NORMAL PAYMENT:")
                 print(f"   Previous Balance: {previous_balance}")
                 print(f"   Previous Total: {previous_total}")
                 print(f"   New Total: {new_total}")
+                print(f"   Total Difference: {total_difference}")
                 print(f"   Amount Paid: {amount_paid}")
                 print(f"   New Balance: {new_balance}")
 
@@ -11877,12 +11941,16 @@ def hold_and_pay():
             existing_hold.contain_large_format = "yes" if contain_large_format else "no"
             existing_hold.contain_label = "yes" if contain_label else "no"
 
-            # Customer
+            # ======================================================
+            # CUSTOMER
+            # ======================================================
             if customer:
                 existing_hold.customer = f"{customer.firstname} {customer.lastname}".strip()
                 existing_hold.customer_id = customer.id
 
-            # Payment note
+            # ======================================================
+            # PAYMENT NOTE
+            # ======================================================
             payment_note = (
                 f"💰 Payment: GHS {amount_paid:.2f} | "
                 f"Discount: {discount:.2f}% | "
