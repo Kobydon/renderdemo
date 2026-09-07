@@ -10545,6 +10545,7 @@ def accept_order(order_id):
 @guest.route("/cutting_order/<int:order_id>", methods=["POST", "PUT"])
 @flask_praetorian.auth_required
 def cutting_order(order_id):
+
     try:
         # =====================================================
         # GET ORDER
@@ -10557,11 +10558,11 @@ def cutting_order(order_id):
         # =====================================================
         try:
             items = json.loads(order.items) if order.items else []
-        except json.JSONDecodeError:
+        except (json.JSONDecodeError, TypeError):
             items = []
 
         # =====================================================
-        # GET REQUEST DATA
+        # REQUEST DATA
         # =====================================================
         data = request.get_json(silent=True) or {}
         item_index = data.get("item_index")
@@ -10598,7 +10599,6 @@ def cutting_order(order_id):
 
         else:
 
-            # Update all items
             for item in items:
 
                 if not isinstance(item, dict):
@@ -10620,7 +10620,7 @@ def cutting_order(order_id):
             }), 404
 
         # =====================================================
-        # GET CURRENT USER NAME
+        # USER NAME
         # =====================================================
         firstname = getattr(
             current_user,
@@ -10645,11 +10645,10 @@ def cutting_order(order_id):
         order.items = json.dumps(items)
         order.status = "ready for pickup"
 
-        # Save the order update first
         db.session.commit()
 
         # =====================================================
-        # GET CUSTOMER INFORMATION
+        # GET CUSTOMER
         # =====================================================
         customer_email = None
         customer_name = "Valued Customer"
@@ -10684,14 +10683,14 @@ def cutting_order(order_id):
                     customer_name = "Valued Customer"
 
         # =====================================================
-        # INITIALIZE FLAGS
+        # FLAGS
         # =====================================================
         email_sent = False
         sms_sent = False
         sms_bundle_remaining = None
 
         # =====================================================
-        # SEND EMAIL CONFIRMATION
+        # SEND EMAIL
         # =====================================================
         if customer_email:
 
@@ -10712,16 +10711,10 @@ def cutting_order(order_id):
                     </title>
 
                     <style>
-
                         body {{
-                            font-family:
-                                'Segoe UI',
-                                Arial,
-                                sans-serif;
-
+                            font-family: 'Segoe UI', Arial, sans-serif;
                             margin: 0;
                             padding: 0;
-
                             background-color: #f8f9fa;
                             color: #333;
                         }}
@@ -10729,52 +10722,37 @@ def cutting_order(order_id):
                         .email-container {{
                             max-width: 500px;
                             margin: 20px auto;
-
                             background-color: #ffffff;
-
                             border-radius: 12px;
                             overflow: hidden;
-
-                            box-shadow:
-                                0 4px 20px
-                                rgba(0,0,0,0.08);
+                            box-shadow: 0 4px 20px rgba(0,0,0,0.08);
                         }}
 
                         .header {{
-                            background:
-                                linear-gradient(
-                                    135deg,
-                                    #1a1a2e 0%,
-                                    #16213e 50%,
-                                    #0f3460 100%
-                                );
+                            background: linear-gradient(
+                                135deg,
+                                #1a1a2e 0%,
+                                #16213e 50%,
+                                #0f3460 100%
+                            );
 
                             padding: 25px 20px;
-
                             text-align: center;
-
-                            border-bottom:
-                                4px solid #28a745;
+                            border-bottom: 4px solid #28a745;
                         }}
 
                         .header h1 {{
                             color: #ffffff;
                             font-size: 22px;
-
                             margin: 0;
-
                             font-weight: 700;
-
                             letter-spacing: 1px;
                         }}
 
                         .header .subtitle {{
                             color: #e0e0e0;
-
                             font-size: 13px;
-
                             margin: 5px 0 0;
-
                             opacity: 0.9;
                         }}
 
@@ -10784,11 +10762,8 @@ def cutting_order(order_id):
 
                         .greeting {{
                             font-size: 17px;
-
                             color: #1a1a2e;
-
                             margin-bottom: 15px;
-
                             font-weight: 600;
                         }}
 
@@ -10797,28 +10772,21 @@ def cutting_order(order_id):
                         }}
 
                         .status-card {{
-                            background:
-                                linear-gradient(
-                                    135deg,
-                                    #f0fff4 0%,
-                                    #e8f5e9 100%
-                                );
+                            background: linear-gradient(
+                                135deg,
+                                #f0fff4 0%,
+                                #e8f5e9 100%
+                            );
 
-                            border-left:
-                                4px solid #28a745;
-
+                            border-left: 4px solid #28a745;
                             padding: 15px 20px;
-
                             border-radius: 8px;
-
                             margin: 20px 0;
                         }}
 
                         .status-card .stage {{
                             font-size: 14px;
-
                             color: #555;
-
                             margin: 3px 0;
                         }}
 
@@ -10828,101 +10796,62 @@ def cutting_order(order_id):
 
                         .status-badge {{
                             display: inline-block;
-
                             padding: 4px 14px;
-
                             border-radius: 20px;
-
                             font-size: 13px;
-
                             font-weight: 600;
-
                             text-transform: uppercase;
-
                             letter-spacing: 0.5px;
-
                             background: #28a745;
-
                             color: white;
-
                             margin: 5px 0;
                         }}
 
                         .order-ref {{
                             background: #f8f9fa;
-
                             border-radius: 8px;
-
                             padding: 15px 20px;
-
                             margin: 20px 0;
-
                             text-align: center;
-
-                            border:
-                                2px dashed #28a745;
+                            border: 2px dashed #28a745;
                         }}
 
                         .order-ref .order-number {{
                             font-size: 28px;
-
                             font-weight: 700;
-
                             color: #1a1a2e;
-
                             letter-spacing: 2px;
                         }}
 
                         .order-ref .order-label {{
                             font-size: 13px;
-
                             color: #888;
-
                             text-transform: uppercase;
-
                             letter-spacing: 1px;
                         }}
 
                         .progress-steps {{
                             display: flex;
-
-                            justify-content:
-                                space-between;
-
+                            justify-content: space-between;
                             margin: 25px 0;
-
-                            position: relative;
                         }}
 
                         .step {{
                             text-align: center;
-
                             flex: 1;
-
-                            position: relative;
-
-                            z-index: 1;
                         }}
 
                         .step .step-icon {{
                             width: 30px;
                             height: 30px;
-
                             border-radius: 50%;
-
                             background: #dee2e6;
-
                             display: inline-flex;
-
                             align-items: center;
                             justify-content: center;
-
                             color: white;
-
                             font-size: 14px;
-
                             font-weight: 700;
-
                             margin-bottom: 5px;
                         }}
 
@@ -10933,54 +10862,38 @@ def cutting_order(order_id):
 
                         .step .step-label {{
                             font-size: 11px;
-
                             color: #888;
-
                             text-transform: uppercase;
-
                             letter-spacing: 0.5px;
                         }}
 
                         .step.active .step-label,
                         .step.completed .step-label {{
                             color: #28a745;
-
                             font-weight: 600;
                         }}
 
                         .footer {{
                             background: #f8f9fa;
-
                             padding: 20px 30px;
-
                             text-align: center;
-
-                            border-top:
-                                1px solid #e9ecef;
-
+                            border-top: 1px solid #e9ecef;
                             font-size: 12px;
-
                             color: #888;
                         }}
 
                         .footer .shop-name {{
                             font-size: 15px;
-
                             font-weight: 700;
-
                             color: #1a1a2e;
-
                             margin-bottom: 3px;
                         }}
 
                         .footer .shop-info {{
                             color: #666;
-
                             margin: 2px 0;
-
                             font-size: 12px;
                         }}
-
                     </style>
                 </head>
 
@@ -11004,8 +10917,7 @@ def cutting_order(order_id):
                         <div class="content">
 
                             <div class="greeting">
-                                Dear
-                                <span>{customer_name}</span>,
+                                Dear <span>{customer_name}</span>,
                             </div>
 
                             <p style="
@@ -11015,47 +10927,33 @@ def cutting_order(order_id):
                             ">
                                 Great news!
                                 Your order is now
-                                <strong>
-                                    ready for pickup
-                                </strong>! 🎉
+                                <strong>ready for pickup</strong>! 🎉
                             </p>
 
                             <div class="status-card">
 
-                                <div>
+                                <div class="stage">
+                                    <strong>📋 Status:</strong>
 
-                                    <div class="stage">
-                                        <strong>
-                                            📋 Status:
-                                        </strong>
+                                    <span class="status-badge">
+                                        Ready for Pickup
+                                    </span>
+                                </div>
 
-                                        <span class="status-badge">
-                                            Ready for Pickup
-                                        </span>
-                                    </div>
+                                <div
+                                    class="stage"
+                                    style="margin-top:5px;"
+                                >
+                                    <strong>✅ Stage:</strong>
+                                    Complete
+                                </div>
 
-                                    <div
-                                        class="stage"
-                                        style="margin-top:5px;"
-                                    >
-                                        <strong>
-                                            ✅ Stage:
-                                        </strong>
-
-                                        Complete
-                                    </div>
-
-                                    <div
-                                        class="stage"
-                                        style="margin-top:5px;"
-                                    >
-                                        <strong>
-                                            👤 Prepared By:
-                                        </strong>
-
-                                        {checked_by}
-                                    </div>
-
+                                <div
+                                    class="stage"
+                                    style="margin-top:5px;"
+                                >
+                                    <strong>👤 Prepared By:</strong>
+                                    {checked_by}
                                 </div>
 
                             </div>
@@ -11075,51 +10973,31 @@ def cutting_order(order_id):
                             <div class="progress-steps">
 
                                 <div class="step completed">
-
-                                    <div class="step-icon">
-                                        ✓
-                                    </div>
-
+                                    <div class="step-icon">✓</div>
                                     <div class="step-label">
                                         Order Placed
                                     </div>
-
                                 </div>
 
                                 <div class="step completed">
-
-                                    <div class="step-icon">
-                                        ✓
-                                    </div>
-
+                                    <div class="step-icon">✓</div>
                                     <div class="step-label">
                                         Printed
                                     </div>
-
                                 </div>
 
                                 <div class="step completed">
-
-                                    <div class="step-icon">
-                                        ✓
-                                    </div>
-
+                                    <div class="step-icon">✓</div>
                                     <div class="step-label">
                                         Cutting
                                     </div>
-
                                 </div>
 
                                 <div class="step active">
-
-                                    <div class="step-icon">
-                                        📦
-                                    </div>
-
+                                    <div class="step-icon">📦</div>
                                     <div class="step-label">
                                         Ready
                                     </div>
-
                                 </div>
 
                             </div>
@@ -11156,7 +11034,6 @@ def cutting_order(order_id):
                                 color:#666;
                                 font-size:13px;
                                 line-height:1.6;
-                                margin-top:10px;
                                 text-align:center;
                             ">
                                 Please come to our shop
@@ -11196,8 +11073,7 @@ def cutting_order(order_id):
                                 font-size:11px;
                                 color:#bbb;
                             ">
-                                © {now.year}
-                                A Graphics.
+                                © {now.year} A Graphics.
                                 All rights reserved.
                             </p>
 
@@ -11234,8 +11110,8 @@ def cutting_order(order_id):
             except Exception as email_error:
 
                 print(
-                    f"⚠️ Failed to send ready for pickup "
-                    f"email to {customer_email}: "
+                    f"⚠️ Failed to send email to "
+                    f"{customer_email}: "
                     f"{str(email_error)}"
                 )
 
@@ -11245,7 +11121,7 @@ def cutting_order(order_id):
 
             print(
                 f"ℹ️ No email provided for order "
-                f"#{order_id}, skipping email notification"
+                f"#{order_id}, skipping email"
             )
 
         # =====================================================
@@ -11266,7 +11142,7 @@ def cutting_order(order_id):
                 )
 
                 # -------------------------------------------------
-                # VALIDATE GHANA PHONE NUMBER
+                # VALIDATE PHONE
                 # -------------------------------------------------
                 if (
                     len(clean_phone) != 10
@@ -11283,7 +11159,7 @@ def cutting_order(order_id):
                 else:
 
                     # =================================================
-                    # CHECK SMS BUNDLE BEFORE SENDING
+                    # GET SMS BUNDLE
                     # =================================================
                     sms_bundle = SmsBundle.query.filter_by(
                         id="1"
@@ -11300,19 +11176,16 @@ def cutting_order(order_id):
 
                     else:
 
-                        # -------------------------------------------------
-                        # GET CURRENT BUNDLE SIZE
-                        # -------------------------------------------------
+                        # =================================================
+                        # READ BUNDLE SIZE
+                        # =================================================
                         try:
 
                             current_size = int(
                                 sms_bundle.size
                             )
 
-                        except (
-                            ValueError,
-                            TypeError
-                        ):
+                        except (ValueError, TypeError):
 
                             print(
                                 "⚠️ Invalid SMS Bundle size. "
@@ -11322,7 +11195,7 @@ def cutting_order(order_id):
                             current_size = 0
 
                         # =================================================
-                        # NO SMS CREDITS
+                        # CHECK AVAILABLE SMS
                         # =================================================
                         if current_size <= 0:
 
@@ -11332,13 +11205,12 @@ def cutting_order(order_id):
                             )
 
                             sms_sent = False
-
                             sms_bundle_remaining = 0
 
                         else:
 
                             # =================================================
-                            # PREPARE SMS
+                            # SMS DETAILS
                             # =================================================
                             now = datetime.now()
 
@@ -11367,7 +11239,7 @@ Phone: 0243210009 / 0531100380
 """
 
                             # =================================================
-                            # SMS API CONFIGURATION
+                            # SMS API
                             # =================================================
                             host = "api.smsonlinegh.com"
 
@@ -11406,7 +11278,7 @@ Phone: 0243210009 / 0531100380
                             }
 
                             # =================================================
-                            # SEND SMS
+                            # CREATE HTTP CONNECTION
                             # =================================================
                             httpConn = None
 
@@ -11442,8 +11314,7 @@ Phone: 0243210009 / 0531100380
                                 if status == 200:
 
                                     print(
-                                        f"✅ Ready for pickup "
-                                        f"SMS sent successfully "
+                                        f"✅ SMS sent successfully "
                                         f"to {clean_phone}: "
                                         f"{response_body}"
                                     )
@@ -11465,6 +11336,9 @@ Phone: 0243210009 / 0531100380
                                         sms_bundle
                                     )
 
+                                    # Save bundle immediately
+                                    db.session.commit()
+
                                     sms_bundle_remaining = (
                                         new_size
                                     )
@@ -11475,9 +11349,6 @@ Phone: 0243210009 / 0531100380
                                         f"{new_size}"
                                     )
 
-                                    # Commit the bundle update
-                                    db.session.commit()
-
                                     print(
                                         "✅ SMS Bundle update "
                                         "committed successfully"
@@ -11486,8 +11357,12 @@ Phone: 0243210009 / 0531100380
                                 else:
 
                                     print(
-                                        f"⚠️ SMS sending failed "
-                                        f"with status {status}: "
+                                        f"⚠️ SMS sending failed. "
+                                        f"HTTP status: {status}"
+                                    )
+
+                                    print(
+                                        f"Response: "
                                         f"{response_body}"
                                     )
 
@@ -11504,23 +11379,32 @@ Phone: 0243210009 / 0531100380
 
                             finally:
 
-                                if httpConn:
+                                if httpConn is not None:
 
                                     try:
                                         httpConn.close()
                                     except Exception:
                                         pass
 
+            except Exception as sms_error:
+
+                print(
+                    f"⚠️ Failed to process SMS for "
+                    f"order #{order_id}: "
+                    f"{str(sms_error)}"
+                )
+
+                sms_sent = False
+
         else:
 
             print(
                 f"ℹ️ No phone number provided for "
-                f"order #{order_id}, "
-                f"skipping SMS notification"
+                f"order #{order_id}, skipping SMS"
             )
 
         # =====================================================
-        # RETURN RESPONSE
+        # FINAL RESPONSE
         # =====================================================
         return jsonify({
 
