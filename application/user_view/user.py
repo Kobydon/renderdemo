@@ -101,6 +101,62 @@ def register_quick():
         }), 500
 
 
+
+
+@user.route("/register_quick_two", methods=["POST"])
+@flask_praetorian.auth_required
+def register_quick_two():
+    try:
+        us = User.query.filter_by(
+            id=flask_praetorian.current_user().id
+        ).first()
+
+        data = request.get_json()
+
+        firstname = data["firstname"]
+        username = data["username"]
+        password = data["password"]
+        lastname = data["lastname"]
+        about = data.get("about")
+        city = data["city"]
+        email = data["email"]
+        address = data["address"]
+        role = "customer"
+        phone = data["phone"]
+
+        hashed_password = guard.hash_password(password)
+
+        owner = User(
+            firstname=firstname,
+            lastname=lastname,
+            city=city,
+            phone=phone,
+            username=username,
+            hashed_password=hashed_password,
+            roles=role,
+            address=address,
+            email=email,
+            created_date=datetime.now()
+        )
+
+        db.session.add(owner)
+        db.session.commit()
+
+        return jsonify("success"), 200
+
+    except Exception as e:
+        # Undo any failed database transaction
+        db.session.rollback()
+
+        # Log the actual error
+        print("Error in register_quick:", str(e))
+
+        return jsonify({
+            "success": False,
+            "message": "An error occurred while registering the user."
+        }), 500
+
+
 @user.route("/find_cashier", methods=["POST"])
 def find_cashier():
     # password = request.json["password"]
