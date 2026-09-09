@@ -104,7 +104,7 @@ def register_quick():
 
 
 @user.route("/register_quick_two", methods=["POST"])
-@flask_praetorian.auth_required
+
 def register_quick_two():
     try:
         us = User.query.filter_by(
