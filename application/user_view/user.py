@@ -107,9 +107,7 @@ def register_quick():
 
 def register_quick_two():
     try:
-        us = User.query.filter_by(
-            id=flask_praetorian.current_user().id
-        ).first()
+       
 
         data = request.get_json()
 
