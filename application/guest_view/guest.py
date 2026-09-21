@@ -228,7 +228,7 @@ def get_remaining_bundle():
     # Count total messages sent
     total_sent = Sms.query.count()
     
-    remaining = total_remaining
+    remaining = max(0, total_remaining - 0)
     
     return jsonify({
         "size": total_bundle_size,
