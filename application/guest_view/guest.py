@@ -209,30 +209,29 @@ def get_messages_sent():
     
     return jsonify(result), 200
 
+
 @guest.route("/get_remaining_bundle", methods=["GET"])
 @flask_praetorian.auth_required
 def get_remaining_bundle():
-    # Get all bundles (assuming you want the latest or aggregate)
+    """
+    Get the total SMS bundle size and remaining SMS messages.
+    """
+
     bundles = SmsBundle.query.all()
-    
-    # Calculate total bundle size and used messages
+
     total_bundle_size = 0
     total_remaining = 0
+
     for bundle in bundles:
         try:
-            total_bundle_size += int(bundle.main_size)
-            total_remaining += int(bundle.size)
+            total_bundle_size += int(bundle.main_size or 0)
+            total_remaining += int(bundle.size or 0)
         except (ValueError, TypeError):
-            total_bundle_size += 0
-    
-    # Count total messages sent
-    total_sent = Sms.query.count()
-    
-    remaining = max(0, total_remaining - 0)
-    
+            continue
+
     return jsonify({
         "size": total_bundle_size,
-        "remaining": remaining
+        "remaining": max(0, total_remaining)
     }), 200
 
 # Alternative if you need to track bundle usage differently:
