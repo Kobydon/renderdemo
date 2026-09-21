@@ -1052,6 +1052,7 @@ class Sms(db.Model):
 
 class SmsBundle(db.Model):
     id = db.Column(db.Integer, primary_key=True)
+    main_size = db.Column(db.String(2000000))
     size = db.Column(db.String(2000000))
   
   
