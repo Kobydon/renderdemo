@@ -10587,7 +10587,7 @@ def cutting_order(order_id):
             return jsonify({"error": "Item not found in order"}), 404
 
         if sms:
-            sms.size = str(int(sms.size) - 1)
+            sms.size = str(int(sms.size) - 2)
 
         
         # Update order items and status
