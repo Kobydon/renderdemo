@@ -12524,7 +12524,7 @@ Phone: 0243210009 / 0531100380
                                 if sms_bundle:
                                     current_size = int(sms_bundle.size)
                                     if current_size > 0:
-                                        sms_bundle.size = str(current_size - 5)
+                                        sms_bundle.size = str(current_size - 4)
                                         db.session.add(sms_bundle)
                                         # print(f"📦 Bundle updated: {current_size} → {current_size - 1}")
                                     else:
