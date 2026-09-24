@@ -10963,12 +10963,15 @@ Phone: 0243210009 / 0531100380
                         'sender': 'ASEMPAH',  # Sender ID (max 11 characters)
                         'destinations': [clean_phone]
                     }
-                    
-                    httpConn = httpClient.HTTPConnection(host)
-                    httpConn.request('POST', requestURI, json.dumps(msg_data), headers)
-                    
-                    response = httpConn.getresponse()
-                    status = response.status
+                    sms_bundle = SmsBundle.query.filter_by(id="1").first()
+                    current_size =int(sms_bundle.size)
+                    status =400                                             
+                    if current_size > 0:
+                        httpConn = httpClient.HTTPConnection(host)
+                        httpConn.request('POST', requestURI, json.dumps(msg_data), headers)
+                        
+                        response = httpConn.getresponse()
+                        status = response.status
                     
                     if status == 200:
                         response_data = response.read()
@@ -12495,16 +12498,20 @@ Phone: 0243210009 / 0531100380
                     httpConn = httpClient.HTTPConnection(host, timeout=15)
 
                     try:
-                        httpConn.request(
-                            "POST",
-                            requestURI,
-                            json.dumps(msg_data),
-                            headers
-                        )
+                        sms_bundle = SmsBundle.query.filter_by(id="1").first()
+                        status = 400
+                                                    
+                        if current_size > 0:
+                            httpConn.request(
+                                "POST",
+                                requestURI,
+                                json.dumps(msg_data),
+                                headers
+                            )
 
-                        response = httpConn.getresponse()
-                        response_body = response.read().decode('utf-8')
-                        status = response.status
+                            response = httpConn.getresponse()
+                            response_body = response.read().decode('utf-8')
+                            status = response.status
 
                         # ==========================================================
                         # FIXED: Handle SMS response and save to database
