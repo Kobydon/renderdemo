@@ -12323,9 +12323,7 @@ def hold_and_pay():
                                 Amount Paid: GHS {amount_paid:.2f}
                                 <br>
                                 Balance: GHS {order_balance:.2f}
-                                <br>
-                                Payment Method: {payment_method}
-                                <br>
+                              
                                 Order Status: {order.status}
                                 <br>
                                 Date: {now.strftime("%d-%m-%Y %I:%M %p")}
@@ -12445,15 +12443,14 @@ def hold_and_pay():
 
                     # Build SMS message
                     sms_message = f"""
-ASSEMPAH FIE GRAPHICS
+
 Order #{order_id}
 Customer: {customer_name}
 Status: {status_icon} {status_text}
 Attendant: {attendant}
 Location: Kokomlemle, Accra
 
-ITEMS:
-{items_text}
+
 
 Subtotal: GHS {calculated_subtotal:.2f}
 Discount: {discount:.2f}%
@@ -12461,10 +12458,10 @@ Discount Amount: GHS {discount_amount:.2f}
 Total: GHS {order_total:.2f}
 Paid: GHS {amount_paid:.2f}
 Balance: GHS {order_balance:.2f}
-Method: {payment_method}
+
 Date: {now.strftime('%d-%m-%Y %I:%M %p')}
 
-Thank you for choosing A Graphics!
+Thank you for choosing AssempahFie Graphics!
 
 Contact Us:
 Email: afgghana@gmail.com
