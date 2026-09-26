@@ -10927,13 +10927,12 @@ def cutting_order(order_id):
                     
                     # Build SMS message
                     sms_message = f"""
-ASSEMPAH FIE GRAPHICS
+
 
 Order #{order_id}
 Dear {customer_name},
 Your order is now ready for pickup!
 
-Attendant: {attendant}
 Date: {now.strftime('%d-%m-%Y %I:%M %p')}
 
 
@@ -10960,7 +10959,7 @@ Phone: 0243210009 / 0531100380
                     msg_data = {
                         'text': sms_message.strip(),
                         'type': 0,  # 0 for standard SMS
-                        'sender': 'ASEMPAH',  # Sender ID (max 11 characters)
+                        'sender': 'Assempa Fie',  # Sender ID (max 11 characters)
                         'destinations': [clean_phone]
                     }
                     
@@ -12446,19 +12445,8 @@ def hold_and_pay():
 
 Order #{order_id}
 Customer: {customer_name}
-Status: {status_icon} {status_text}
-Attendant: {attendant}
-Location: Kokomlemle, Accra
-
-
 
 Subtotal: GHS {calculated_subtotal:.2f}
-Discount: {discount:.2f}%
-Discount Amount: GHS {discount_amount:.2f}
-Total: GHS {order_total:.2f}
-Paid: GHS {amount_paid:.2f}
-Balance: GHS {order_balance:.2f}
-
 Date: {now.strftime('%d-%m-%Y %I:%M %p')}
 
 Thank you for choosing AssempahFie Graphics!
