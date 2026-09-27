@@ -36,6 +36,10 @@ guard = flask_praetorian.Praetorian()
 app.secret_key = 'secrete key'
 
 app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://asempa_user:6j6R8JI64zZvvtslzdiIZGn272wKIsRE@dpg-d8qnnjnlk1mc73atgki0-a.oregon-postgres.render.com/asempa'
+app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {
+    "pool_pre_ping": True,
+    "pool_recycle": 300,
+}
 # app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///hotel.db'
 #app.config['SQLALCHEMY_DATABASE_URI'] = 'mysql+pymysql://root:@localhost/hotel'
 #local_database = tempfile.NamedTemporaryFile(prefix="local", suffix=".db")
