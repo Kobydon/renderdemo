@@ -10,6 +10,7 @@ app.config['RECAPTCHA_PUBLIC_KEY']= '6LccceQaAAAAAFVTwhHp1SNNwddLxhpybkazgKYw'
 app.config['RECAPTCHA_PRIVATE_KEY'] = '6LccceQaAAAAALRTre2F1LYBWHpykc9Fgv5ATkcd'
 
 
+
 app.config['MAIL_SERVER'] = 'smtp.gmail.com'
 app.config['MAIL_PORT'] = 587
 app.config['MAIL_USE_TLS'] = True
@@ -36,6 +37,10 @@ guard = flask_praetorian.Praetorian()
 app.secret_key = 'secrete key'
 
 app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://asempa_user:6j6R8JI64zZvvtslzdiIZGn272wKIsRE@dpg-d8qnnjnlk1mc73atgki0-a.oregon-postgres.render.com/asempa'
+app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {
+    "pool_pre_ping": True,
+    "pool_recycle": 300,
+}
 # app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///hotel.db'
 #app.config['SQLALCHEMY_DATABASE_URI'] = 'mysql+pymysql://root:@localhost/hotel'
 #local_database = tempfile.NamedTemporaryFile(prefix="local", suffix=".db")
