@@ -353,6 +353,9 @@ def confirm_order():
 
             elif item.get("family") == "label" and "label"  in user.roles:
                 item["confirmed"] = True  # Set the label item as confirmed 
+
+            elif item.get("family") == "uvdtf" and "uvdtf"  in user.roles:
+                            item["confirmed"] = True  # Set the label item as confirmed 
         
         # Update the items back to the order
         sub_data.items = json.dumps(items)
@@ -3137,6 +3140,8 @@ def held_cart_report():
                 query = query.filter(HeldCart.contain_large_format == "yes")
             elif department == "label":
                 query = query.filter(HeldCart.contain_label == "yes")
+            elif department == "uvdtf":
+                query = query.filter(HeldCart.contain_uvdtf == "yes")
         
         # Status filter
         if status:
@@ -3192,7 +3197,7 @@ def held_cart_report():
                 if order.contain_digital_printing == "yes": depts.append("Digital Printing")
                 if order.contain_large_format == "yes": depts.append("Large Format")
                 if order.contain_label == "yes": depts.append("Label")
-                
+                if order.contain_uvdtf == "yes": depts.append("UV DTF")
                 for dept in depts:
                     department_stats[dept] = department_stats.get(dept, 0) + order_collected
                 
@@ -3216,10 +3221,13 @@ def held_cart_report():
                     "contain_drink": order.contain_drink,
                     "contain_food": order.contain_food,
                     "contain_dtf": order.contain_dtf,
+                     "contain_uvdtf": order.contain_uvdtf,
                     "contain_digital_printing": order.contain_digital_printing,
                     "contain_large_format": order.contain_large_format,
                     "contain_label": order.contain_label,
                     "dtf_confirm": order.dtf_confirm,
+                    "uvdtf_confirm": order.uvdtf_confirm,
+                    "digital_printing_confirm": order.digital_printing_confirm,
                     "food_confirm": order.food_confirm,
                     "drink_confirm": order.drink_confirm,
                     "item_count": sum(item.get('qty', 0) for item in items)
@@ -7976,6 +7984,139 @@ def get_helding_orders_processed_drinks():
 
 
     
+    
+@guest.route('/get_helding_orders_dtf_uv', methods=['GET'])
+@flask_praetorian.auth_required
+def get_helding_orders_dtf_uv():
+    user = flask_praetorian.current_user()
+    us = User.query.filter_by(id=user.id).first()
+
+    if not us:
+        return jsonify({"error": "User not found"}), 404
+
+    # Adjusting the query to get only held orders containing drinks and with unconfirmed drinks
+    held_orders = HeldCart.query.filter_by(
+    
+    ).filter(
+        HeldCart.contain_uvdtf == "yes",  # Orders with drinks
+      # Unconfirmed drinks
+    ).all()
+
+    orders_list = []
+
+    for order in held_orders:
+        try:
+            print(f"Raw items JSON for order {order.id}:", order.items)  # Debug
+            items = json.loads(order.items)
+
+            # Filter items to include only drinks
+            filtered_items = [item for item in items if item.get("family") == "uvdtf" and item.get("confirmed") == False]
+            print(f"Filtered items for order {order.id}:", filtered_items)
+
+            if filtered_items:
+                orders_list.append({
+                   "id": order.id,
+                                       "items": filtered_items,
+                                       "total": order.total,
+                                       "balance":order.balance,
+                                       "note": order.note,
+                                       "waiter": order.waiter,
+                                       "company_name": order.company_name,
+                                       "status": order.status,
+                                       "uvdtf_status": order.contain_uvdtf,
+                                       "working_on": order.working_on,
+                                       "working_on_id": order.working_on_id,
+                                       "working_on_label": order.working_on_label,
+                                       "working_on_id_label": order.working_on_id_label,
+                                       "working_on_uvdtf": order.working_on_uvdtf,
+                                       "working_on_id_uvdtf": order.working_on_id_uvdtf,
+                                       "working_on_dtf": order.working_on_dtf,
+                                       "working_on_id_dtf": order.working_on_id_dtf,
+                                       "working_on_digital_printing": order.working_on_digital_printing,
+                                       "working_on_id_digital_printing": order.working_on_id_digital_printing,
+                                        "customer":order.customer,
+                                        "created_at":order.created_at
+
+                })
+
+        except (json.JSONDecodeError, TypeError) as e:
+            print(f"Error decoding JSON for order {order.id}: {e}")
+
+    return jsonify(orders_list), 200
+
+
+
+
+
+
+
+
+
+
+@guest.route('/get_helding_orders_uvdtf_processed', methods=['GET'])
+@flask_praetorian.auth_required
+def get_helding_orders_uvdtf_processed():
+    user = flask_praetorian.current_user()
+    us = User.query.filter_by(id=user.id).first()
+
+    if not us:
+        return jsonify({"error": "User not found"}), 404
+
+    # Adjusting the query to get only held orders containing drinks and with unconfirmed drinks
+    held_orders = HeldCart.query.filter_by(
+    
+    ).filter(
+        HeldCart.contain_uvdtf == "yes",  # Orders with uvdtf
+      # Unconfirmed uvdtf
+    ).all()
+
+    orders_list = []
+
+    for order in held_orders:
+        try:
+            print(f"Raw items JSON for order {order.id}:", order.items)  # Debug
+            items = json.loads(order.items)
+
+            # Filter items to include only uvdtf
+            filtered_items = [item for item in items if item.get("family") == "uvdtf" and item.get("confirmed") == True or item.get("confirmed") in [
+                    "ready for pickup", "delivered", "printed","in_delivery"
+                ]]
+            print(f"Filtered items for order {order.id}:", filtered_items)
+
+            if filtered_items:
+                orders_list.append({
+                    "id": order.id,
+                                        "items": filtered_items,
+                                        "total": order.total,
+                                        "balance":order.balance,
+                                        "note": order.note,
+                                        "waiter": order.waiter,
+                                        "company_name": order.company_name,
+                                        "status": order.status,
+                                        "uvdtf_status": order.contain_uvdtf,
+                                        "working_on": order.working_on,
+                                        "working_on_id": order.working_on_id,
+                                        "working_on_label": order.working_on_label,
+                                        "working_on_id_label": order.working_on_id_label,
+                                        "working_on_uvdtf": order.working_on_uvdtf,
+                                        "working_on_id_uvdtf": order.working_on_id_uvdtf,
+                                        "working_on_dtf": order.working_on_dtf,
+                                        "working_on_id_dtf": order.working_on_id_dtf,
+                                        "working_on_digital_printing": order.working_on_digital_printing,
+                                        "working_on_id_digital_printing": order.working_on_id_digital_printing,
+                                        "customer": order.customer,
+                                        "created_at":order.created_at,
+                                })
+
+        except (json.JSONDecodeError, TypeError) as e:
+            print(f"Error decoding JSON for order {order.id}: {e}")
+
+    return jsonify(orders_list), 200
+
+
+
+
+
 
 @guest.route('/get_helding_orders_label', methods=['GET'])
 @flask_praetorian.auth_required
@@ -8697,6 +8838,9 @@ def get_helding_orders_givers():
                 "working_on_id_large_format": order.working_on_id_large_format,
                 "working_on_dtf": order.working_on_dtf,
                 "working_on_id_dtf": order.working_on_id_dtf,
+                "working_on_uvdtf": order.working_on_uvdtf,
+                "working_on_id_uvdtf": order.working_on_id_uvdtf,
+                "working_on_uvdtf_status": order.contain_uvdtf,
                 "working_on_digital_printing": order.working_on_digital_printing,
                 "working_on_id_digital_printing": order.working_on_id_digital_printing,
                 "created_at":order.created_at
@@ -8748,6 +8892,8 @@ def get_helding_orders_givers_processed():
                 "delivery_date": getattr(order, 'delivery_date', None),
                 "created_at": order.created_at.strftime('%Y-%m-%d %H:%M:%S') if order.created_at else None,
                 "dtf_confirm": order.dtf_confirm,
+                "uvdtf_status": order.contain_uvdtf,
+              
                 "working_on": order.working_on,
                 "working_on_id": order.working_on_id
             })
@@ -10526,7 +10672,9 @@ def accept_order(order_id):
         elif user.roles=="dtf":
             order.working_on_dtf = flask_praetorian.current_user().firstname + " " + flask_praetorian.current_user().lastname
             order.working_on_id_dtf = str(flask_praetorian.current_user().id)
-
+        elif user.roles=="uvdtf":
+            order.working_on_uvdtf = flask_praetorian.current_user().firstname + " " + flask_praetorian.current_user().lastname
+            order.working_on_id_uvdtf = str(flask_praetorian.current_user().id)
         elif user.roles=="digital_printing":
             order.working_on_digital_printing = flask_praetorian.current_user().firstname + " " + flask_praetorian.current_user().lastname
             order.working_on_id_digital_printing = str(flask_praetorian.current_user().id) 
@@ -11560,6 +11708,7 @@ def hold_and_pay():
                 "checked_by": checked_by,
                 "is_checked_label": str(item.get("is_checked_label", "no")).strip(),
                 "is_checked_dtf": str(item.get("is_checked_dtf", "no")).strip(),
+                "is_checked_uvdtf": str(item.get("is_checked_uvdtf", "no")).strip(),
                 "is_checked_large_format": str(item.get("is_checked_large_format", "no")).strip(),
                 "is_checked_digital_printing": str(item.get("is_checked_digital_printing", "no")).strip(),
                 "is_vip": item.get("is_vip", "no"),
@@ -11751,6 +11900,7 @@ def hold_and_pay():
                     old_item["is_checked_dtf"] = new_item.get("is_checked_dtf", old_item.get("is_checked_dtf", "no"))
                     old_item["is_checked_large_format"] = new_item.get("is_checked_large_format", old_item.get("is_checked_large_format", "no"))
                     old_item["is_checked_digital_printing"] = new_item.get("is_checked_digital_printing", old_item.get("is_checked_digital_printing", "no"))
+                    old_item["is_checked_uvdtf"] = new_item.get("is_checked_uvdtf", old_item.get("is_checked_uvdtf", "no"))
 
                     # Measurements
                     old_item["is_measurement_product"] = new_item.get("is_measurement_product", old_item.get("is_measurement_product", False))
@@ -11932,6 +12082,7 @@ def hold_and_pay():
             contain_digital_printing = any(item.get("family") == "digital_printing" for item in final_items)
             contain_large_format = any(item.get("family") == "large_format" for item in final_items)
             contain_label = any(item.get("family") == "label" for item in final_items)
+            contain_uvdtf = any(item.get("family") == "uvdtf" for item in final_items)
 
             # ======================================================
             # UPDATE HELD ORDER
@@ -11950,7 +12101,7 @@ def hold_and_pay():
             existing_hold.contain_digital_printing = "yes" if contain_digital_printing else "no"
             existing_hold.contain_large_format = "yes" if contain_large_format else "no"
             existing_hold.contain_label = "yes" if contain_label else "no"
-
+            existing_hold.contain_uvdtf = "yes" if contain_uvdtf else "no"
             # ======================================================
             # CUSTOMER
             # ======================================================
@@ -12022,7 +12173,7 @@ def hold_and_pay():
             contain_digital_printing = any(item.get("family") == "digital_printing" for item in incoming_items)
             contain_large_format = any(item.get("family") == "large_format" for item in incoming_items)
             contain_label = any(item.get("family") == "label" for item in incoming_items)
-
+            contain_uvdtf = any(item.get("family") == "uvdtf" for item in incoming_items)
             # ======================================================
             # PAYMENT NOTE
             # ======================================================
@@ -12062,12 +12213,14 @@ def hold_and_pay():
                 contain_digital_printing="yes" if contain_digital_printing else "no",
                 contain_large_format="yes" if contain_large_format else "no",
                 contain_label="yes" if contain_label else "no",
+                contain_uvdtf="yes" if contain_uvdtf else "no",
                 food_confirm="no",
                 drink_confirm="no",
                 label_confirm="no",
                 dtf_confirm="no",
                 large_format_confirm="no",
                 digital_printing_confirm="no",
+                uvdtf_confirm="no",
                 session=datetime.now(),
                 table=table,
                 note=note,
