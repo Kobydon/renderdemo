@@ -8838,7 +8838,7 @@ def get_helding_orders_givers():
                 "working_on_id_large_format": order.working_on_id_large_format,
                 "working_on_dtf": order.working_on_dtf,
                 "working_on_id_dtf": order.working_on_id_dtf,
-                "working_on_uvdtf": order.working_on_uvdtf,
+                "working_on_uv_dtf": order.working_on_uv_dtf,
                 "working_on_id_uvdtf": order.working_on_id_uvdtf,
                 "uvdtf_status": order.contain_uvdtf,
                 "working_on_digital_printing": order.working_on_digital_printing,
