@@ -8840,7 +8840,7 @@ def get_helding_orders_givers():
                 "working_on_id_dtf": order.working_on_id_dtf,
                 "working_on_uvdtf": order.working_on_uvdtf,
                 "working_on_id_uvdtf": order.working_on_id_uvdtf,
-                "working_on_uvdtf_status": order.contain_uvdtf,
+                "uvdtf_status": order.contain_uvdtf,
                 "working_on_digital_printing": order.working_on_digital_printing,
                 "working_on_id_digital_printing": order.working_on_id_digital_printing,
                 "created_at":order.created_at
