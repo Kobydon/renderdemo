@@ -8892,7 +8892,6 @@ def get_helding_orders_givers_processed():
                 "delivery_date": getattr(order, 'delivery_date', None),
                 "created_at": order.created_at.strftime('%Y-%m-%d %H:%M:%S') if order.created_at else None,
                 "dtf_confirm": order.dtf_confirm,
-                "uvdtf_status": order.contain_uvdtf,
               
                 "working_on": order.working_on,
                 "working_on_id": order.working_on_id
