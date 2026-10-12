@@ -8838,9 +8838,6 @@ def get_helding_orders_givers():
                 "working_on_id_large_format": order.working_on_id_large_format,
                 "working_on_dtf": order.working_on_dtf,
                 "working_on_id_dtf": order.working_on_id_dtf,
-                "working_on_uv_dtf": order.working_on_uv_dtf,
-                "working_on_id_uvdtf": order.working_on_id_uvdtf,
-                "uvdtf_status": order.contain_uvdtf,
                 "working_on_digital_printing": order.working_on_digital_printing,
                 "working_on_id_digital_printing": order.working_on_id_digital_printing,
                 "created_at":order.created_at
@@ -8891,7 +8888,7 @@ def get_helding_orders_givers_processed():
                 "delivery_note": getattr(order, 'delivery_note', None),
                 "delivery_date": getattr(order, 'delivery_date', None),
                 "created_at": order.created_at.strftime('%Y-%m-%d %H:%M:%S') if order.created_at else None,
-              
+                "dtf_confirm": order.dtf_confirm,
                 "working_on": order.working_on,
                 "working_on_id": order.working_on_id
             })
@@ -8900,6 +8897,7 @@ def get_helding_orders_givers_processed():
             print(f"Error decoding JSON for order {order.id}: {e}")
 
     return jsonify(orders_list), 200
+
 
 @guest.route('/get_helding_orders_dtf_processed', methods=['GET'])
 @flask_praetorian.auth_required
