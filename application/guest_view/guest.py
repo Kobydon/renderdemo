@@ -8827,7 +8827,7 @@ def get_helding_orders_givers():
         HeldCart.created_at
     ).filter(
         HeldCart.delivery_status.in_(["pending", "Cutting", "in_delivery"])
-    ).order_by(HeldCart.created_at.desc()).limit(200).all()  # ✅ Limit results
+    ).order_by(HeldCart.created_at.desc()).all()  # ✅ Limit results
 
     orders_list = []
     for order in held_orders:
@@ -8892,7 +8892,7 @@ def get_helding_orders_givers_processed():
         HeldCart.working_on_id
     ).filter(
         HeldCart.delivery_status.in_(['delivered', 'in_delivery'])
-    ).order_by(HeldCart.created_at.desc()).limit(200).all()  # ✅ Limit results
+    ).order_by(HeldCart.created_at.desc()).all()  # ✅ Limit results
 
     orders_list = []
     for order in held_orders:
