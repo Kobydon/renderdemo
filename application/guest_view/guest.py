@@ -8794,7 +8794,6 @@ def send_delivery_email(order_id, customer_name, customer_email, delivered_by, c
     
     mail.send(msg)
     print(f"✅ Delivery email sent to {customer_email} for order #{order_id}")
-
 @guest.route('/get_helding_orders_givers', methods=['GET'])
 @flask_praetorian.auth_required
 def get_helding_orders_givers():
@@ -8804,25 +8803,39 @@ def get_helding_orders_givers():
     if not us:
         return jsonify({"error": "User not found"}), 404
 
-    # Get only pending delivery orders
-    held_orders = HeldCart.query.filter(
-                HeldCart.delivery_status.in_([
-                    "pending",
-                    "Cutting",
-                    "in_delivery"
-                ])
-            ).all()
-    orders_list = []
+    # ✅ Only select columns you actually need
+    held_orders = HeldCart.query.with_entities(
+        HeldCart.id,
+        HeldCart.items,
+        HeldCart.total,
+        HeldCart.balance,
+        HeldCart.note,
+        HeldCart.waiter,
+        HeldCart.company_name,
+        HeldCart.status,
+        HeldCart.contain_digital_printing,
+        HeldCart.working_on,
+        HeldCart.working_on_id,
+        HeldCart.working_on_label,
+        HeldCart.working_on_id_label,
+        HeldCart.working_on_large_format,
+        HeldCart.working_on_id_large_format,
+        HeldCart.working_on_dtf,
+        HeldCart.working_on_id_dtf,
+        HeldCart.working_on_digital_printing,
+        HeldCart.working_on_id_digital_printing,
+        HeldCart.created_at
+    ).filter(
+        HeldCart.delivery_status.in_(["pending", "Cutting", "in_delivery"])
+    ).order_by(HeldCart.created_at.desc()).limit(200).all()  # ✅ Limit results
 
+    orders_list = []
     for order in held_orders:
         try:
-            print(f"Raw items JSON for order {order.id}:", order.items)
-            items = json.loads(order.items)
-
-            # ✅ Use the parsed 'items' variable, not 'held_orders'
+            items = json.loads(order.items) if order.items else []
             orders_list.append({
                 "id": order.id,
-                "items": items,  # ✅ Fixed: use parsed items
+                "items": items,
                 "total": order.total,
                 "balance": order.balance,
                 "note": order.note,
@@ -8840,65 +8853,12 @@ def get_helding_orders_givers():
                 "working_on_id_dtf": order.working_on_id_dtf,
                 "working_on_digital_printing": order.working_on_digital_printing,
                 "working_on_id_digital_printing": order.working_on_id_digital_printing,
-                "created_at":order.created_at
-            })
-
-        except (json.JSONDecodeError, TypeError) as e:
-            print(f"Error decoding JSON for order {order.id}: {e}")
-
-    return jsonify(orders_list), 200
-
-
-@guest.route('/get_helding_orders_givers_processed', methods=['GET'])
-@flask_praetorian.auth_required
-def get_helding_orders_givers_processed():
-    user = flask_praetorian.current_user()
-    us = User.query.filter_by(id=user.id).first()
-
-    if not us:
-        return jsonify({"error": "User not found"}), 404
-
-    # Get delivered or in_delivery orders
-    held_orders = HeldCart.query.filter(
-        HeldCart.delivery_status.in_(['delivered', 'in_delivery'])
-    ).all()
-
-    orders_list = []
-
-    for order in held_orders:
-        try:
-            print(f"Raw items JSON for order {order.id}:", order.items)
-            items = json.loads(order.items)
-
-            # ✅ Include ALL items, no filtering
-            orders_list.append({
-                "id": order.id,
-                "items": items,  # All items included
-                "total": order.total,
-                "note": order.note,
-                "waiter": order.waiter,
-                "customer": order.customer,
-                "company_name": order.company_name,
-                "status": order.status,
-                "balance":order.balance,
-                "delivery_status": getattr(order, 'delivery_status', 'delivered'),
-                "delivered_by": getattr(order, 'delivered_by', None),
-                "delivery_contact": getattr(order, 'delivery_contact', None),
-                "delivery_address": getattr(order, 'delivery_address', None),
-                "delivery_note": getattr(order, 'delivery_note', None),
-                "delivery_date": getattr(order, 'delivery_date', None),
                 "created_at": order.created_at.strftime('%Y-%m-%d %H:%M:%S') if order.created_at else None,
-                "dtf_confirm": order.dtf_confirm,
-                "working_on": order.working_on,
-                "working_on_id": order.working_on_id
             })
-
         except (json.JSONDecodeError, TypeError) as e:
             print(f"Error decoding JSON for order {order.id}: {e}")
 
     return jsonify(orders_list), 200
-
-
 @guest.route('/get_helding_orders_dtf_processed', methods=['GET'])
 @flask_praetorian.auth_required
 def get_helding_orders_dtf_processed():
