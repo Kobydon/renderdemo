@@ -13599,3 +13599,378 @@ def resend_bulk_message(message_id):
         db.session.rollback()
         print(f"❌ Resend error: {str(e)}")
         return jsonify({"error": str(e)}), 500
+
+
+# ============================================================
+# SMS BUNDLE — TOP-UP + REDEEM ROUTES
+# ============================================================
+
+# Server-side source of truth for bundle packages
+SMS_BUNDLE_PACKAGES = [
+    {
+        'id': 'starter',
+        'name': 'Starter Pack',
+        'units': 170000,
+        'amount': 15000.00,
+        'per_unit': round(15000.00 / 170000, 4),
+        'badge': 'Best for small teams',
+    },
+    {
+        'id': 'growth',
+        'name': 'Growth Pack',
+        'units': 500000,
+        'amount': 25000.00,
+        'per_unit': round(25000.00 / 500000, 4),
+        'badge': 'Best value',
+    },
+    {
+        'id': 'pro',
+        'name': 'Pro Pack',
+        'units': 700000,
+        'amount': 38000.00,
+        'per_unit': round(38000.00 / 700000, 4),
+        'badge': 'Most popular',
+    },
+    {
+        'id': 'enterprise',
+        'name': 'Enterprise',
+        'units': 1200000,
+        'amount': 108000.00,
+        'per_unit': round(108000.00 / 1200000, 4),
+        'badge': 'Maximum volume',
+    },
+]
+
+
+def _get_or_create_bundle(company_name):
+    """Fetch (or lazily create) the SmsBundle record for a company."""
+    bundle = SmsBundle.query.filter_by(company_name=company_name).first()
+    if not bundle:
+        bundle = SmsBundle(
+            company_name=company_name,
+            main_size='0',
+            size='0',
+        )
+        db.session.add(bundle)
+        db.session.flush()   # get an id without committing
+    return bundle
+
+
+# ------------------------------------------------------------
+# GET /get_sms_bundle_packages
+# ------------------------------------------------------------
+@guest.route("/get_sms_bundle_packages", methods=["GET"])
+@flask_praetorian.auth_required
+def get_sms_bundle_packages():
+    """Return the available top-up packages."""
+    return jsonify({
+        "success": True,
+        "data": SMS_BUNDLE_PACKAGES,
+    }), 200
+
+
+# ------------------------------------------------------------
+# GET /get_sms_bundle_info
+# ------------------------------------------------------------
+@guest.route("/get_sms_bundle_info", methods=["GET"])
+@flask_praetorian.auth_required
+def get_sms_bundle_info():
+    """Return current bundle size and remaining for the logged-in company."""
+    us = User.query.filter_by(id=flask_praetorian.current_user().id).first()
+    company_name = getattr(us, "company_name", "") or ""
+
+    bundle = _get_or_create_bundle(company_name)
+    db.session.commit()
+
+    total = int(float(bundle.main_size or 0))
+    remaining = int(float(bundle.size or 0))
+    used = max(total - remaining, 0)
+    used_percent = round((used / total * 100), 2) if total > 0 else 0
+
+    return jsonify({
+        "success": True,
+        "size": total,
+        "remaining": remaining,
+        "used": used,
+        "used_percent": used_percent,
+        "company_name": company_name,
+    }), 200
+
+
+# ------------------------------------------------------------
+# POST /sms_bundle_topup
+# ------------------------------------------------------------
+@guest.route("/sms_bundle_topup", methods=["POST"])
+@flask_praetorian.auth_required
+def sms_bundle_topup():
+    """
+    Process a bundle top-up.
+
+    Expected JSON body:
+    {
+        "package_id": "growth",
+        "payment_method": "momo",
+        "note": "optional"
+    }
+    """
+    us = User.query.filter_by(id=flask_praetorian.current_user().id).first()
+    company_name = getattr(us, "company_name", "") or ""
+    created_by = f"{us.firstname or ''} {us.lastname or ''}".strip() or "system"
+
+    data = request.get_json(silent=True) or {}
+    package_id = (data.get("package_id") or "").strip()
+    payment_method = (data.get("payment_method") or "cash").strip()
+    note = (data.get("note") or "").strip()
+
+    if not package_id:
+        return jsonify({"success": False, "error": "Package ID is required"}), 400
+
+    package = next(
+        (p for p in SMS_BUNDLE_PACKAGES if p["id"] == package_id),
+        None,
+    )
+    if not package:
+        return jsonify({"success": False, "error": "Invalid package selected"}), 400
+
+    try:
+        bundle = _get_or_create_bundle(company_name)
+        previous_balance = int(float(bundle.size or 0))
+        new_balance = previous_balance + int(package["units"])
+
+        # Update master bundle record
+        bundle.main_size = str(int(float(bundle.main_size or 0)) + int(package["units"]))
+        bundle.size = str(new_balance)
+
+        # Record transaction
+        topup = SmsBundleTopUp(
+            company_name=company_name,
+            package_id=package["id"],
+            package_name=package["name"],
+            units=package["units"],
+            amount=package["amount"],
+            payment_method=payment_method,
+            reference=f"TOPUP-{uuid.uuid4().hex[:10].upper()}",
+            status="completed",
+            previous_balance=previous_balance,
+            new_balance=new_balance,
+            created_by=created_by,
+            completed_at=datetime.now(timezone.utc),
+            note=note or None,
+        )
+        db.session.add(topup)
+        db.session.commit()
+
+        return jsonify({
+            "success": True,
+            "message": f"{package['units']:,} SMS units added successfully",
+            "data": {
+                "topup": topup.to_dict(),
+                "bundle": {
+                    "size": int(float(bundle.main_size)),
+                    "remaining": new_balance,
+                },
+            },
+        }), 200
+
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({
+            "success": False,
+            "error": f"Top-up failed: {str(e)}",
+        }), 500
+
+
+# ------------------------------------------------------------
+# POST /sms_bundle_redeem
+# ------------------------------------------------------------
+@guest.route("/sms_bundle_redeem", methods=["POST"])
+@flask_praetorian.auth_required
+def sms_bundle_redeem():
+    """
+    Redeem a voucher code for SMS units.
+
+    Expected JSON body:
+    {
+        "code": "AFG-1A2B-3C4D"
+    }
+    """
+    us = User.query.filter_by(id=flask_praetorian.current_user().id).first()
+    company_name = getattr(us, "company_name", "") or ""
+    redeemed_by = f"{us.firstname or ''} {us.lastname or ''}".strip() or "system"
+
+    data = request.get_json(silent=True) or {}
+    code = (data.get("code") or "").strip().upper()
+
+    if not code:
+        return jsonify({"success": False, "error": "Redeem code is required"}), 400
+
+    voucher = SmsRedeemVoucher.query.filter_by(
+        code=code,
+        company_name=company_name,
+    ).first()
+
+    if not voucher:
+        return jsonify({"success": False, "error": "Invalid redeem code"}), 404
+
+    if voucher.is_used:
+        return jsonify({
+            "success": False,
+            "error": "This code has already been used",
+        }), 400
+
+    if voucher.expires_at and voucher.expires_at < datetime.now(timezone.utc):
+        return jsonify({"success": False, "error": "This code has expired"}), 400
+
+    try:
+        bundle = _get_or_create_bundle(company_name)
+        previous_balance = int(float(bundle.size or 0))
+        new_balance = previous_balance + int(voucher.units)
+
+        bundle.main_size = str(int(float(bundle.main_size or 0)) + int(voucher.units))
+        bundle.size = str(new_balance)
+
+        voucher.is_used = True
+        voucher.used_by = redeemed_by
+        voucher.used_at = datetime.now(timezone.utc)
+
+        redeem = SmsBundleRedeem(
+            company_name=company_name,
+            redeem_code=code,
+            units_redeemed=voucher.units,
+            previous_balance=previous_balance,
+            new_balance=new_balance,
+            status="completed",
+            redeemed_by=redeemed_by,
+        )
+        db.session.add(redeem)
+        db.session.commit()
+
+        return jsonify({
+            "success": True,
+            "message": f"Redeemed {voucher.units:,} SMS units",
+            "data": {
+                "redeem": redeem.to_dict(),
+                "bundle": {
+                    "size": int(float(bundle.main_size)),
+                    "remaining": new_balance,
+                },
+            },
+        }), 200
+
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({
+            "success": False,
+            "error": f"Redeem failed: {str(e)}",
+        }), 500
+
+
+# ------------------------------------------------------------
+# GET /get_sms_bundle_history
+# ------------------------------------------------------------
+@guest.route("/get_sms_bundle_history", methods=["GET"])
+@flask_praetorian.auth_required
+def get_sms_bundle_history():
+    """Return recent top-up and redeem history for the logged-in company."""
+    us = User.query.filter_by(id=flask_praetorian.current_user().id).first()
+    company_name = getattr(us, "company_name", "") or ""
+
+    topups = (
+        SmsBundleTopUp.query
+        .filter_by(company_name=company_name)
+        .order_by(desc(SmsBundleTopUp.created_at))
+        .limit(50)
+        .all()
+    )
+    redeems = (
+        SmsBundleRedeem.query
+        .filter_by(company_name=company_name)
+        .order_by(desc(SmsBundleRedeem.redeemed_at))
+        .limit(50)
+        .all()
+    )
+
+    return jsonify({
+        "success": True,
+        "topups": [t.to_dict() for t in topups],
+        "redeems": [r.to_dict() for r in redeems],
+    }), 200
+
+
+# ------------------------------------------------------------
+# POST /generate_sms_vouchers  (admin / company owner)
+# ------------------------------------------------------------
+@guest.route("/generate_sms_vouchers", methods=["POST"])
+@flask_praetorian.auth_required
+def generate_sms_vouchers():
+    """
+    Generate redeem vouchers for a company.
+
+    Expected JSON body:
+    {
+        "units": 170000,
+        "quantity": 5,
+        "expires_in_days": 30
+    }
+    """
+    us = User.query.filter_by(id=flask_praetorian.current_user().id).first()
+    company_name = getattr(us, "company_name", "") or ""
+    created_by = f"{us.firstname or ''} {us.lastname or ''}".strip() or "admin"
+
+    data = request.get_json(silent=True) or {}
+    try:
+        units = int(data.get("units", 0))
+        quantity = int(data.get("quantity", 1))
+        expires_in_days = data.get("expires_in_days")
+    except (TypeError, ValueError):
+        return jsonify({"success": False, "error": "Invalid numeric input"}), 400
+
+    if units <= 0 or quantity <= 0 or quantity > 500:
+        return jsonify({
+            "success": False,
+            "error": "Units must be > 0 and quantity must be between 1 and 500",
+        }), 400
+
+    expires_at = None
+    if expires_in_days:
+        try:
+            expires_at = datetime.now(timezone.utc) + timedelta(days=int(expires_in_days))
+        except (TypeError, ValueError):
+            expires_at = None
+
+    created_codes = []
+    try:
+        for _ in range(quantity):
+            # e.g. AFG-1A2B-3C4D
+            code = (
+                f"AFG-{uuid.uuid4().hex[:4].upper()}"
+                f"-{uuid.uuid4().hex[:4].upper()}"
+            )
+            voucher = SmsRedeemVoucher(
+                company_name=company_name,
+                code=code,
+                units=units,
+                created_by=created_by,
+                expires_at=expires_at,
+            )
+            db.session.add(voucher)
+            created_codes.append({
+                "code": code,
+                "units": units,
+                "expires_at": expires_at.isoformat() if expires_at else None,
+            })
+
+        db.session.commit()
+
+        return jsonify({
+            "success": True,
+            "message": f"{quantity} voucher(s) generated",
+            "data": created_codes,
+        }), 200
+
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({
+            "success": False,
+            "error": f"Voucher generation failed: {str(e)}",
+        }), 500
