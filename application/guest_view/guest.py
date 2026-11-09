@@ -10755,7 +10755,7 @@ def cutting_order(order_id):
             return jsonify({"error": "Item not found in order"}), 404
 
         if sms:
-            sms.size = str(int(sms.size) - 20)
+            sms.size = str(int(sms.size) - 5)
 
         
         # Update order items and status
@@ -12685,7 +12685,7 @@ Phone: 0243210009 / 0531100380
                                 if sms_bundle:
                                     current_size = int(sms_bundle.size)
                                     if current_size > 0:
-                                        sms_bundle.size = str(current_size - 30)
+                                        sms_bundle.size = str(current_size - 20)
                                         db.session.add(sms_bundle)
                                         # print(f"📦 Bundle updated: {current_size} → {current_size - 1}")
                                     else:
