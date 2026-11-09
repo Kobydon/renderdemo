@@ -1059,4 +1059,88 @@ class SmsBundle(db.Model):
     main_size = db.Column(db.String(2000000))
     size = db.Column(db.String(2000000))
   
-  
+# models.py - Add these new models
+
+class SmsBundleTopUp(db.Model):
+    """Records every bundle purchase / top-up transaction."""
+    id = db.Column(db.Integer, primary_key=True)
+    company_name = db.Column(db.String(1000000))
+    package_name = db.Column(db.String(200))
+    units = db.Column(db.Integer, nullable=False)
+    amount = db.Column(db.Float, nullable=False)
+    payment_method = db.Column(db.String(100))
+    reference = db.Column(db.String(200), unique=True)
+    status = db.Column(db.String(50), default='pending')  # pending, completed, failed
+    previous_balance = db.Column(db.Integer, default=0)
+    new_balance = db.Column(db.Integer, default=0)
+    created_by = db.Column(db.String(255))
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    completed_at = db.Column(db.DateTime, nullable=True)
+    note = db.Column(db.Text)
+
+    def __repr__(self):
+        return f"<SmsBundleTopUp(id={self.id}, units={self.units}, amount={self.amount}, status={self.status})>"
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'package_name': self.package_name,
+            'units': self.units,
+            'amount': self.amount,
+            'payment_method': self.payment_method,
+            'reference': self.reference,
+            'status': self.status,
+            'previous_balance': self.previous_balance,
+            'new_balance': self.new_balance,
+            'created_by': self.created_by,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'completed_at': self.completed_at.isoformat() if self.completed_at else None,
+            'note': self.note,
+        }
+
+
+class SmsBundleRedeem(db.Model):
+    """Records every bundle redeem (voucher/code) transaction."""
+    id = db.Column(db.Integer, primary_key=True)
+    company_name = db.Column(db.String(1000000))
+    redeem_code = db.Column(db.String(100), nullable=False)
+    units_redeemed = db.Column(db.Integer, nullable=False)
+    previous_balance = db.Column(db.Integer, default=0)
+    new_balance = db.Column(db.Integer, default=0)
+    status = db.Column(db.String(50), default='completed')  # completed, failed, invalid
+    redeemed_by = db.Column(db.String(255))
+    redeemed_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    error_message = db.Column(db.Text)
+
+    def __repr__(self):
+        return f"<SmsBundleRedeem(id={self.id}, code={self.redeem_code}, units={self.units_redeemed})>"
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'redeem_code': self.redeem_code,
+            'units_redeemed': self.units_redeemed,
+            'previous_balance': self.previous_balance,
+            'new_balance': self.new_balance,
+            'status': self.status,
+            'redeemed_by': self.redeemed_by,
+            'redeemed_at': self.redeemed_at.isoformat() if self.redeemed_at else None,
+            'error_message': self.error_message,
+        }
+
+
+class SmsRedeemVoucher(db.Model):
+    """Pre-generated redeem vouchers/codes that can be sold or issued."""
+    id = db.Column(db.Integer, primary_key=True)
+    company_name = db.Column(db.String(1000000))
+    code = db.Column(db.String(100), unique=True, nullable=False)
+    units = db.Column(db.Integer, nullable=False)
+    is_used = db.Column(db.Boolean, default=False)
+    used_by = db.Column(db.String(255))
+    used_at = db.Column(db.DateTime, nullable=True)
+    created_by = db.Column(db.String(255))
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    expires_at = db.Column(db.DateTime, nullable=True)
+
+    def __repr__(self):
+        return f"<SmsRedeemVoucher(id={self.id}, code={self.code}, units={self.units}, used={self.is_used})>"
