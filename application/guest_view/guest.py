@@ -13897,6 +13897,432 @@ def get_sms_bundle_history():
     }), 200
 
 
+
+# ============================================================
+# TAX MANAGEMENT
+# ============================================================
+
+DEFAULT_TAX_RATES = [
+    {'name': 'VAT',                'short_code': 'VAT',   'rate': 15.0, 'display_order': 1},
+    {'name': 'NHIL',               'short_code': 'NHIL',  'rate': 2.5,  'display_order': 2},
+    {'name': 'GETFund Levy',       'short_code': 'GETF',  'rate': 2.5,  'display_order': 3},
+    {'name': 'COVID-19 Levy',      'short_code': 'COV',   'rate': 1.0,  'display_order': 4},
+]
+
+
+def _company_of(user):
+    """Consistent company scope across all tax endpoints."""
+    return (getattr(user, "company_name", "") or "").strip() or "default"
+
+
+def _seed_default_taxes(company_name, user_label="system"):
+    """Populate default Ghana tax rates for a fresh company."""
+    existing = TaxRate.query.filter_by(company_name=company_name).count()
+    if existing > 0:
+        return
+    for d in DEFAULT_TAX_RATES:
+        db.session.add(TaxRate(
+            company_name=company_name,
+            name=d['name'],
+            short_code=d['short_code'],
+            rate=d['rate'],
+            is_active=True,
+            is_default=True,
+            applies_to='all',
+            display_order=d['display_order'],
+            created_by=user_label,
+        ))
+    db.session.commit()
+
+
+def _round_amount(value, mode='half_up', places=2):
+    """Apply rounding mode."""
+    from decimal import Decimal, ROUND_HALF_UP, ROUND_DOWN, ROUND_UP
+    q = Decimal(10) ** -places
+    d = Decimal(str(value))
+    rounding = {
+        'half_up': ROUND_HALF_UP,
+        'floor':   ROUND_DOWN,
+        'ceil':    ROUND_UP,
+    }.get(mode, ROUND_HALF_UP)
+    return float(d.quantize(q, rounding=rounding))
+
+
+# ------------------------------------------------------------
+# GET /tax_rates
+# ------------------------------------------------------------
+@guest.route("/tax_rates", methods=["GET"])
+@flask_praetorian.auth_required
+def get_tax_rates():
+    us = User.query.filter_by(id=flask_praetorian.current_user().id).first()
+    company_name = _company_of(us)
+
+    include_inactive = request.args.get("include_inactive", "false").lower() == "true"
+
+    q = TaxRate.query.filter_by(company_name=company_name)
+    if not include_inactive:
+        q = q.filter_by(is_active=True)
+
+    rates = q.order_by(TaxRate.display_order, TaxRate.id).all()
+
+    return jsonify({
+        "success": True,
+        "data": [r.to_dict() for r in rates],
+    }), 200
+
+# ------------------------------------------------------------
+# POST /tax_rates  (create)
+# ------------------------------------------------------------
+@guest.route("/tax_rates", methods=["POST"])
+@flask_praetorian.auth_required
+def create_tax_rate():
+    us = User.query.filter_by(id=flask_praetorian.current_user().id).first()
+    company_name = _company_of(us)
+    user_label = f"{us.firstname or ''} {us.lastname or ''}".strip() or "system"
+
+    data = request.get_json(silent=True) or {}
+    name = (data.get("name") or "").strip()
+    rate = data.get("rate")
+
+    if not name:
+        return jsonify({"success": False, "error": "Name is required"}), 400
+    try:
+        rate = float(rate)
+    except (TypeError, ValueError):
+        return jsonify({"success": False, "error": "Rate must be a number"}), 400
+    if rate < 0 or rate > 100:
+        return jsonify({"success": False, "error": "Rate must be between 0 and 100"}), 400
+
+    # Duplicate name check
+    existing = TaxRate.query.filter_by(
+        company_name=company_name, name=name
+    ).first()
+    if existing:
+        return jsonify({"success": False, "error": "A tax rate with this name already exists"}), 409
+
+    tax = TaxRate(
+        company_name=company_name,
+        name=name,
+        short_code=(data.get("short_code") or "").strip() or name[:8].upper(),
+        rate=rate,
+        description=data.get("description") or None,
+        is_active=bool(data.get("is_active", True)),
+        is_default=False,
+        applies_to=data.get("applies_to") or "all",
+        display_order=int(data.get("display_order") or 99),
+        created_by=user_label,
+    )
+    db.session.add(tax)
+    db.session.commit()
+
+    return jsonify({"success": True, "message": "Tax rate created", "data": tax.to_dict()}), 201
+
+
+# ------------------------------------------------------------
+# PUT /tax_rates/<id>  (update)
+# ------------------------------------------------------------
+@guest.route("/tax_rates/<int:tax_id>", methods=["PUT", "PATCH"])
+@flask_praetorian.auth_required
+def update_tax_rate(tax_id):
+    us = User.query.filter_by(id=flask_praetorian.current_user().id).first()
+    company_name = _company_of(us)
+
+    tax = TaxRate.query.filter_by(id=tax_id, company_name=company_name).first()
+    if not tax:
+        return jsonify({"success": False, "error": "Tax rate not found"}), 404
+
+    data = request.get_json(silent=True) or {}
+
+    if "name" in data:
+        name = (data["name"] or "").strip()
+        if not name:
+            return jsonify({"success": False, "error": "Name cannot be empty"}), 400
+        # Duplicate check (exclude self)
+        dupe = TaxRate.query.filter(
+            TaxRate.company_name == company_name,
+            TaxRate.name == name,
+            TaxRate.id != tax_id,
+        ).first()
+        if dupe:
+            return jsonify({"success": False, "error": "Another tax already has that name"}), 409
+        tax.name = name
+
+    if "rate" in data:
+        try:
+            r = float(data["rate"])
+        except (TypeError, ValueError):
+            return jsonify({"success": False, "error": "Rate must be numeric"}), 400
+        if r < 0 or r > 100:
+            return jsonify({"success": False, "error": "Rate must be between 0 and 100"}), 400
+        tax.rate = r
+
+    if "short_code" in data:
+        tax.short_code = (data["short_code"] or "").strip() or tax.short_code
+    if "description" in data:
+        tax.description = data["description"] or None
+    if "is_active" in data:
+        tax.is_active = bool(data["is_active"])
+    if "applies_to" in data:
+        tax.applies_to = data["applies_to"] or "all"
+    if "display_order" in data:
+        try:
+            tax.display_order = int(data["display_order"])
+        except (TypeError, ValueError):
+            pass
+
+    db.session.commit()
+    return jsonify({"success": True, "message": "Tax rate updated", "data": tax.to_dict()}), 200
+
+
+# ------------------------------------------------------------
+# DELETE /tax_rates/<id>
+# ------------------------------------------------------------
+@guest.route("/tax_rates/<int:tax_id>", methods=["DELETE"])
+@flask_praetorian.auth_required
+def delete_tax_rate(tax_id):
+    us = User.query.filter_by(id=flask_praetorian.current_user().id).first()
+    company_name = _company_of(us)
+
+    tax = TaxRate.query.filter_by(id=tax_id, company_name=company_name).first()
+    if not tax:
+        return jsonify({"success": False, "error": "Tax rate not found"}), 404
+
+    db.session.delete(tax)
+    db.session.commit()
+    return jsonify({"success": True, "message": "Tax rate deleted"}), 200
+
+# ------------------------------------------------------------
+# GET /tax_config
+# ------------------------------------------------------------
+@guest.route("/tax_config", methods=["GET"])
+@flask_praetorian.auth_required
+def get_tax_config():
+    us = User.query.filter_by(id=flask_praetorian.current_user().id).first()
+    company_name = _company_of(us)
+
+    cfg = TaxConfiguration.query.filter_by(company_name=company_name).first()
+    if not cfg:
+        cfg = TaxConfiguration(company_name=company_name)
+        db.session.add(cfg)
+        db.session.commit()
+
+    return jsonify({"success": True, "data": cfg.to_dict()}), 200
+
+
+# ------------------------------------------------------------
+# PUT /tax_config
+# ------------------------------------------------------------
+@guest.route("/tax_config", methods=["PUT", "PATCH"])
+@flask_praetorian.auth_required
+def update_tax_config():
+    us = User.query.filter_by(id=flask_praetorian.current_user().id).first()
+    company_name = _company_of(us)
+    user_label = f"{us.firstname or ''} {us.lastname or ''}".strip() or "system"
+
+    cfg = TaxConfiguration.query.filter_by(company_name=company_name).first()
+    if not cfg:
+        cfg = TaxConfiguration(company_name=company_name)
+        db.session.add(cfg)
+        db.session.flush()
+
+    data = request.get_json(silent=True) or {}
+
+    if "tax_inclusive" in data:
+        cfg.tax_inclusive = bool(data["tax_inclusive"])
+    if "rounding_mode" in data:
+        if data["rounding_mode"] in ('half_up', 'floor', 'ceil'):
+            cfg.rounding_mode = data["rounding_mode"]
+    if "rounding_places" in data:
+        try:
+            cfg.rounding_places = max(0, min(4, int(data["rounding_places"])))
+        except (TypeError, ValueError):
+            pass
+    if "tax_number" in data:
+        cfg.tax_number = (data["tax_number"] or "").strip() or None
+    if "show_tax_on_receipt" in data:
+        cfg.show_tax_on_receipt = bool(data["show_tax_on_receipt"])
+
+    cfg.updated_by = user_label
+    db.session.commit()
+
+    return jsonify({"success": True, "message": "Tax configuration updated", "data": cfg.to_dict()}), 200
+
+
+# ------------------------------------------------------------
+# GET /tax_report
+# Aggregates tax from HeldCart over a date range
+# ------------------------------------------------------------
+@guest.route("/tax_report", methods=["GET"])
+@flask_praetorian.auth_required
+def tax_report():
+    us = User.query.filter_by(id=flask_praetorian.current_user().id).first()
+    company_name = _company_of(us)
+
+    date_from = request.args.get("date_from", "")
+    date_to   = request.args.get("date_to", "")
+    waiter    = request.args.get("waiter", "")
+    status    = request.args.get("status", "")
+
+    # Active rates for this company
+    rates = TaxRate.query.filter_by(
+        company_name=company_name, is_active=True
+    ).order_by(TaxRate.display_order).all()
+
+    if not rates:
+        _seed_default_taxes(company_name)
+        rates = TaxRate.query.filter_by(
+            company_name=company_name, is_active=True
+        ).order_by(TaxRate.display_order).all()
+
+    # Total active rate percent
+    total_pct = sum(float(r.rate) for r in rates)
+
+    # Config
+    cfg = TaxConfiguration.query.filter_by(company_name=company_name).first()
+    if not cfg:
+        cfg = TaxConfiguration(company_name=company_name)
+        db.session.add(cfg)
+        db.session.commit()
+
+    tax_inclusive = bool(cfg.tax_inclusive)
+
+    # Fetch HeldCart rows in range
+    q = HeldCart.query.filter(HeldCart.company_name == company_name)
+    if date_from:
+        try:
+            q = q.filter(HeldCart.created_at >= datetime.strptime(date_from, "%Y-%m-%d"))
+        except ValueError:
+            pass
+    if date_to:
+        try:
+            # end-of-day
+            q = q.filter(HeldCart.created_at < datetime.strptime(date_to, "%Y-%m-%d") + timedelta(days=1))
+        except ValueError:
+            pass
+    if waiter:
+        q = q.filter(HeldCart.waiter == waiter)
+    if status:
+        q = q.filter(HeldCart.paid_status == status)
+
+    orders = q.all()
+
+    # Compute per-order tax
+    # If prices are tax-INCLUSIVE:
+    #     base = total / (1 + total_pct/100)
+    #     tax  = total - base
+    # If tax-EXCLUSIVE:
+    #     tax  = total * total_pct/100
+    #     base = total
+    total_gross      = 0.0
+    total_net        = 0.0
+    total_tax        = 0.0
+    order_count      = 0
+    taxable_orders   = []
+
+    for o in orders:
+        amount = float(o.total or 0)
+        if amount <= 0:
+            continue
+
+        if tax_inclusive and total_pct > 0:
+            net = amount / (1 + total_pct / 100.0)
+            tax = amount - net
+        elif not tax_inclusive and total_pct > 0:
+            net = amount
+            tax = amount * total_pct / 100.0
+        else:
+            net = amount
+            tax = 0.0
+
+        net = _round_amount(net, cfg.rounding_mode, cfg.rounding_places)
+        tax = _round_amount(tax, cfg.rounding_mode, cfg.rounding_places)
+
+        total_gross += amount
+        total_net   += net
+        total_tax   += tax
+        order_count += 1
+
+        taxable_orders.append({
+            "id": o.id,
+            "customer": o.customer or "Walk-in",
+            "waiter": o.waiter or "Unassigned",
+            "created_at": o.created_at.isoformat() if o.created_at else None,
+            "total": round(amount, 2),
+            "net": net,
+            "tax": tax,
+            "status": o.paid_status or o.status or "N/A",
+        })
+
+    # Breakdown by rate
+    rate_breakdown = []
+    for r in rates:
+        share_pct = (float(r.rate) / total_pct) if total_pct > 0 else 0
+        tax_share = _round_amount(total_tax * share_pct, cfg.rounding_mode, cfg.rounding_places)
+        rate_breakdown.append({
+            "id": r.id,
+            "name": r.name,
+            "short_code": r.short_code,
+            "rate": r.rate,
+            "tax_collected": tax_share,
+        })
+
+    # Round the aggregates
+    total_gross = _round_amount(total_gross, cfg.rounding_mode, cfg.rounding_places)
+    total_net   = _round_amount(total_net, cfg.rounding_mode, cfg.rounding_places)
+    total_tax   = _round_amount(total_tax, cfg.rounding_mode, cfg.rounding_places)
+
+    # Reconcile any rounding drift on the last breakdown item
+    if rate_breakdown:
+        drift = _round_amount(total_tax - sum(b["tax_collected"] for b in rate_breakdown), cfg.rounding_mode, cfg.rounding_places)
+        if abs(drift) > 0.005:
+            rate_breakdown[-1]["tax_collected"] = _round_amount(
+                rate_breakdown[-1]["tax_collected"] + drift,
+                cfg.rounding_mode, cfg.rounding_places
+            )
+
+    # Group by month for chart
+    monthly = {}
+    for o in orders:
+        if not o.created_at: continue
+        try:
+            month_key = o.created_at.strftime("%Y-%m")
+            monthly.setdefault(month_key, {"gross": 0.0, "tax": 0.0})
+            amt = float(o.total or 0)
+            monthly[month_key]["gross"] += amt
+            if tax_inclusive and total_pct > 0:
+                monthly[month_key]["tax"] += amt - amt / (1 + total_pct / 100.0)
+            elif not tax_inclusive and total_pct > 0:
+                monthly[month_key]["tax"] += amt * total_pct / 100.0
+        except Exception:
+            pass
+
+    monthly_series = [
+        {
+            "month": k,
+            "gross": _round_amount(v["gross"], cfg.rounding_mode, cfg.rounding_places),
+            "tax":   _round_amount(v["tax"], cfg.rounding_mode, cfg.rounding_places),
+        }
+        for k, v in sorted(monthly.items())
+    ]
+
+    return jsonify({
+        "success": True,
+        "config": cfg.to_dict(),
+        "rates": [r.to_dict() for r in rates],
+        "summary": {
+            "order_count":  order_count,
+            "gross_sales":  total_gross,
+            "net_sales":    total_net,
+            "total_tax":    total_tax,
+            "total_tax_pct": total_pct,
+            "effective_rate": (total_tax / total_gross * 100) if total_gross > 0 else 0,
+        },
+        "rate_breakdown": rate_breakdown,
+        "monthly_series": monthly_series,
+        "orders": taxable_orders[:200],  # cap for response size
+    }), 200
+
+
 # ------------------------------------------------------------
 # POST /generate_sms_vouchers  (admin / company owner)
 # ------------------------------------------------------------

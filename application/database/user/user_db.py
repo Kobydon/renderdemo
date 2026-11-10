@@ -1144,3 +1144,65 @@ class SmsRedeemVoucher(db.Model):
 
     def __repr__(self):
         return f"<SmsRedeemVoucher(id={self.id}, code={self.code}, units={self.units}, used={self.is_used})>"
+
+
+# ============================================================
+# TAX MANAGEMENT MODELS
+# ============================================================
+
+class TaxRate(db.Model):
+    """A single configurable tax rate (e.g. VAT, NHIL, GETFund)."""
+    id = db.Column(db.Integer, primary_key=True)
+    company_name = db.Column(db.String(1000000))
+    name = db.Column(db.String(200), nullable=False)          # "VAT", "NHIL", etc.
+    short_code = db.Column(db.String(50))                     # "VAT", "NHIL"
+    rate = db.Column(db.Float, nullable=False)                # percent, e.g. 15.0
+    description = db.Column(db.Text)
+    is_active = db.Column(db.Boolean, default=True)
+    is_default = db.Column(db.Boolean, default=False)         # seeded defaults
+    applies_to = db.Column(db.String(50), default='all')      # 'all', 'food', 'bar', 'printing', etc.
+    display_order = db.Column(db.Integer, default=0)
+    created_by = db.Column(db.String(255))
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc),
+                           onupdate=lambda: datetime.now(timezone.utc))
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'name': self.name,
+            'short_code': self.short_code,
+            'rate': self.rate,
+            'description': self.description,
+            'is_active': self.is_active,
+            'is_default': self.is_default,
+            'applies_to': self.applies_to,
+            'display_order': self.display_order,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'updated_at': self.updated_at.isoformat() if self.updated_at else None,
+        }
+
+
+class TaxConfiguration(db.Model):
+    """Company-level tax behaviour settings."""
+    id = db.Column(db.Integer, primary_key=True)
+    company_name = db.Column(db.String(1000000), unique=True)
+    tax_inclusive = db.Column(db.Boolean, default=False)      # prices include tax?
+    rounding_mode = db.Column(db.String(20), default='half_up')  # half_up | floor | ceil
+    rounding_places = db.Column(db.Integer, default=2)
+    tax_number = db.Column(db.String(100))                    # company TIN/VAT number
+    show_tax_on_receipt = db.Column(db.Boolean, default=True)
+    updated_by = db.Column(db.String(255))
+    updated_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc),
+                           onupdate=lambda: datetime.now(timezone.utc))
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'tax_inclusive': self.tax_inclusive,
+            'rounding_mode': self.rounding_mode,
+            'rounding_places': self.rounding_places,
+            'tax_number': self.tax_number,
+            'show_tax_on_receipt': self.show_tax_on_receipt,
+            'updated_at': self.updated_at.isoformat() if self.updated_at else None,
+        }
