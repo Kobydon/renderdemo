@@ -13898,41 +13898,7 @@ def get_sms_bundle_history():
 
 
 
-# ============================================================
-# TAX MANAGEMENT
-# ============================================================
 
-DEFAULT_TAX_RATES = [
-    {'name': 'VAT',                'short_code': 'VAT',   'rate': 15.0, 'display_order': 1},
-    {'name': 'NHIL',               'short_code': 'NHIL',  'rate': 2.5,  'display_order': 2},
-    {'name': 'GETFund Levy',       'short_code': 'GETF',  'rate': 2.5,  'display_order': 3},
-    {'name': 'COVID-19 Levy',      'short_code': 'COV',   'rate': 1.0,  'display_order': 4},
-]
-
-
-def _company_of(user):
-    """Consistent company scope across all tax endpoints."""
-    return (getattr(user, "company_name", "") or "").strip() or "default"
-
-
-def _seed_default_taxes(company_name, user_label="system"):
-    """Populate default Ghana tax rates for a fresh company."""
-    existing = TaxRate.query.filter_by(company_name=company_name).count()
-    if existing > 0:
-        return
-    for d in DEFAULT_TAX_RATES:
-        db.session.add(TaxRate(
-            company_name=company_name,
-            name=d['name'],
-            short_code=d['short_code'],
-            rate=d['rate'],
-            is_active=True,
-            is_default=True,
-            applies_to='all',
-            display_order=d['display_order'],
-            created_by=user_label,
-        ))
-    db.session.commit()
 
 
 def _round_amount(value, mode='half_up', places=2):
