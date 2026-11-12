@@ -9165,10 +9165,10 @@ def get_held_order_by_customer(customer_id):
 
 def track_order(hold_id):
     try:
-        user = current_user()
+        # user = current_user()
         held_order = HeldCart.query.filter_by(
             id=hold_id,
-            user_id=user.id
+           
         ).first()
         
         if not held_order:
