@@ -9158,6 +9158,66 @@ def get_held_order_by_customer(customer_id):
         return jsonify({"error": str(e)}), 500
 
 
+
+
+
+@guest.route('/track_order/<int:hold_id>', methods=['GET'])
+@flask_praetorian
+def track_order(hold_id):
+    try:
+        user = current_user()
+        held_order = HeldCart.query.filter_by(
+            id=hold_id,
+            user_id=user.id
+        ).first()
+        
+        if not held_order:
+            return jsonify({"error": "Held order not found"}), 404
+        
+        # Parse items
+        try:
+            items = json.loads(held_order.items) if held_order.items else []
+            for item in items:
+                if 'description' not in item:
+                    item['description'] = ''
+                if 'confirmed' not in item:
+                    item['confirmed'] = None
+        except json.JSONDecodeError:
+            items = []
+        
+        # Get balance
+        balance = 0.0
+        try:
+            if held_order.balance and held_order.balance != "":
+                balance = float(held_order.balance)
+        except (ValueError, TypeError):
+            balance = 0.0
+        
+        return jsonify({
+            "id": held_order.id,
+            "items": items,
+            "total": held_order.total,
+            "balance": balance,  # ✅ Added balance field
+            "customer": held_order.customer_id,
+            "note": held_order.note,
+            "table": held_order.table,
+            "waiter": held_order.waiter,
+            "status": held_order.status,
+            "paid_status": held_order.paid_status,
+            "onetime": held_order.onetime,
+            "created_at": held_order.created_at.isoformat() if held_order.created_at else None,
+            "contain_food": held_order.contain_food,
+            "contain_drink": held_order.contain_drink,
+            "contain_digital_printing": held_order.contain_digital_printing,
+            "contain_large_format": held_order.contain_large_format,
+            "contain_label": held_order.contain_label,
+            "contain_dtf": held_order.contain_dtf
+        }), 200
+        
+    except Exception as e:
+        print(f"Error loading held order: {str(e)}")
+        return jsonify({"error": str(e)}), 500
+
 @guest.route('/load_held_orders_batch', methods=['POST'])
 @flask_praetorian.auth_required
 def load_held_orders_batch():
