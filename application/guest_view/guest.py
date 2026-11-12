@@ -9162,7 +9162,7 @@ def get_held_order_by_customer(customer_id):
 
 
 @guest.route('/track_order/<int:hold_id>', methods=['GET'])
-@flask_praetorian
+
 def track_order(hold_id):
     try:
         user = current_user()
