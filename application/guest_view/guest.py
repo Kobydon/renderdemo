@@ -13981,7 +13981,7 @@ def _round_amount(value, mode='half_up', places=2):
 @flask_praetorian.auth_required
 def get_tax_rates():
     us = User.query.filter_by(id=flask_praetorian.current_user().id).first()
-    company_name = _company_of(us)
+    company_name = us.company_name 
 
     include_inactive = request.args.get("include_inactive", "false").lower() == "true"
 
@@ -14003,7 +14003,7 @@ def get_tax_rates():
 @flask_praetorian.auth_required
 def create_tax_rate():
     us = User.query.filter_by(id=flask_praetorian.current_user().id).first()
-    company_name = _company_of(us)
+    company_name = us.company_name 
     user_label = f"{us.firstname or ''} {us.lastname or ''}".strip() or "system"
 
     data = request.get_json(silent=True) or {}
@@ -14051,7 +14051,7 @@ def create_tax_rate():
 @flask_praetorian.auth_required
 def update_tax_rate(tax_id):
     us = User.query.filter_by(id=flask_praetorian.current_user().id).first()
-    company_name = _company_of(us)
+    company_name = us.company_name 
 
     tax = TaxRate.query.filter_by(id=tax_id, company_name=company_name).first()
     if not tax:
@@ -14107,7 +14107,7 @@ def update_tax_rate(tax_id):
 @flask_praetorian.auth_required
 def delete_tax_rate(tax_id):
     us = User.query.filter_by(id=flask_praetorian.current_user().id).first()
-    company_name = _company_of(us)
+    company_name = us.company_name 
 
     tax = TaxRate.query.filter_by(id=tax_id, company_name=company_name).first()
     if not tax:
@@ -14124,7 +14124,7 @@ def delete_tax_rate(tax_id):
 @flask_praetorian.auth_required
 def get_tax_config():
     us = User.query.filter_by(id=flask_praetorian.current_user().id).first()
-    company_name = _company_of(us)
+    company_name = us.company_name 
 
     cfg = TaxConfiguration.query.filter_by(company_name=company_name).first()
     if not cfg:
@@ -14142,7 +14142,7 @@ def get_tax_config():
 @flask_praetorian.auth_required
 def update_tax_config():
     us = User.query.filter_by(id=flask_praetorian.current_user().id).first()
-    company_name = _company_of(us)
+    company_name = us.company_name 
     user_label = f"{us.firstname or ''} {us.lastname or ''}".strip() or "system"
 
     cfg = TaxConfiguration.query.filter_by(company_name=company_name).first()
@@ -14182,7 +14182,7 @@ def update_tax_config():
 @flask_praetorian.auth_required
 def tax_report():
     us = User.query.filter_by(id=flask_praetorian.current_user().id).first()
-    company_name = _company_of(us)
+    company_name = us.company_name 
 
     date_from = request.args.get("date_from", "")
     date_to   = request.args.get("date_to", "")
@@ -14195,7 +14195,7 @@ def tax_report():
     ).order_by(TaxRate.display_order).all()
 
     if not rates:
-        _seed_default_taxes(company_name)
+
         rates = TaxRate.query.filter_by(
             company_name=company_name, is_active=True
         ).order_by(TaxRate.display_order).all()
