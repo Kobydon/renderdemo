@@ -13679,8 +13679,8 @@ SMS_BUNDLE_PACKAGES = [
         'id': 'growth',
         'name': 'Growth Pack',
         'units': 500000,
-        'amount': 25000.00,
-        'per_unit': round(25000.00 / 500000, 4),
+        'amount': 30000.00,
+        'per_unit': round(30000.00 / 500000, 4),
         'badge': 'Best value',
     },
     {
