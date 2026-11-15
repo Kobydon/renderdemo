@@ -13695,8 +13695,8 @@ SMS_BUNDLE_PACKAGES = [
         'id': 'enterprise',
         'name': 'Enterprise',
         'units': 1200000,
-        'amount': 108000.00,
-        'per_unit': round(108000.00 / 1200000, 4),
+        'amount': 70000.00,
+        'per_unit': round(70000.00 / 1200000, 4),
         'badge': 'Maximum volume',
     },
 ]
