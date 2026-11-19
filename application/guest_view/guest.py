@@ -10522,6 +10522,10 @@ def sales_report():
                     'working_on_id_dtf': order.working_on_id_dtf,
                     'working_on_digital_printing': order.working_on_digital_printing,
                     'working_on_id_digital_printing': order.working_on_id_digital_printing,
+                    'dtf_confirm': order.dtf_confirm,
+                    'digital_printing_confirm': order.digital_printing_confirm,
+                    'label_confirm': order.label_confirm,
+                    'large_format_confirm': order.large_format_confirm,
                     'items': json.loads(order.items) if order.items else []
                 }
                 for order in orders
