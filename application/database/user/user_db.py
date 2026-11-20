@@ -350,6 +350,7 @@ class OrderItem(db.Model):
 # ✅ Held Orders Model (For Holding Carts)
 class HeldCart(db.Model):
     id = db.Column(db.Integer, primary_key=True)
+    order_number = db.Column(db.String(20), unique=True, index=True, nullable=True)
     customer_id = db.Column(db.Integer)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     items = db.Column(db.String(2000000))
