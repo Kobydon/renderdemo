@@ -11540,6 +11540,26 @@ def check_order_item(order_id, item_id):
 
         }), 500
 
+
+# Category -> order number prefix
+ORDER_PREFIXES = {
+    "dtf": "D",
+    "label": "c",
+    "large_format": "l",
+    "uvdtf": "u",
+    "digital_printing": "L",
+}
+
+def build_order_number(order_id, items):
+    """Prefix the order ID using the first item with a known category."""
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        category = str(item.get("category", "")).strip().lower()
+        if category in ORDER_PREFIXES:
+            return f"{ORDER_PREFIXES[category]}{order_id}"
+    return str(order_id)  # no matching category: plain number
+    
 from flask import request, jsonify
 from datetime import datetime
 import json
@@ -11547,110 +11567,562 @@ import uuid
 import http.client as httpClient
 from flask_mail import Message
 
+import os
+import json
+import uuid
+import traceback
+import http.client as httpClient
+from datetime import datetime
+from html import escape
+
+from flask import request, jsonify
+from flask_mail import Message
+
+# NOTE: these come from your own project, keep your existing imports for them:
+# from . import guest, db, mail
+# from .models import Customer, HeldCart, Sms, SmsBundle
+# import flask_praetorian
+
+
+# ==============================================================
+# CONFIG
+# ==============================================================
+SMS_HOST = "api.smsonlinegh.com"
+SMS_URI = "/v5/message/sms/send"
+SMS_API_KEY = os.environ.get("SMS_API_KEY", "")      # set this in your environment
+SMS_SENDER_ID = "Assempa Fie"
+SMS_BUNDLE_UNITS_PER_SMS = 7                         # kept from your original code
+MAIL_SENDER = "afghana@gmail.com"                     # check spelling vs footer (afgghana)
+
+# Category -> order number prefix
+ORDER_PREFIXES = {
+    "dtf": "D",
+    "label": "c",
+    "large_format": "l",
+    "uvdtf": "u",
+    "digital_printing": "L",
+}
+
+DEPARTMENT_FAMILIES = [
+    "drink", "food", "dtf", "digital_printing",
+    "large_format", "label", "uvdtf",
+]
+
+
+# ==============================================================
+# HELPERS
+# ==============================================================
+def to_float(value, default=0.0):
+    try:
+        return float(value or 0)
+    except (ValueError, TypeError):
+        return default
+
+
+def to_int(value, default=1):
+    try:
+        return int(value or default)
+    except (ValueError, TypeError):
+        return default
+
+
+def generate_cart_item_id():
+    return str(uuid.uuid4())
+
+
+def build_order_number(order_id, items):
+    """Prefix the order ID using the first item with a known category.
+    Falls back to the item's 'family' if 'category' has no match."""
+    for item in items or []:
+        if not isinstance(item, dict):
+            continue
+        for key in ("category", "family"):
+            value = str(item.get(key, "")).strip().lower()
+            if value in ORDER_PREFIXES:
+                return f"{ORDER_PREFIXES[value]}{order_id}"
+    return str(order_id)
+
+
+def ensure_order_number(order, items):
+    """Return the order number. If HeldCart has an 'order_number' column,
+    it is set once and never overwritten, so the prefix stays stable."""
+    existing = getattr(order, "order_number", None)
+    if existing:
+        return existing
+
+    number = build_order_number(order.id, items)
+
+    if hasattr(order, "order_number"):
+        order.order_number = number
+    return number
+
+
+def department_flags(items):
+    return {
+        family: "yes" if any(i.get("family") == family for i in items) else "no"
+        for family in DEPARTMENT_FAMILIES
+    }
+
+
+def payment_status(balance, amount_paid):
+    if balance <= 0:
+        return "Confirmed", "Success"
+    if amount_paid > 0:
+        return "Pending", "Partial"
+    return "Pending", "Pending"
+
+
+def extract_measurement(item):
+    """Return (width_text, height_text, unit, area_text) or None."""
+    measurement = item.get("measurement")
+    if not isinstance(measurement, dict):
+        measurement = {}
+
+    width = measurement.get("width")
+    if width is None:
+        width = item.get("measurementWidth")
+
+    height = measurement.get("height")
+    if height is None:
+        height = item.get("measurementHeight")
+
+    unit = measurement.get("unit") or item.get("measurementUnit")
+
+    area = measurement.get("area")
+    if area is None:
+        area = item.get("measurementArea")
+
+    if width is None or height is None or not unit:
+        return None
+
+    def fmt(v):
+        try:
+            return f"{float(v):g}"
+        except (ValueError, TypeError):
+            return str(v)
+
+    return fmt(width), fmt(height), unit, (fmt(area) if area is not None else None)
+
+
+def prepare_cart_item(item, user):
+    if not isinstance(item, dict):
+        raise ValueError("Each cart item must be an object.")
+
+    # Product ID
+    product_id = item.get("id")
+    if product_id is None or product_id == "":
+        product_id = item.get("productId")
+    if product_id is None:
+        product_id = ""
+
+    # Cart item ID
+    cart_item_id = item.get("cart_item_id")
+    cart_item_id = str(cart_item_id) if cart_item_id else generate_cart_item_id()
+
+    # Quantity / price
+    qty = to_int(item.get("qty", 1), 1)
+    if qty <= 0:
+        qty = 1
+
+    price = to_float(item.get("price", 0))
+    if price < 0:
+        price = 0
+
+    name = item.get("name") or item.get("item_name") or ""
+
+    # Measurements
+    measurement = item.get("measurement")
+    width = item.get("measurementWidth")
+    height = item.get("measurementHeight")
+    unit = item.get("measurementUnit")
+    area = item.get("measurementArea")
+    is_measurement_product = bool(item.get("is_measurement_product", False))
+    show_measurement = bool(item.get("showMeasurement", is_measurement_product))
+
+    if isinstance(measurement, dict):
+        if width is None:
+            width = measurement.get("width")
+        if height is None:
+            height = measurement.get("height")
+        if not unit:
+            unit = measurement.get("unit")
+        if area is None:
+            area = measurement.get("area")
+
+    def opt_float(v):
+        if v is None:
+            return None
+        try:
+            return float(v)
+        except (ValueError, TypeError):
+            return None
+
+    width, height, area = opt_float(width), opt_float(height), opt_float(area)
+    unit = str(unit) if unit else unit
+
+    if area is None and width is not None and height is not None:
+        area = width * height
+
+    final_measurement = None
+    if width is not None and height is not None and unit:
+        final_measurement = {"width": width, "height": height, "unit": unit, "area": area}
+
+    # Checked by
+    is_checked = item.get("is_checked", "no")
+    checked_by = item.get("checked_by", "") or ""
+    if is_checked == "yes" and not checked_by:
+        checked_by = f"{user.firstname} {user.lastname}".strip()
+
+    return {
+        "cart_item_id": cart_item_id,
+        "id": product_id,
+        "name": name,
+        "qty": qty,
+        "price": round(price, 2),
+        "total": round(price * qty, 2),
+        "description": item.get("description", "") or "",
+        "family": str(item.get("family", "")).strip(),
+        "category": str(item.get("category", "")).strip(),
+        "confirmed": bool(item.get("confirmed", False)),
+        "is_checked": is_checked,
+        "checked_by": checked_by,
+        "is_checked_label": str(item.get("is_checked_label", "no")).strip(),
+        "is_checked_dtf": str(item.get("is_checked_dtf", "no")).strip(),
+        "is_checked_uvdtf": str(item.get("is_checked_uvdtf", "no")).strip(),
+        "is_checked_large_format": str(item.get("is_checked_large_format", "no")).strip(),
+        "is_checked_digital_printing": str(item.get("is_checked_digital_printing", "no")).strip(),
+        "is_vip": item.get("is_vip", "no"),
+        "is_measurement_product": is_measurement_product,
+        "measurement": final_measurement,
+        "measurementWidth": width,
+        "measurementHeight": height,
+        "measurementUnit": unit,
+        "measurementArea": area,
+        "showMeasurement": show_measurement,
+    }
+
+
+MERGE_FIELDS_WITH_DEFAULTS = {
+    "description": "",
+    "family": "",
+    "category": "",
+    "confirmed": False,
+    "is_vip": "no",
+    "is_checked": "no",
+    "is_checked_label": "no",
+    "is_checked_dtf": "no",
+    "is_checked_large_format": "no",
+    "is_checked_digital_printing": "no",
+    "is_checked_uvdtf": "no",
+    "is_measurement_product": False,
+    "measurement": None,
+    "measurementWidth": None,
+    "measurementHeight": None,
+    "measurementUnit": None,
+    "measurementArea": None,
+    "showMeasurement": False,
+}
+
+
+def merge_item(old_item, new_item, cart_id):
+    old_item["cart_item_id"] = cart_id
+    old_item["id"] = new_item.get("id", old_item.get("id", ""))
+    old_item["name"] = new_item.get("name", old_item.get("name", ""))
+    old_item["price"] = to_float(new_item.get("price", old_item.get("price", 0)))
+
+    qty = to_int(new_item.get("qty", old_item.get("qty", 1)), 1)
+    old_item["qty"] = qty if qty > 0 else 1
+
+    # Always recalculate line total
+    old_item["total"] = round(old_item["price"] * old_item["qty"], 2)
+
+    for field, default in MERGE_FIELDS_WITH_DEFAULTS.items():
+        old_item[field] = new_item.get(field, old_item.get(field, default))
+
+    if new_item.get("checked_by"):
+        old_item["checked_by"] = new_item["checked_by"]
+
+    return old_item
+
+
+def calc_subtotal(items):
+    total = 0
+    for item in items:
+        total += to_float(item.get("price", 0)) * to_int(item.get("qty", 1), 1)
+    return round(total, 2)
+
+
+def resolve_totals(subtotal, discount, supplied_total):
+    """Return (total, discount_amount, discount_percent)."""
+    if discount > 0:
+        discount_amount = round((subtotal * discount) / 100, 2)
+        return round(subtotal - discount_amount, 2), discount_amount, discount
+
+    if supplied_total > 0:
+        total = round(supplied_total, 2)
+        discount_amount = round(max(subtotal - total, 0), 2)
+        pct = round((discount_amount / subtotal) * 100, 2) if subtotal > 0 else 0
+        return total, discount_amount, pct
+
+    return subtotal, 0, 0
+
+
+# ==============================================================
+# EMAIL
+# ==============================================================
+def build_email_html(*, customer_name, order_number, items, is_balance_payment,
+                     amount_paid, order_balance, subtotal, discount,
+                     discount_amount, order_total, status):
+    now = datetime.now()
+
+    html = f"""
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Order Confirmation - A Graphics</title>
+<style>
+  body {{ font-family: Arial, sans-serif; margin: 0; padding: 0; background-color: #f8f9fa; }}
+  .email-container {{ max-width: 600px; margin: 20px auto; background: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 15px rgba(0,0,0,0.08); }}
+  .header {{ background: #1a1a2e; padding: 30px 20px; text-align: center; }}
+  .header h1 {{ color: white; margin: 0; font-size: 26px; }}
+  .content {{ padding: 30px; }}
+  .items-table {{ width: 100%; border-collapse: collapse; }}
+  .items-table th {{ background: #1a1a2e; color: white; padding: 12px; text-align: left; font-size: 13px; }}
+  .items-table td {{ padding: 12px; border-bottom: 1px solid #e9ecef; font-size: 13px; }}
+  .measurement {{ font-size: 12px; color: #666; margin-top: 5px; line-height: 1.5; }}
+  .total-section {{ background: #1a1a2e; color: white; padding: 20px; margin-top: 20px; border-radius: 8px; line-height: 1.8; }}
+  .footer {{ text-align: center; padding: 20px; color: #777; font-size: 12px; }}
+  .balance-payment-badge {{ background: #ffc107; color: #000; padding: 10px; text-align: center; font-weight: bold; border-radius: 8px; margin: 15px 0; }}
+</style>
+</head>
+<body>
+<div class="email-container">
+  <div class="header">
+    <h1>A Graphics</h1>
+    <div style="color:#ddd;font-size:14px;margin-top:8px;">Kokomlemle, Accra &bull; 0243210009</div>
+  </div>
+  <div class="content">
+    <h3>Dear {escape(str(customer_name))},</h3>
+    <p>Thank you for choosing <strong>A Graphics</strong>.</p>
+"""
+
+    if is_balance_payment:
+        html += f"""
+    <div class="balance-payment-badge">
+      &#128179; BALANCE PAYMENT RECEIVED<br>
+      Amount Paid: GHS {amount_paid:.2f}<br>
+      Remaining Balance: GHS {order_balance:.2f}
+    </div>
+"""
+
+    html += f"""
+    <p><strong>Order #{escape(str(order_number))}</strong></p>
+    <table class="items-table">
+      <thead>
+        <tr><th>Item</th><th>Qty</th><th>Price</th><th>Total</th></tr>
+      </thead>
+      <tbody>
+"""
+
+    for item in items:
+        qty = to_float(item.get("qty", 0))
+        price = to_float(item.get("price", 0))
+        line_total = round(price * qty, 2)
+
+        measurement_html = ""
+        m = extract_measurement(item)
+        if m:
+            w, h, unit, area = m
+            measurement_html = f'<div class="measurement">&#128207; {w} &times; {h} {escape(str(unit))}'
+            if area is not None:
+                measurement_html += f"<br>Area: {area} sq {escape(str(unit))}"
+            measurement_html += "</div>"
+
+        html += f"""
+        <tr>
+          <td><strong>{escape(str(item.get("name", "")))}</strong>{measurement_html}</td>
+          <td>{qty:g}</td>
+          <td>GHS {price:.2f}</td>
+          <td>GHS {line_total:.2f}</td>
+        </tr>
+"""
+
+    html += f"""
+      </tbody>
+    </table>
+    <div class="total-section">
+      <strong>Subtotal:</strong> GHS {subtotal:.2f}<br>
+      Discount: {discount:.2f}%<br>
+      Discount Amount: GHS {discount_amount:.2f}<br>
+      <strong>Order Total:</strong> GHS {order_total:.2f}<br>
+      Amount Paid: GHS {amount_paid:.2f}<br>
+      Balance: GHS {order_balance:.2f}<br>
+      Order Status: {escape(str(status))}<br>
+      Date: {now.strftime("%d-%m-%Y %I:%M %p")}
+    </div>
+  </div>
+  <div class="footer">
+    Thank you for choosing A Graphics.<br><br>
+    Email: afgghana@gmail.com<br>
+    Phone: 0243210009 / 0531100380
+  </div>
+</div>
+</body>
+</html>
+"""
+    return html
+
+
+# ==============================================================
+# SMS
+# ==============================================================
+def save_sms_record(receiver, message, status):
+    try:
+        sms = Sms(receiver=float(receiver) if receiver else 0, message=message, status=status)
+        db.session.add(sms)
+        db.session.commit()
+    except Exception as db_error:
+        db.session.rollback()
+        print(f"⚠️ Failed to save SMS record: {db_error}")
+
+
+def send_order_sms(phone_number, order_number, customer_name, subtotal, order_id):
+    """Send the order SMS and log it. Returns True if sent."""
+    clean_phone = "".join(filter(str.isdigit, str(phone_number)))
+
+    if len(clean_phone) != 10:
+        print(f"⚠️ Invalid phone number format: {clean_phone}")
+        save_sms_record(
+            clean_phone,
+            f"Order #{order_number} - Invalid phone number: {phone_number}",
+            "failed",
+        )
+        return False
+
+    if not SMS_API_KEY:
+        print("⚠️ SMS_API_KEY is not set; SMS skipped.")
+        return False
+
+    now = datetime.now()
+    sms_message = (
+        f"Order #{order_number}\n"
+        f"Customer: {customer_name}\n\n"
+        f"Subtotal: GHS {subtotal:.2f}\n"
+        f"Date: {now.strftime('%d-%m-%Y %I:%M %p')}\n\n"
+        f"Thank you for choosing AssempahFie Graphics!\n\n"
+        f"Contact Us:\n"
+        f"Email: afgghana@gmail.com\n"
+        f"Phone: 0243210009 / 0531100380"
+    )
+
+    headers = {
+        "Host": SMS_HOST,
+        "Content-Type": "application/json",
+        "Accept": "application/json",
+        "Authorization": f"key {SMS_API_KEY}",
+    }
+    payload = {
+        "text": sms_message,
+        "type": 0,
+        "sender": SMS_SENDER_ID,
+        "destinations": [clean_phone],
+    }
+
+    conn = httpClient.HTTPConnection(SMS_HOST, timeout=15)
+    try:
+        conn.request("POST", SMS_URI, json.dumps(payload), headers)
+        response = conn.getresponse()
+        body = response.read().decode("utf-8")
+
+        if response.status == 200:
+            print(f"✅ SMS sent to {clean_phone}: {body}")
+            try:
+                db.session.add(Sms(receiver=float(clean_phone), message=sms_message, status="sent"))
+
+                bundle = SmsBundle.query.filter_by(id="1").first()
+                if bundle:
+                    size = int(bundle.size)
+                    if size > 0:
+                        bundle.size = str(max(size - SMS_BUNDLE_UNITS_PER_SMS, 0))
+                        db.session.add(bundle)
+                    else:
+                        print("⚠️ Bundle is already empty")
+                else:
+                    print("⚠️ Bundle not found")
+
+                db.session.commit()
+            except Exception as db_error:
+                db.session.rollback()
+                print(f"⚠️ Failed to record SMS / update bundle: {db_error}")
+            return True
+
+        print(f"⚠️ SMS failed with status {response.status}: {body}")
+        save_sms_record(clean_phone, sms_message, "failed")
+        return False
+
+    except Exception as api_error:
+        print(f"⚠️ SMS API error: {api_error}")
+        save_sms_record(clean_phone, sms_message, "failed")
+        return False
+    finally:
+        conn.close()
+
+
+# ==============================================================
+# ROUTE
+# ==============================================================
 @guest.route('/hold_and_pay', methods=['POST'])
 @flask_praetorian.auth_required
 def hold_and_pay():
-  
-
     try:
-        # ==========================================================
-        # CURRENT USER
-        # ==========================================================
+        # ======================================================
+        # CURRENT USER + REQUEST
+        # ======================================================
         user = flask_praetorian.current_user()
         data = request.get_json(silent=True)
 
-        # ==========================================================
-        # VALIDATION
-        # ==========================================================
         if not data:
-            return jsonify({
-                "success": False,
-                "error": "Request body is required."
-            }), 400
+            return jsonify({"success": False, "error": "Request body is required."}), 400
 
         cart_items = data.get("cartItems")
-
         if not isinstance(cart_items, list):
-            return jsonify({
-                "success": False,
-                "error": "'cartItems' must be a list."
-            }), 400
+            return jsonify({"success": False, "error": "'cartItems' must be a list."}), 400
 
-        # ==========================================================
-        # BASIC DATA
-        # ==========================================================
         hold_id = data.get("id")
 
-        # ==========================================================
-        # AMOUNT PAID
-        # ==========================================================
+        # ======================================================
+        # NUMERIC FIELDS
+        # ======================================================
         try:
             amount_paid = float(data.get("amount_paid", 0) or 0)
         except (ValueError, TypeError):
-            return jsonify({
-                "success": False,
-                "error": "Invalid amount_paid."
-            }), 400
+            return jsonify({"success": False, "error": "Invalid amount_paid."}), 400
+        amount_paid = max(amount_paid, 0)
 
-        if amount_paid < 0:
-            amount_paid = 0
-
-        # ==========================================================
-        # CHECK FOR BALANCE PAYMENT FLAG
-        # ==========================================================
-        is_balance_payment = data.get("is_balance_payment", False)
-        existing_balance_from_frontend = float(data.get("existing_balance", 0) or 0)
-
-        # ==========================================================
-        # FRONTEND TOTAL
-        # ==========================================================
         try:
             supplied_total = float(data.get("total", 0) or 0)
         except (ValueError, TypeError):
-            return jsonify({
-                "success": False,
-                "error": "Invalid total."
-            }), 400
+            return jsonify({"success": False, "error": "Invalid total."}), 400
+        supplied_total = max(supplied_total, 0)
 
-        if supplied_total < 0:
-            supplied_total = 0
+        discount = min(max(to_float(data.get("discount", 0)), 0), 100)
 
-        # ==========================================================
-        # DISCOUNT
-        # ==========================================================
-        try:
-            discount = float(data.get("discount", 0) or 0)
-        except (ValueError, TypeError):
-            discount = 0
+        is_balance_payment = bool(data.get("is_balance_payment", False))
 
-        if discount < 0:
-            discount = 0
-        if discount > 100:
-            discount = 100
-
-        # ==========================================================
-        # DISCOUNT AMOUNT
-        # ==========================================================
-        try:
-            supplied_discount_amount = float(data.get("discount_amount", 0) or 0)
-        except (ValueError, TypeError):
-            supplied_discount_amount = 0
-
-        if supplied_discount_amount < 0:
-            supplied_discount_amount = 0
-
-        # ==========================================================
+        # ======================================================
         # OTHER DATA
-        # ==========================================================
+        # ======================================================
         payment_method = data.get("method", "Cash") or "Cash"
         note = data.get("note", "") or ""
         table = data.get("table", "") or ""
         customer_id = data.get("customer")
         phone_number = data.get("phone_number", "") or ""
 
-        # ==========================================================
+        # ======================================================
         # CUSTOMER
-        # ==========================================================
+        # ======================================================
         customer = None
         customer_name = "Valued Customer"
         customer_email = data.get("customer_email", "") or ""
@@ -11663,265 +12135,61 @@ def hold_and_pay():
 
             if customer:
                 customer_name = f"{customer.firstname} {customer.lastname}".strip()
-                if hasattr(customer, "phone") and customer.phone:
+                if getattr(customer, "phone", None):
                     phone_number = customer.phone
-                if hasattr(customer, "email") and customer.email:
+                if getattr(customer, "email", None):
                     customer_email = customer.email
 
-        # ==========================================================
-        # FALLBACK CUSTOMER NAME
-        # ==========================================================
         if customer_name == "Valued Customer" and data.get("customer_name"):
             customer_name = data.get("customer_name")
 
-        # ==========================================================
-        # UNIQUE CART ITEM ID
-        # ==========================================================
-        def generate_cart_item_id():
-            return str(uuid.uuid4())
-
-        # ==========================================================
-        # PREPARE ONE CART ITEM
-        # ==========================================================
-        def prepare_cart_item(item):
-            if not isinstance(item, dict):
-                raise ValueError("Each cart item must be an object.")
-
-            # Product ID
-            product_id = item.get("id")
-            if product_id is None or product_id == "":
-                product_id = item.get("productId")
-            if product_id is None or product_id == "":
-                product_id = ""
-
-            # Cart Item ID
-            cart_item_id = item.get("cart_item_id")
-            if not cart_item_id:
-                cart_item_id = generate_cart_item_id()
-            else:
-                cart_item_id = str(cart_item_id)
-
-            # Quantity
-            try:
-                qty = int(item.get("qty", 1) or 1)
-            except (ValueError, TypeError):
-                qty = 1
-            if qty <= 0:
-                qty = 1
-
-            # Price
-            try:
-                price = float(item.get("price", 0) or 0)
-            except (ValueError, TypeError):
-                price = 0
-            if price < 0:
-                price = 0
-
-            # Name
-            name = item.get("name") or item.get("item_name") or ""
-
-            # Measurements
-            measurement = item.get("measurement")
-            measurement_width = item.get("measurementWidth")
-            measurement_height = item.get("measurementHeight")
-            measurement_unit = item.get("measurementUnit")
-            measurement_area = item.get("measurementArea")
-            is_measurement_product = bool(item.get("is_measurement_product", False))
-            show_measurement = bool(item.get("showMeasurement", is_measurement_product))
-
-            if isinstance(measurement, dict):
-                if measurement_width is None:
-                    measurement_width = measurement.get("width")
-                if measurement_height is None:
-                    measurement_height = measurement.get("height")
-                if not measurement_unit:
-                    measurement_unit = measurement.get("unit")
-                if measurement_area is None:
-                    measurement_area = measurement.get("area")
-
-            # Convert measurements
-            if measurement_width is not None:
-                try:
-                    measurement_width = float(measurement_width)
-                except (ValueError, TypeError):
-                    measurement_width = None
-
-            if measurement_height is not None:
-                try:
-                    measurement_height = float(measurement_height)
-                except (ValueError, TypeError):
-                    measurement_height = None
-
-            if measurement_area is not None:
-                try:
-                    measurement_area = float(measurement_area)
-                except (ValueError, TypeError):
-                    measurement_area = None
-
-            if measurement_unit:
-                measurement_unit = str(measurement_unit)
-
-            # Calculate area
-            if measurement_area is None and measurement_width is not None and measurement_height is not None:
-                measurement_area = measurement_width * measurement_height
-
-            # Final measurement
-            final_measurement = None
-            if measurement_width is not None and measurement_height is not None and measurement_unit:
-                final_measurement = {
-                    "width": measurement_width,
-                    "height": measurement_height,
-                    "unit": measurement_unit,
-                    "area": measurement_area
-                }
-
-            # Item total
-            item_total = round(price * qty, 2)
-
-            # Checked by
-            is_checked = item.get("is_checked", "no")
-            checked_by = item.get("checked_by", "") or ""
-
-            if is_checked == "yes" and not checked_by:
-                checked_by = f"{user.firstname} {user.lastname}".strip()
-
-            # Final item
-            prepared_item = {
-                "cart_item_id": cart_item_id,
-                "id": product_id,
-                "name": name,
-                "qty": qty,
-                "price": round(price, 2),
-                "total": item_total,
-                "description": item.get("description", "") or "",
-                "family": str(item.get("family", "")).strip(),
-                "category": str(item.get("category", "")).strip(),
-                "confirmed": bool(item.get("confirmed", False)),
-                "is_checked": is_checked,
-                "checked_by": checked_by,
-                "is_checked_label": str(item.get("is_checked_label", "no")).strip(),
-                "is_checked_dtf": str(item.get("is_checked_dtf", "no")).strip(),
-                "is_checked_uvdtf": str(item.get("is_checked_uvdtf", "no")).strip(),
-                "is_checked_large_format": str(item.get("is_checked_large_format", "no")).strip(),
-                "is_checked_digital_printing": str(item.get("is_checked_digital_printing", "no")).strip(),
-                "is_vip": item.get("is_vip", "no"),
-                "is_measurement_product": is_measurement_product,
-                "measurement": final_measurement,
-                "measurementWidth": measurement_width,
-                "measurementHeight": measurement_height,
-                "measurementUnit": measurement_unit,
-                "measurementArea": measurement_area,
-                "showMeasurement": show_measurement
-            }
-
-            return prepared_item
-
-        # ==========================================================
-        # PREPARE ALL ITEMS
-        # ==========================================================
-        incoming_items = []
-
+        # ======================================================
+        # PREPARE ITEMS
+        # ======================================================
         try:
-            for item in cart_items:
-                prepared_item = prepare_cart_item(item)
-                incoming_items.append(prepared_item)
+            incoming_items = [prepare_cart_item(i, user) for i in cart_items]
         except Exception as e:
-            return jsonify({
-                "success": False,
-                "error": f"Invalid cart item: {str(e)}"
-            }), 400
+            return jsonify({"success": False, "error": f"Invalid cart item: {str(e)}"}), 400
 
-        # ==========================================================
-        # CALCULATE ORIGINAL SUBTOTAL
-        # ==========================================================
-        calculated_subtotal = 0
-        for item in incoming_items:
-            item_price = float(item.get("price", 0) or 0)
-            item_qty = int(item.get("qty", 1) or 1)
-            calculated_subtotal += (item_price * item_qty)
+        calculated_subtotal = calc_subtotal(incoming_items)
 
-        calculated_subtotal = round(calculated_subtotal, 2)
+        total, discount_amount, discount = resolve_totals(
+            calculated_subtotal, discount, supplied_total
+        )
 
-        # ==========================================================
-        # DISCOUNT CALCULATION
-        # ==========================================================
-        calculated_discount_amount = round((calculated_subtotal * discount) / 100, 2)
-        calculated_discounted_total = round(calculated_subtotal - calculated_discount_amount, 2)
-
-        # ==========================================================
-        # DETERMINE FINAL TOTAL
-        # ==========================================================
-        if discount > 0:
-            total = calculated_discounted_total
-            discount_amount = calculated_discount_amount
-        elif supplied_total > 0:
-            total = round(supplied_total, 2)
-            discount_amount = round(max(calculated_subtotal - total, 0), 2)
-            if calculated_subtotal > 0:
-                discount = round((discount_amount / calculated_subtotal) * 100, 2)
-        else:
-            total = calculated_subtotal
-            discount_amount = 0
-            discount = 0
-
-        # Empty cart
         if not incoming_items:
             calculated_subtotal = 0
             discount = 0
             discount_amount = 0
             total = 0
 
-        # ==========================================================
-        # IMPORTANT PAYMENT SAFETY
-        # ==========================================================
-        if amount_paid > total:
+        # Payment safety (not applied to balance payments: those are
+        # capped against the stored balance further down)
+        if not is_balance_payment and amount_paid > total:
             amount_paid = round(total, 2)
 
-        # ==========================================================
+        # ======================================================
         # FIND EXISTING HOLD
-        # ==========================================================
+        # ======================================================
         existing_hold = None
 
         if hold_id:
             try:
                 hold_id = int(hold_id)
             except (ValueError, TypeError):
-                return jsonify({
-                    "success": False,
-                    "error": "Invalid hold ID."
-                }), 400
+                return jsonify({"success": False, "error": "Invalid hold ID."}), 400
 
-            existing_hold = HeldCart.query.filter_by(
-                id=hold_id,
-                user_id=user.id
-            ).first()
-
+            existing_hold = HeldCart.query.filter_by(id=hold_id, user_id=user.id).first()
             if not existing_hold:
-                return jsonify({
-                    "success": False,
-                    "error": "Held order not found."
-                }), 404
+                return jsonify({"success": False, "error": "Held order not found."}), 404
 
-        # ==========================================================
+        # ======================================================
         # EXISTING HELD ORDER
-        # ==========================================================
+        # ======================================================
         if existing_hold:
-            # ======================================================
-            # GET PREVIOUS VALUES
-            # ======================================================
-            try:
-                previous_balance = float(existing_hold.balance or 0)
-            except (ValueError, TypeError):
-                previous_balance = 0
+            previous_balance = to_float(existing_hold.balance)
+            previous_total = to_float(existing_hold.total)
 
-            try:
-                previous_total = float(existing_hold.total or 0)
-            except (ValueError, TypeError):
-                previous_total = 0
-
-            # ======================================================
-            # EXISTING ITEMS
-            # ======================================================
             try:
                 existing_items = json.loads(existing_hold.items) if existing_hold.items else []
                 if not isinstance(existing_items, list):
@@ -11929,223 +12197,63 @@ def hold_and_pay():
             except (json.JSONDecodeError, TypeError):
                 existing_items = []
 
-            # ======================================================
-            # INDEX EXISTING CART LINES
-            # ======================================================
             existing_by_cart_id = {}
-
             for existing_item in existing_items:
                 if not isinstance(existing_item, dict):
                     continue
+                cid = existing_item.get("cart_item_id")
+                if not cid:
+                    cid = generate_cart_item_id()
+                    existing_item["cart_item_id"] = cid
+                existing_by_cart_id[str(cid)] = existing_item
 
-                existing_cart_id = existing_item.get("cart_item_id")
-                if not existing_cart_id:
-                    existing_cart_id = generate_cart_item_id()
-                    existing_item["cart_item_id"] = existing_cart_id
-
-                existing_by_cart_id[str(existing_cart_id)] = existing_item
-
-            # ======================================================
-            # MERGE ITEMS
-            # ======================================================
-            updated_items = []
-
+            # Merge: items not in the incoming cart are dropped automatically
+            final_items = []
             for new_item in incoming_items:
                 cart_id = str(new_item["cart_item_id"])
                 old_item = existing_by_cart_id.get(cart_id)
-
                 if old_item:
-                    # Preserve cart_item_id
-                    old_item["cart_item_id"] = cart_id
-
-                    # Basic information
-                    old_item["id"] = new_item.get("id", old_item.get("id", ""))
-                    old_item["name"] = new_item.get("name", old_item.get("name", ""))
-                    old_item["price"] = float(new_item.get("price", old_item.get("price", 0)) or 0)
-
-                    try:
-                        old_item["qty"] = int(new_item.get("qty", old_item.get("qty", 1)) or 1)
-                    except (ValueError, TypeError):
-                        old_item["qty"] = 1
-
-                    if old_item["qty"] <= 0:
-                        old_item["qty"] = 1
-
-                    # ALWAYS RECALCULATE LINE TOTAL
-                    old_item["total"] = round(
-                        float(old_item.get("price", 0)) * int(old_item.get("qty", 1)),
-                        2
-                    )
-
-                    # Basic fields
-                    old_item["description"] = new_item.get("description", old_item.get("description", ""))
-                    old_item["family"] = new_item.get("family", old_item.get("family", ""))
-                    old_item["category"] = new_item.get("category", old_item.get("category", ""))
-                    old_item["confirmed"] = new_item.get("confirmed", old_item.get("confirmed", False))
-                    old_item["is_vip"] = new_item.get("is_vip", old_item.get("is_vip", "no"))
-
-                    # Checking
-                    old_item["is_checked"] = new_item.get("is_checked", old_item.get("is_checked", "no"))
-                    if new_item.get("checked_by"):
-                        old_item["checked_by"] = new_item["checked_by"]
-
-                    old_item["is_checked_label"] = new_item.get("is_checked_label", old_item.get("is_checked_label", "no"))
-                    old_item["is_checked_dtf"] = new_item.get("is_checked_dtf", old_item.get("is_checked_dtf", "no"))
-                    old_item["is_checked_large_format"] = new_item.get("is_checked_large_format", old_item.get("is_checked_large_format", "no"))
-                    old_item["is_checked_digital_printing"] = new_item.get("is_checked_digital_printing", old_item.get("is_checked_digital_printing", "no"))
-                    old_item["is_checked_uvdtf"] = new_item.get("is_checked_uvdtf", old_item.get("is_checked_uvdtf", "no"))
-
-                    # Measurements
-                    old_item["is_measurement_product"] = new_item.get("is_measurement_product", old_item.get("is_measurement_product", False))
-                    old_item["measurement"] = new_item.get("measurement", old_item.get("measurement"))
-                    old_item["measurementWidth"] = new_item.get("measurementWidth", old_item.get("measurementWidth"))
-                    old_item["measurementHeight"] = new_item.get("measurementHeight", old_item.get("measurementHeight"))
-                    old_item["measurementUnit"] = new_item.get("measurementUnit", old_item.get("measurementUnit"))
-                    old_item["measurementArea"] = new_item.get("measurementArea", old_item.get("measurementArea"))
-                    old_item["showMeasurement"] = new_item.get("showMeasurement", old_item.get("showMeasurement", False))
-
-                    updated_items.append(old_item)
+                    final_items.append(merge_item(old_item, new_item, cart_id))
                 else:
-                    # New cart line
-                    updated_items.append(new_item)
+                    final_items.append(new_item)
 
-            # ======================================================
-            # REMOVE REMOVED CART LINES
-            # ======================================================
-            incoming_cart_ids = {str(item["cart_item_id"]) for item in incoming_items}
-
-            final_items = []
-            for item in updated_items:
-                item_cart_id = str(item.get("cart_item_id", ""))
-                if item_cart_id in incoming_cart_ids:
-                    final_items.append(item)
-
-            # ======================================================
-            # CALCULATE MERGED SUBTOTAL
-            # ======================================================
-            merged_subtotal = 0
-            for item in final_items:
-                try:
-                    item_price = float(item.get("price", 0) or 0)
-                except (ValueError, TypeError):
-                    item_price = 0
-
-                try:
-                    item_qty = int(item.get("qty", 1) or 1)
-                except (ValueError, TypeError):
-                    item_qty = 1
-
-                merged_subtotal += (item_price * item_qty)
-
-            merged_subtotal = round(merged_subtotal, 2)
-
-            # ======================================================
-            # ======================================================
-            # ======================================================
-            # CRITICAL FIX: BALANCE PAYMENT LOGIC
-            # ======================================================
-            # ======================================================
-            # ======================================================
+            merged_subtotal = calc_subtotal(final_items)
 
             if is_balance_payment:
-    # ======================================================
-    # BALANCE PAYMENT
-            # ======================================================
+                # ----------------------------------------------
+                # BALANCE PAYMENT: DB balance is the source of truth
+                # ----------------------------------------------
+                balance_before_payment = round(previous_balance, 2)
+                amount_paid = min(round(amount_paid, 2), balance_before_payment)
+                new_balance = round(max(balance_before_payment - amount_paid, 0), 2)
 
-            # The database balance is the source of truth.
-                        balance_before_payment = round(previous_balance, 2)
+                new_total = previous_total      # original total never changes
+                discount = 0
+                discount_amount = 0
 
-                        # Never allow payment to exceed outstanding balance.
-                        amount_paid = min(
-                            round(amount_paid, 2),
-                            balance_before_payment
-                        )
-
-                        # Calculate remaining balance.
-                        new_balance = round(
-                            balance_before_payment - amount_paid,
-                            2
-                        )
-
-                        # Original order total NEVER changes.
-                        new_total = previous_total
-
-                        # Balance payments do not modify discounts.
-                        discount = 0
-                        discount_amount = 0
-
-                        print("======================================")
-                        print("💳 BALANCE PAYMENT")
-                        print(f"Order ID: {existing_hold.id}")
-                        print(f"Original Total: {previous_total:.2f}")
-                        print(f"Balance Before: {balance_before_payment:.2f}")
-                        print(f"Amount Paid: {amount_paid:.2f}")
-                        print(f"Balance After: {new_balance:.2f}")
-                        print("======================================")
-
-                                  
-                        new_total = previous_total
-
-                        # NEW BALANCE = previous balance - amount paid
-                        new_balance = previous_balance - amount_paid
-
-                        # Ensure balance doesn't go negative
-                        if new_balance < 0:
-                            new_balance = 0
-
-                        new_balance = round(new_balance, 2)
-
-                        # No discount for balance payments
-                        discount = 0
-                        discount_amount = 0
-
-                        # Log for debugging
-                        print(f"💰 BALANCE PAYMENT:")
-                        print(f"   Previous Balance: {previous_balance}")
-                        print(f"   Amount Paid: {amount_paid}")
-                        print(f"   New Balance: {new_balance}")
-                        print(f"   Previous Total: {previous_total}")
-                        print(f"   New Total: {new_total}")
-
+                print("======================================")
+                print("💳 BALANCE PAYMENT")
+                print(f"Order ID: {existing_hold.id}")
+                print(f"Original Total: {previous_total:.2f}")
+                print(f"Balance Before: {balance_before_payment:.2f}")
+                print(f"Amount Paid: {amount_paid:.2f}")
+                print(f"Balance After: {new_balance:.2f}")
+                print("======================================")
             else:
-                # ==================================================
-                # NORMAL PAYMENT - PAYING FOR ITEMS IN CART
-                # ==================================================
-                #
-                # When is_balance_payment is False:
-                #   - This is a normal order or adding items
-                #   - Calculate new total from merged items
-                #   - Apply discount if any
-                #   - New balance = previous balance + change in total - payment
-                #
-                # ==================================================
+                # ----------------------------------------------
+                # NORMAL PAYMENT: recalc from merged items
+                # ----------------------------------------------
+                new_total, discount_amount, discount = resolve_totals(
+                    merged_subtotal, discount, supplied_total
+                )
 
-                # Apply discount to merged subtotal
-                if discount > 0:
-                    new_total = round(merged_subtotal - (merged_subtotal * discount / 100), 2)
-                    discount_amount = round(merged_subtotal - new_total, 2)
-                elif supplied_total > 0:
-                    new_total = round(supplied_total, 2)
-                    discount_amount = round(max(merged_subtotal - new_total, 0), 2)
-                    if merged_subtotal > 0:
-                        discount = round((discount_amount / merged_subtotal) * 100, 2)
-                else:
-                    new_total = merged_subtotal
-                    discount = 0
-                    discount_amount = 0
+                if amount_paid > new_total:
+                    amount_paid = round(new_total, 2)
 
-                # Calculate new balance
                 total_difference = new_total - previous_total
-                new_balance = previous_balance + total_difference - amount_paid
+                new_balance = round(max(previous_balance + total_difference - amount_paid, 0), 2)
 
-                # Ensure balance doesn't go negative
-                if new_balance < 0:
-                    new_balance = 0
-
-                new_balance = round(new_balance, 2)
-
-                # Log for debugging
-                print(f"💰 NORMAL PAYMENT:")
+                print("💰 NORMAL PAYMENT:")
                 print(f"   Previous Balance: {previous_balance}")
                 print(f"   Previous Total: {previous_total}")
                 print(f"   New Total: {new_total}")
@@ -12153,33 +12261,10 @@ def hold_and_pay():
                 print(f"   Amount Paid: {amount_paid}")
                 print(f"   New Balance: {new_balance}")
 
-            # ======================================================
-            # PAYMENT STATUS
-            # ======================================================
-            if new_balance <= 0:
-                new_status = "Confirmed"
-                new_paid_status = "Success"
-            elif amount_paid > 0:
-                new_status = "Pending"
-                new_paid_status = "Partial"
-            else:
-                new_status = "Pending"
-                new_paid_status = "Pending"
+            new_status, new_paid_status = payment_status(new_balance, amount_paid)
+            flags = department_flags(final_items)
 
-            # ======================================================
-            # DEPARTMENT FLAGS
-            # ======================================================
-            contain_drink = any(item.get("family") == "drink" for item in final_items)
-            contain_food = any(item.get("family") == "food" for item in final_items)
-            contain_dtf = any(item.get("family") == "dtf" for item in final_items)
-            contain_digital_printing = any(item.get("family") == "digital_printing" for item in final_items)
-            contain_large_format = any(item.get("family") == "large_format" for item in final_items)
-            contain_label = any(item.get("family") == "label" for item in final_items)
-            contain_uvdtf = any(item.get("family") == "uvdtf" for item in final_items)
-
-            # ======================================================
-            # UPDATE HELD ORDER
-            # ======================================================
+            # Update held order
             existing_hold.items = json.dumps(final_items)
             existing_hold.total = new_total
             existing_hold.balance = f"{new_balance:.2f}"
@@ -12188,38 +12273,36 @@ def hold_and_pay():
             existing_hold.payment_method = payment_method
             existing_hold.table = table
 
-            existing_hold.contain_drink = "yes" if contain_drink else "no"
-            existing_hold.contain_food = "yes" if contain_food else "no"
-            existing_hold.contain_dtf = "yes" if contain_dtf else "no"
-            existing_hold.contain_digital_printing = "yes" if contain_digital_printing else "no"
-            existing_hold.contain_large_format = "yes" if contain_large_format else "no"
-            existing_hold.contain_label = "yes" if contain_label else "no"
-            existing_hold.contain_uvdtf = "yes" if contain_uvdtf else "no"
-            # ======================================================
-            # CUSTOMER
-            # ======================================================
+            existing_hold.contain_drink = flags["drink"]
+            existing_hold.contain_food = flags["food"]
+            existing_hold.contain_dtf = flags["dtf"]
+            existing_hold.contain_digital_printing = flags["digital_printing"]
+            existing_hold.contain_large_format = flags["large_format"]
+            existing_hold.contain_label = flags["label"]
+            existing_hold.contain_uvdtf = flags["uvdtf"]
+
             if customer:
                 existing_hold.customer = f"{customer.firstname} {customer.lastname}".strip()
                 existing_hold.customer_id = customer.id
 
-            # ======================================================
-            # PAYMENT NOTE
-            # ======================================================
-            payment_note = (
-                f"💰 Payment: GHS {amount_paid:.2f} | "
-                f"Discount: {discount:.2f}% | "
-                f"Total: GHS {new_total:.2f} | "
-                f"Balance: GHS {new_balance:.2f}"
-            )
-
+            # Payment note
             if is_balance_payment:
-                payment_note = f"💳 BALANCE PAYMENT: GHS {amount_paid:.2f} | Remaining Balance: GHS {new_balance:.2f}"
+                payment_note = (
+                    f"💳 BALANCE PAYMENT: GHS {amount_paid:.2f} | "
+                    f"Remaining Balance: GHS {new_balance:.2f}"
+                )
+            else:
+                payment_note = (
+                    f"💰 Payment: GHS {amount_paid:.2f} | "
+                    f"Discount: {discount:.2f}% | "
+                    f"Total: GHS {new_total:.2f} | "
+                    f"Balance: GHS {new_balance:.2f}"
+                )
 
             if amount_paid > 0:
-                if existing_hold.note:
-                    existing_hold.note = f"{existing_hold.note} | {payment_note}"
-                else:
-                    existing_hold.note = payment_note
+                existing_hold.note = (
+                    f"{existing_hold.note} | {payment_note}" if existing_hold.note else payment_note
+                )
             elif note:
                 existing_hold.note = note
 
@@ -12227,51 +12310,20 @@ def hold_and_pay():
             order_id = existing_hold.id
             total = new_total
 
-        # ==========================================================
+            # Order number (only set once if the column exists)
+            order_number = ensure_order_number(order, final_items)
+
+        # ======================================================
         # NEW ORDER
-        # ==========================================================
+        # ======================================================
         else:
-            # ======================================================
-            # NEW ORDER TOTAL
-            # ======================================================
             new_total = round(total, 2)
+            new_balance = round(max(new_total - amount_paid, 0), 2)
 
-            # ======================================================
-            # NEW ORDER BALANCE
-            # ======================================================
-            new_balance = new_total - amount_paid
-            if new_balance < 0:
-                new_balance = 0
-            new_balance = round(new_balance, 2)
+            order_status, paid_status = payment_status(new_balance, amount_paid)
+            flags = department_flags(incoming_items)
 
-            # ======================================================
-            # PAYMENT STATUS
-            # ======================================================
-            if new_balance <= 0:
-                order_status = "Confirmed"
-                paid_status = "Success"
-            elif amount_paid > 0:
-                order_status = "Pending"
-                paid_status = "Partial"
-            else:
-                order_status = "Pending"
-                paid_status = "Pending"
-
-            # ======================================================
-            # DEPARTMENT FLAGS
-            # ======================================================
-            contain_drink = any(item.get("family") == "drink" for item in incoming_items)
-            contain_food = any(item.get("family") == "food" for item in incoming_items)
-            contain_dtf = any(item.get("family") == "dtf" for item in incoming_items)
-            contain_digital_printing = any(item.get("family") == "digital_printing" for item in incoming_items)
-            contain_large_format = any(item.get("family") == "large_format" for item in incoming_items)
-            contain_label = any(item.get("family") == "label" for item in incoming_items)
-            contain_uvdtf = any(item.get("family") == "uvdtf" for item in incoming_items)
-            # ======================================================
-            # PAYMENT NOTE
-            # ======================================================
             final_note = note
-
             payment_note = (
                 f"💰 Payment: GHS {amount_paid:.2f} | "
                 f"Discount: {discount:.2f}% | "
@@ -12279,15 +12331,9 @@ def hold_and_pay():
                 f"Total: GHS {new_total:.2f} | "
                 f"Balance: GHS {new_balance:.2f}"
             )
-
-            if amount_paid > 0:
-                final_note = f"{note} | {payment_note}" if note else payment_note
-            elif discount > 0:
+            if amount_paid > 0 or discount > 0:
                 final_note = f"{note} | {payment_note}" if note else payment_note
 
-            # ======================================================
-            # CREATE HELD CART
-            # ======================================================
             order = HeldCart(
                 user_id=user.id,
                 items=json.dumps(incoming_items),
@@ -12300,13 +12346,13 @@ def hold_and_pay():
                 paid_status=paid_status,
                 onetime="no",
                 waiter=f"{user.firstname} {user.lastname}".strip(),
-                contain_drink="yes" if contain_drink else "no",
-                contain_food="yes" if contain_food else "no",
-                contain_dtf="yes" if contain_dtf else "no",
-                contain_digital_printing="yes" if contain_digital_printing else "no",
-                contain_large_format="yes" if contain_large_format else "no",
-                contain_label="yes" if contain_label else "no",
-                contain_uvdtf="yes" if contain_uvdtf else "no",
+                contain_drink=flags["drink"],
+                contain_food=flags["food"],
+                contain_dtf=flags["dtf"],
+                contain_digital_printing=flags["digital_printing"],
+                contain_large_format=flags["large_format"],
+                contain_label=flags["label"],
+                contain_uvdtf=flags["uvdtf"],
                 food_confirm="no",
                 drink_confirm="no",
                 label_confirm="no",
@@ -12316,24 +12362,26 @@ def hold_and_pay():
                 uvdtf_confirm="no",
                 session=datetime.now(),
                 table=table,
-                note=note,
-                payment_method=payment_method
+                note=final_note,   # was `note` before, so the payment note was built but never saved
+                payment_method=payment_method,
             )
 
             db.session.add(order)
-            db.session.flush()
+            db.session.flush()          # gives us order.id
 
             order_id = order.id
             total = new_total
 
-        # ==========================================================
+            order_number = ensure_order_number(order, incoming_items)
+
+        # ======================================================
         # COMMIT ORDER
-        # ==========================================================
+        # ======================================================
         db.session.commit()
 
-        # ==========================================================
+        # ======================================================
         # NOTIFICATION VALUES
-        # ==========================================================
+        # ======================================================
         email_sent = False
         sms_sent = False
 
@@ -12342,515 +12390,67 @@ def hold_and_pay():
         except (json.JSONDecodeError, TypeError):
             notification_items = []
 
-        try:
-            order_total = float(order.total or 0)
-        except (ValueError, TypeError):
-            order_total = float(total)
+        order_total = to_float(order.total, float(total))
+        order_balance = to_float(order.balance, float(new_balance))
 
-        try:
-            order_balance = float(order.balance or 0)
-        except (ValueError, TypeError):
-            order_balance = float(new_balance)
-
-        # ==========================================================
+        # ======================================================
         # EMAIL
-        # ==========================================================
+        # ======================================================
         if customer_email and "@" in str(customer_email):
             try:
-                now = datetime.now()
-
-                html_content = f"""
-                <!DOCTYPE html>
-                <html>
-                <head>
-                    <meta charset="UTF-8">
-                    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-                    <title>Order Confirmation - A Graphics</title>
-                    <style>
-                        body {{
-                            font-family: Arial, sans-serif;
-                            margin: 0;
-                            padding: 0;
-                            background-color: #f8f9fa;
-                        }}
-                        .email-container {{
-                            max-width: 600px;
-                            margin: 20px auto;
-                            background: #ffffff;
-                            border-radius: 12px;
-                            overflow: hidden;
-                            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
-                        }}
-                        .header {{
-                            background: #1a1a2e;
-                            padding: 30px 20px;
-                            text-align: center;
-                        }}
-                        .header h1 {{
-                            color: white;
-                            margin: 0;
-                            font-size: 26px;
-                        }}
-                        .content {{
-                            padding: 30px;
-                        }}
-                        .items-table {{
-                            width: 100%;
-                            border-collapse: collapse;
-                        }}
-                        .items-table th {{
-                            background: #1a1a2e;
-                            color: white;
-                            padding: 12px;
-                            text-align: left;
-                            font-size: 13px;
-                        }}
-                        .items-table td {{
-                            padding: 12px;
-                            border-bottom: 1px solid #e9ecef;
-                            font-size: 13px;
-                        }}
-                        .measurement {{
-                            font-size: 12px;
-                            color: #666;
-                            margin-top: 5px;
-                            line-height: 1.5;
-                        }}
-                        .total-section {{
-                            background: #1a1a2e;
-                            color: white;
-                            padding: 20px;
-                            margin-top: 20px;
-                            border-radius: 8px;
-                            line-height: 1.8;
-                        }}
-                        .footer {{
-                            text-align: center;
-                            padding: 20px;
-                            color: #777;
-                            font-size: 12px;
-                        }}
-                        .balance-payment-badge {{
-                            background: #ffc107;
-                            color: #000;
-                            padding: 10px;
-                            text-align: center;
-                            font-weight: bold;
-                            border-radius: 8px;
-                            margin: 15px 0;
-                        }}
-                    </style>
-                </head>
-                <body>
-                    <div class="email-container">
-                        <div class="header">
-                            <h1>A Graphics</h1>
-                            <div style="color:#ddd;font-size:14px;margin-top:8px;">
-                                Kokomlemle, Accra • 0243210009
-                            </div>
-                        </div>
-                        <div class="content">
-                            <h3>Dear {customer_name},</h3>
-                            <p>Thank you for choosing <strong>A Graphics</strong>.</p>
-                            """
-
-                if is_balance_payment:
-                    html_content += f"""
-                            <div class="balance-payment-badge">
-                                💳 BALANCE PAYMENT RECEIVED
-                                <br>
-                                Amount Paid: GHS {amount_paid:.2f}
-                                <br>
-                                Remaining Balance: GHS {order_balance:.2f}
-                            </div>
-                            """
-
-                html_content += f"""
-                            <p><strong>Order #{order_id}</strong></p>
-                            <table class="items-table">
-                                <thead>
-                                    <tr>
-                                        <th>Item</th>
-                                        <th>Qty</th>
-                                        <th>Price</th>
-                                        <th>Total</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                """
-
-                for item in notification_items:
-                    try:
-                        item_qty = float(item.get("qty", 0) or 0)
-                    except (ValueError, TypeError):
-                        item_qty = 0
-
-                    try:
-                        item_price = float(item.get("price", 0) or 0)
-                    except (ValueError, TypeError):
-                        item_price = 0
-
-                    item_total = round(item_price * item_qty, 2)
-
-                    measurement_html = ""
-                    measurement = item.get("measurement")
-                    if not isinstance(measurement, dict):
-                        measurement = {}
-
-                    width = measurement.get("width")
-                    if width is None:
-                        width = item.get("measurementWidth")
-
-                    height = measurement.get("height")
-                    if height is None:
-                        height = item.get("measurementHeight")
-
-                    unit = measurement.get("unit")
-                    if not unit:
-                        unit = item.get("measurementUnit")
-
-                    area = measurement.get("area")
-                    if area is None:
-                        area = item.get("measurementArea")
-
-                    if width is not None and height is not None and unit:
-                        try:
-                            width_text = f"{float(width):g}"
-                        except (ValueError, TypeError):
-                            width_text = str(width)
-
-                        try:
-                            height_text = f"{float(height):g}"
-                        except (ValueError, TypeError):
-                            height_text = str(height)
-
-                        measurement_html = f"""
-                            <div class="measurement">
-                                📏 {width_text} × {height_text} {unit}
-                        """
-
-                        if area is not None:
-                            try:
-                                area_text = f"{float(area):g}"
-                            except (ValueError, TypeError):
-                                area_text = str(area)
-
-                            measurement_html += f"""
-                                <br>Area: {area_text} sq {unit}
-                            """
-
-                        measurement_html += "</div>"
-
-                    html_content += f"""
-                        <tr>
-                            <td>
-                                <strong>{item.get("name", "")}</strong>
-                                {measurement_html}
-                            </td>
-                            <td>{item_qty:g}</td>
-                            <td>GHS {item_price:.2f}</td>
-                            <td>GHS {item_total:.2f}</td>
-                        </tr>
-                    """
-
-                html_content += f"""
-                                </tbody>
-                            </table>
-                            <div class="total-section">
-                                <strong>Subtotal:</strong> GHS {calculated_subtotal:.2f}
-                                <br>
-                                Discount: {discount:.2f}%
-                                <br>
-                                Discount Amount: GHS {discount_amount:.2f}
-                                <br>
-                                <strong>Order Total:</strong> GHS {order_total:.2f}
-                                <br>
-                                Amount Paid: GHS {amount_paid:.2f}
-                                <br>
-                                Balance: GHS {order_balance:.2f}
-                              
-                                Order Status: {order.status}
-                                <br>
-                                Date: {now.strftime("%d-%m-%Y %I:%M %p")}
-                            </div>
-                        </div>
-                        <div class="footer">
-                            Thank you for choosing A Graphics.
-                            <br><br>
-                            Email: afgghana@gmail.com
-                            <br>
-                            Phone: 0243210009 / 0531100380
-                        </div>
-                    </div>
-                </body>
-                </html>
-                """
-
-                msg = Message(
-                    subject=f"Order Confirmation - Assempa Fie Graphics (Order #{order_id})",
-                    recipients=[str(customer_email)],
-                    html=html_content,
-                    sender="afghana@gmail.com"
+                html_content = build_email_html(
+                    customer_name=customer_name,
+                    order_number=order_number,
+                    items=notification_items,
+                    is_balance_payment=is_balance_payment,
+                    amount_paid=amount_paid,
+                    order_balance=order_balance,
+                    subtotal=calculated_subtotal,
+                    discount=discount,
+                    discount_amount=discount_amount,
+                    order_total=order_total,
+                    status=order.status,
                 )
 
+                msg = Message(
+                    subject=f"Order Confirmation - Assempa Fie Graphics (Order #{order_number})",
+                    recipients=[str(customer_email)],
+                    html=html_content,
+                    sender=MAIL_SENDER,
+                )
                 mail.send(msg)
                 email_sent = True
-                print(f"✅ Emails sent successfully to {customer_email}")
+                print(f"✅ Email sent successfully to {customer_email}")
 
             except Exception as e:
                 email_sent = False
                 print(f"⚠️ Failed to send email: {str(e)}")
 
-        # ==========================================================
-        # SMS - FIXED VERSION
-        # ==========================================================
+        # ======================================================
+        # SMS
+        # ======================================================
         if phone_number:
             try:
-                clean_phone = "".join(filter(str.isdigit, str(phone_number)))
-
-                # Validate phone number format
-                if len(clean_phone) == 10:
-                    now = datetime.now()
-                    attendant = order.waiter if order.waiter else f"{user.firstname} {user.lastname}".strip()
-
-                    item_lines = []
-
-                    for index, item in enumerate(notification_items, start=1):
-                        try:
-                            item_qty = float(item.get("qty", 0) or 0)
-                        except (ValueError, TypeError):
-                            item_qty = 0
-
-                        try:
-                            item_price = float(item.get("price", 0) or 0)
-                        except (ValueError, TypeError):
-                            item_price = 0
-
-                        item_total = round(item_price * item_qty, 2)
-
-                        item_text = f"{index}. {item.get('name', '')}"
-
-                        measurement = item.get("measurement")
-                        if not isinstance(measurement, dict):
-                            measurement = {}
-
-                        width = measurement.get("width")
-                        if width is None:
-                            width = item.get("measurementWidth")
-
-                        height = measurement.get("height")
-                        if height is None:
-                            height = item.get("measurementHeight")
-
-                        unit = measurement.get("unit")
-                        if not unit:
-                            unit = item.get("measurementUnit")
-
-                        area = measurement.get("area")
-                        if area is None:
-                            area = item.get("measurementArea")
-
-                        if width is not None and height is not None and unit:
-                            try:
-                                width_text = f"{float(width):g}"
-                            except (ValueError, TypeError):
-                                width_text = str(width)
-
-                            try:
-                                height_text = f"{float(height):g}"
-                            except (ValueError, TypeError):
-                                height_text = str(height)
-
-                            item_text += f"\n   {width_text} x {height_text} {unit}"
-
-                            if area is not None:
-                                try:
-                                    area_text = f"{float(area):g}"
-                                except (ValueError, TypeError):
-                                    area_text = str(area)
-
-                                item_text += f"\n   Area: {area_text} sq {unit}"
-
-                        item_text += f"\n   x{item_qty:g} = GHS {item_total:.2f}"
-                        item_lines.append(item_text)
-
-                    if len(notification_items) > 5:
-                        item_lines.append(f"... and {len(notification_items) - 5} more items")
-
-                    items_text = "\n".join(item_lines)
-
-                    if order_balance <= 0:
-                        status_text = "PAID IN FULL"
-                        status_icon = "✅"
-                    else:
-                        status_text = f"BALANCE: GHS {order_balance:.2f}"
-                        status_icon = "⏳"
-
-                    # Build SMS message
-                    sms_message = f"""
-
-Order #{order_id}
-Customer: {customer_name}
-
-Subtotal: GHS {calculated_subtotal:.2f}
-Date: {now.strftime('%d-%m-%Y %I:%M %p')}
-
-Thank you for choosing AssempahFie Graphics!
-
-Contact Us:
-Email: afgghana@gmail.com
-Phone: 0243210009 / 0531100380
-"""
-
-                    # ==========================================================
-                    # SEND SMS VIA SMS ONLINE GH API
-                    # ==========================================================
-                    host = "api.smsonlinegh.com"
-                    requestURI = "/v5/message/sms/send"
-                    apiKey = "a7142fa4296ea493c9e2bd20352edf0d8c4191204fc126b7487408222a4fec27"
-
-                    headers = {
-                        "Host": host,
-                        "Content-Type": "application/json",
-                        "Accept": "application/json",
-                        "Authorization": f"key {apiKey}"
-                    }
-
-                    msg_data = {
-                        "text": sms_message.strip(),
-                        "type": 0,
-                        "sender": "Assempa Fie",
-                        "destinations": [clean_phone]
-                    }
-
-                    httpConn = httpClient.HTTPConnection(host, timeout=15)
-
-                    try:
-                        httpConn.request(
-                            "POST",
-                            requestURI,
-                            json.dumps(msg_data),
-                            headers
-                        )
-
-                        response = httpConn.getresponse()
-                        response_body = response.read().decode('utf-8')
-                        status = response.status
-
-                        # ==========================================================
-                        # FIXED: Handle SMS response and save to database
-                        # ==========================================================
-                        if status == 200:
-                            print(f"✅ SMS sent successfully to {clean_phone}")
-                            print(f"   Response: {response_body}")
-                            
-                            # Save successful SMS to database
-                            sms = Sms(
-                                receiver=float(clean_phone),
-                                message=sms_message.strip(),
-                                status="sent"
-                            )
-                            db.session.add(sms)
-                            
-                            # Update bundle size (decrement by 1)
-                            try:
-                                sms_bundle = SmsBundle.query.filter_by(id="1").first()
-                                if sms_bundle:
-                                    current_size = int(sms_bundle.size)
-                                    if current_size > 0:
-                                        sms_bundle.size = str(current_size - 15)
-                                        db.session.add(sms_bundle)
-                                        # print(f"📦 Bundle updated: {current_size} → {current_size - 1}")
-                                    else:
-                                        print("⚠️ Bundle is already empty")
-                                else:
-                                    print("⚠️ Bundle not found")
-                            except (ValueError, TypeError) as bundle_error:
-                                print(f"⚠️ Error updating bundle: {str(bundle_error)}")
-                            
-                            db.session.commit()
-                            sms_sent = True
-                            
-                        else:
-                            print(f"⚠️ SMS sending failed with status {status}")
-                            print(f"   Response: {response_body}")
-                            
-                            # Save failed SMS to database
-                            sms = Sms(
-                                receiver=float(clean_phone),
-                                message=sms_message.strip(),
-                                status="failed"
-                            )
-                            db.session.add(sms)
-                            db.session.commit()
-                            sms_sent = False
-
-                    except Exception as api_error:
-                        print(f"⚠️ SMS API error: {str(api_error)}")
-                        
-                        # Save failed SMS due to API error
-                        try:
-                            sms = Sms(
-                                receiver=float(clean_phone),
-                                message=sms_message.strip(),
-                                status="failed"
-                            )
-                            db.session.add(sms)
-                            db.session.commit()
-                        except Exception as db_error:
-                            print(f"⚠️ Failed to save SMS record: {str(db_error)}")
-                            db.session.rollback()
-                        
-                        sms_sent = False
-
-                    finally:
-                        httpConn.close()
-
-                else:
-                    # Invalid phone number format
-                    print(f"⚠️ Invalid phone number format: {clean_phone}")
-                    
-                    # Save failed SMS for invalid number
-                    try:
-                        sms = Sms(
-                            receiver=float(clean_phone) if clean_phone else 0,
-                            message=f"Order #{order_id} - Invalid phone number: {phone_number}",
-                            status="failed"
-                        )
-                        db.session.add(sms)
-                        db.session.commit()
-                    except Exception as db_error:
-                        print(f"⚠️ Failed to save SMS record: {str(db_error)}")
-                        db.session.rollback()
-                    
-                    sms_sent = False
-
+                sms_sent = send_order_sms(
+                    phone_number=phone_number,
+                    order_number=order_number,
+                    customer_name=customer_name,
+                    subtotal=calculated_subtotal,
+                    order_id=order_id,
+                )
             except Exception as e:
                 print(f"⚠️ Failed to send SMS: {str(e)}")
                 sms_sent = False
-                
-                # Try to save error record
-                try:
-                    if phone_number:
-                        clean_phone = "".join(filter(str.isdigit, str(phone_number)))
-                        sms = Sms(
-                            receiver=float(clean_phone) if clean_phone else 0,
-                            message=f"Order #{order_id} - SMS error: {str(e)[:200]}",
-                            status="failed"
-                        )
-                        db.session.add(sms)
-                        db.session.commit()
-                except:
-                    db.session.rollback()
 
-        # ==========================================================
+        # ======================================================
         # FINAL RESPONSE
-        # ==========================================================
+        # ======================================================
         return jsonify({
             "success": True,
             "message": "Order processed successfully",
-            "id": order_id,
+            "id": order_id,                      # numeric DB id, keep for frontend lookups
             "order_id": order_id,
+            "order_number": order_number,        # prefixed number for display
             "subtotal": f"{float(calculated_subtotal):.2f}",
             "discount": f"{float(discount):.2f}",
             "discount_amount": f"{float(discount_amount):.2f}",
@@ -12864,21 +12464,17 @@ Phone: 0243210009 / 0531100380
             "is_full_payment": float(new_balance) <= 0,
             "email_sent": email_sent,
             "sms_sent": sms_sent,
-            "items": json.loads(order.items) if order.items else []
+            "items": notification_items,
         }), 200
 
-    # ==============================================================
+    # ==========================================================
     # ERROR HANDLING
-    # ==============================================================
+    # ==========================================================
     except Exception as e:
         db.session.rollback()
-        import traceback
         traceback.print_exc()
+        return jsonify({"success": False, "error": str(e)}), 500
 
-        return jsonify({
-            "success": False,
-            "error": str(e)
-        }), 500
 
 @guest.route('/get_helding_orders_customers', methods=['GET'])
 @flask_praetorian.auth_required
