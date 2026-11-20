@@ -7773,6 +7773,7 @@ def get_helding_orders():
                 orders_list.append({
                     "id": order.id,
                     "items": filtered_items,
+                    "order_number": order.order_number,
                     "total": order.total,
                     "balance":order.balance,
                     "note": order.note,
@@ -7839,6 +7840,7 @@ def get_helding_ordersa():
                    "id": order.id,
                                        "items": filtered_items,
                                        "total": order.total,
+                                       "order_number": order.order_number,
                                        "balance":order.balance,
                                        "created_at":order.created_at,
                                        "note": order.note,
@@ -7898,6 +7900,7 @@ def get_helding_orders_drinks():
                    "id": order.id,
                                        "items": filtered_items,
                                        "total": order.total,
+                                       "order_number": order.order_number,
                                        "balance":order.balance,
                                        "note": order.note,
                                        "waiter": order.waiter,
@@ -7964,6 +7967,7 @@ def get_helding_orders_processed_drinks():
                     "id": order.id,
                                         "items": filtered_items,
                                         "total": order.total,
+                                        "order_number": order.order_number,
                                         "balance":order.balance,
                                         "note": order.note,
                                         "waiter": order.waiter,
@@ -8160,6 +8164,7 @@ def get_helding_orders_label():
                     "id": order.id,
                                         "items": filtered_items,
                                         "total": order.total,
+                                        "order_number": order.order_number,
                                         "balance":order.balance,
                                         "note": order.note,
                                         "waiter": order.waiter,
@@ -8223,6 +8228,7 @@ def get_helding_orders_label_processed():
                    "id": order.id,
                                        "items": filtered_items,
                                        "total": order.total,
+                                       "order_number": order.order_number,
                                        "balance":order.balance,
                                        "note": order.note,
                                        "waiter": order.waiter,
@@ -8281,17 +8287,18 @@ def get_helding_orders_dtf():
             if filtered_items:
                 orders_list.append({
                     "id": order.id,
-                                        "items": filtered_items,
-                                        "total": order.total,
-                                        "balance":order.balance,
-                                        "note": order.note,
-                                        "waiter": order.waiter,
-                                        "company_name": order.company_name,
-                                        "status": order.status,
-                                        "dtf_status": order.contain_dtf,
-                                        "working_on": order.working_on,
-                                        "working_on_id": order.working_on_id,
-                                        "working_on_label": order.working_on_label,
+                    "order_number": order.order_number,
+                    "items": filtered_items,
+                    "total": order.total,
+                    "balance":order.balance,
+                    "note": order.note,
+                    "waiter": order.waiter,
+                    "company_name": order.company_name,
+                    "status": order.status,
+                    "dtf_status": order.contain_dtf,
+                    "working_on": order.working_on,
+                    "working_on_id": order.working_on_id,
+                    "working_on_label": order.working_on_label,
                                         "working_on_id_label": order.working_on_id_label,
                                         "working_on_large_format": order.working_on_large_format,
                                         "working_on_id_large_format": order.working_on_id_large_format,
@@ -8815,6 +8822,7 @@ def get_helding_orders_givers():
     # ✅ Only select columns you actually need
     held_orders = HeldCart.query.with_entities(
         HeldCart.id,
+        HeldCart.order_number,
         HeldCart.items,
         HeldCart.total,
         HeldCart.balance,
@@ -8844,6 +8852,7 @@ def get_helding_orders_givers():
             items = json.loads(order.items) if order.items else []
             orders_list.append({
                 "id": order.id,
+                "order_number": order.order_number,
                 "items": items,
                 "total": order.total,
                 "balance": order.balance,
@@ -8881,6 +8890,7 @@ def get_helding_orders_givers_processed():
     # ✅ Only select needed columns + limit
     held_orders = HeldCart.query.with_entities(
         HeldCart.id,
+        HeldCart.order_number,
         HeldCart.items,
         HeldCart.total,
         HeldCart.note,
@@ -8909,6 +8919,7 @@ def get_helding_orders_givers_processed():
             items = json.loads(order.items) if order.items else []
             orders_list.append({
                 "id": order.id,
+                "order_number": order.order_number,
                 "items": items,
                 "total": order.total,
                 "note": order.note,
@@ -8966,6 +8977,7 @@ def get_helding_orders_dtf_processed():
                 orders_list.append({
                     "id": order.id,
                                         "items": filtered_items,
+                                        "order_number": order.order_number,
                                         "total": order.total,
                                         "balance":order.balance,
                                         "note": order.note,
@@ -9161,19 +9173,21 @@ def get_held_order_by_customer(customer_id):
 
 
 
-@guest.route('/track_order/<int:hold_id>', methods=['GET'])
+from sqlalchemy import or_
 
+@guest.route('/track_order/<int:hold_id>', methods=['GET'])
 def track_order(hold_id):
     try:
-        # user = current_user()
-        held_order = HeldCart.query.filter_by(
-            id=hold_id,
-           
+        held_order = HeldCart.query.filter(
+            or_(
+                HeldCart.id == hold_id,
+                HeldCart.order_number == hold_id
+            )
         ).first()
-        
+
         if not held_order:
             return jsonify({"error": "Held order not found"}), 404
-        
+
         # Parse items
         try:
             items = json.loads(held_order.items) if held_order.items else []
@@ -9184,7 +9198,7 @@ def track_order(hold_id):
                     item['confirmed'] = None
         except json.JSONDecodeError:
             items = []
-        
+
         # Get balance
         balance = 0.0
         try:
@@ -9192,12 +9206,13 @@ def track_order(hold_id):
                 balance = float(held_order.balance)
         except (ValueError, TypeError):
             balance = 0.0
-        
+
         return jsonify({
             "id": held_order.id,
+            "order_number": held_order.order_number,
             "items": items,
             "total": held_order.total,
-            "balance": balance,  # ✅ Added balance field
+            "balance": balance,
             "customer": held_order.customer_id,
             "note": held_order.note,
             "table": held_order.table,
@@ -9213,10 +9228,11 @@ def track_order(hold_id):
             "contain_label": held_order.contain_label,
             "contain_dtf": held_order.contain_dtf
         }), 200
-        
+
     except Exception as e:
         print(f"Error loading held order: {str(e)}")
         return jsonify({"error": str(e)}), 500
+
 
 @guest.route('/load_held_orders_batch', methods=['POST'])
 @flask_praetorian.auth_required
@@ -12337,6 +12353,7 @@ def hold_and_pay():
             order = HeldCart(
                 user_id=user.id,
                 items=json.dumps(incoming_items),
+                order_number=order_number,  # will be set after flush
                 total=new_total,
                 balance=f"{new_balance:.2f}",
                 customer=f"{customer.firstname} {customer.lastname}" if customer else data.get("customer", ""),
