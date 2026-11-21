@@ -12353,7 +12353,7 @@ def hold_and_pay():
             order = HeldCart(
                 user_id=user.id,
                 items=json.dumps(incoming_items),
-                order_number=order_number,  # will be set after flush
+               # will be set after flush
                 total=new_total,
                 balance=f"{new_balance:.2f}",
                 customer=f"{customer.firstname} {customer.lastname}" if customer else data.get("customer", ""),
