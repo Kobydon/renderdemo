@@ -11612,11 +11612,11 @@ MAIL_SENDER = "afghana@gmail.com"                     # check spelling vs footer
 
 # Category -> order number prefix
 ORDER_PREFIXES = {
-    "dtf": "D",
-    "label": "c",
-    "large_format": "l",
-    "uvdtf": "u",
-    "digital_printing": "L",
+    "dtf": "DT",
+    "label": "LB",
+    "large_format": "LF",
+    "uvdtf": "UV",
+    "digital_printing": "DP",
 }
 
 DEPARTMENT_FAMILIES = [
