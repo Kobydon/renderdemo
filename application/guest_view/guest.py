@@ -12587,18 +12587,18 @@ def hold_and_pay():
         # ======================================================
         # SMS
         # ======================================================
-        if phone_number:
-            try:
-                sms_sent = send_order_sms(
-                    phone_number=phone_number,
-                    order_number=order_number,
-                    customer_name=customer_name,
-                    subtotal=calculated_subtotal,
-                    order_id=order_id,
-                )
-            except Exception as e:
-                print(f"⚠️ Failed to send SMS: {str(e)}")
-                sms_sent = False
+        # if phone_number:
+        #     try:
+        #         sms_sent = send_order_sms(
+        #             phone_number=phone_number,
+        #             order_number=order_number,
+        #             customer_name=customer_name,
+        #             subtotal=calculated_subtotal,
+        #             order_id=order_id,
+        #         )
+        #     except Exception as e:
+        #         print(f"⚠️ Failed to send SMS: {str(e)}")
+        #         sms_sent = False
 
         # ======================================================
         # FINAL RESPONSE
