@@ -9041,22 +9041,32 @@ def remove_held_order():
     }), 200
 
 
-
 @guest.route('/load_held_order_giver/<hold_id>', methods=['GET'])
 @flask_praetorian.auth_required
 def load_held_order_giver(hold_id):
     try:
         user = current_user()
+        hold_id = str(hold_id).strip()
+
+        if not hold_id:
+            return jsonify({"error": "Order ID is required"}), 400
+
+        # 1. Look up by order_number first (string column, e.g. "DP46278").
         held_order = HeldCart.query.filter(
-            or_(
-                HeldCart.id == hold_id,
-                HeldCart.order_number == hold_id
-            )
+            HeldCart.order_number == hold_id
         ).first()
-        
+
+        # 2. Fall back to the integer primary key, but only if the value is
+        #    numeric. Comparing the integer id column to a string like
+        #    "DP46278" makes Postgres raise InvalidTextRepresentation.
+        if not held_order and hold_id.isdigit():
+            held_order = HeldCart.query.filter(
+                HeldCart.id == int(hold_id)
+            ).first()
+
         if not held_order:
             return jsonify({"error": "Held order not found"}), 404
-        
+
         # Parse items
         try:
             items = json.loads(held_order.items) if held_order.items else []
@@ -9067,7 +9077,7 @@ def load_held_order_giver(hold_id):
                     item['confirmed'] = None
         except json.JSONDecodeError:
             items = []
-        
+
         # Get balance
         balance = 0.0
         try:
@@ -9075,12 +9085,13 @@ def load_held_order_giver(hold_id):
                 balance = float(held_order.balance)
         except (ValueError, TypeError):
             balance = 0.0
-        
+
         return jsonify({
             "id": held_order.id,
+            "order_number": held_order.order_number,
             "items": items,
             "total": held_order.total,
-            "balance": balance,  # ✅ Added balance field
+            "balance": balance,
             "customer": held_order.customer_id,
             "note": held_order.note,
             "table": held_order.table,
@@ -9094,14 +9105,21 @@ def load_held_order_giver(hold_id):
             "contain_digital_printing": held_order.contain_digital_printing,
             "contain_large_format": held_order.contain_large_format,
             "contain_label": held_order.contain_label,
-            "contain_dtf": held_order.contain_dtf
+            "contain_dtf": held_order.contain_dtf,
+            # Delivery fields used by the givers tab
+            "delivery_status": held_order.delivery_status,
+            "delivered_by": held_order.delivered_by,
+            "delivery_contact": held_order.delivery_contact,
+            "delivery_address": held_order.delivery_address,
+            "delivery_note": held_order.delivery_note,
+            "delivery_date": held_order.delivery_date.isoformat()
+                if getattr(held_order.delivery_date, "isoformat", None) else held_order.delivery_date
         }), 200
-        
+
     except Exception as e:
+        db.session.rollback()  # keep the session usable after a failed query
         print(f"Error loading held order: {str(e)}")
         return jsonify({"error": str(e)}), 500
-
-
 
 
 
