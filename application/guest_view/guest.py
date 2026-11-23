@@ -9042,14 +9042,16 @@ def remove_held_order():
 
 
 
-@guest.route('/load_held_order_giver/<int:hold_id>', methods=['GET'])
+@guest.route('/load_held_order_giver/<hold_id>', methods=['GET'])
 @flask_praetorian.auth_required
 def load_held_order_giver(hold_id):
     try:
         user = current_user()
-        held_order = HeldCart.query.filter_by(
-            id=hold_id,
-          
+        held_order = HeldCart.query.filter(
+            or_(
+                HeldCart.id == hold_id,
+                HeldCart.order_number == hold_id
+            )
         ).first()
         
         if not held_order:
