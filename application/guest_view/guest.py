@@ -10883,473 +10883,530 @@ def accept_order(order_id):
         print(f"Error in accept_order: {str(e)}")
         return jsonify({"error": str(e)}), 500
  
+import os
+import json
+import threading
+import traceback
+import http.client as httpClient
+from datetime import datetime, timedelta
 
-@guest.route("/cutting_order/<int:order_id>", methods=["POST", "PUT"])
-@flask_praetorian.auth_required
-def cutting_order(order_id):
+from flask import request, jsonify
+from flask_mail import Message
+from sqlalchemy import or_  # noqa: F401  (kept in case other routes in this file use it)
+import flask_praetorian
+
+# ---------------------------------------------------------------------------
+# SMS settings
+# ---------------------------------------------------------------------------
+SMS_DELAY_SECONDS = 10 * 60  # 10 minutes
+SMS_HOST = 'api.smsonlinegh.com'
+SMS_REQUEST_URI = '/v5/message/sms/send'
+SMS_SENDER_ID = 'Assempa Fie'  # max 11 characters
+# Do not hard-code the key. Set SMSONLINEGH_API_KEY in your environment / .env
+SMS_API_KEY = os.environ.get('SMSONLINEGH_API_KEY', '')
+
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+def find_held_order(order_ref):
+    """Find a HeldCart by order_number (e.g. 'DP46278') or by numeric id."""
+    order_ref = str(order_ref).strip()
+
+    order = HeldCart.query.filter(HeldCart.order_number == order_ref).first()
+    if not order and order_ref.isdigit():
+        order = HeldCart.query.filter(HeldCart.id == int(order_ref)).first()
+    return order
+
+
+def build_ready_email_html(customer_name, prepared_by, order_ref, year):
+    return f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Order Ready for Pickup - A Graphics</title>
+        <style>
+            body {{
+                font-family: 'Segoe UI', Arial, sans-serif;
+                margin: 0;
+                padding: 0;
+                background-color: #f8f9fa;
+                color: #333;
+            }}
+            .email-container {{
+                max-width: 500px;
+                margin: 20px auto;
+                background-color: #ffffff;
+                border-radius: 12px;
+                overflow: hidden;
+                box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+            }}
+            .header {{
+                background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+                padding: 25px 20px;
+                text-align: center;
+                border-bottom: 4px solid #28a745;
+            }}
+            .header h1 {{
+                color: #ffffff;
+                font-size: 22px;
+                margin: 0;
+                font-weight: 700;
+                letter-spacing: 1px;
+            }}
+            .header .subtitle {{
+                color: #e0e0e0;
+                font-size: 13px;
+                margin: 5px 0 0;
+                opacity: 0.9;
+            }}
+            .content {{
+                padding: 25px 30px;
+            }}
+            .greeting {{
+                font-size: 17px;
+                color: #1a1a2e;
+                margin-bottom: 15px;
+                font-weight: 600;
+            }}
+            .greeting span {{
+                color: #28a745;
+            }}
+            .status-card {{
+                background: linear-gradient(135deg, #f0fff4 0%, #e8f5e9 100%);
+                border-left: 4px solid #28a745;
+                padding: 15px 20px;
+                border-radius: 8px;
+                margin: 20px 0;
+            }}
+            .status-card .stage {{
+                font-size: 14px;
+                color: #555;
+                margin: 3px 0;
+            }}
+            .status-card .stage strong {{
+                color: #1a1a2e;
+            }}
+            .status-badge {{
+                display: inline-block;
+                padding: 4px 14px;
+                border-radius: 20px;
+                font-size: 13px;
+                font-weight: 600;
+                text-transform: uppercase;
+                letter-spacing: 0.5px;
+                background: #28a745;
+                color: white;
+                margin: 5px 0;
+            }}
+            .order-ref {{
+                background: #f8f9fa;
+                border-radius: 8px;
+                padding: 15px 20px;
+                margin: 20px 0;
+                text-align: center;
+                border: 2px dashed #28a745;
+            }}
+            .order-ref .order-number {{
+                font-size: 28px;
+                font-weight: 700;
+                color: #1a1a2e;
+                letter-spacing: 2px;
+            }}
+            .order-ref .order-label {{
+                font-size: 13px;
+                color: #888;
+                text-transform: uppercase;
+                letter-spacing: 1px;
+            }}
+            .progress-steps {{
+                display: flex;
+                justify-content: space-between;
+                margin: 25px 0;
+                position: relative;
+            }}
+            .progress-steps::before {{
+                content: '';
+                position: absolute;
+                top: 15px;
+                left: 10%;
+                right: 10%;
+                height: 2px;
+                background: #dee2e6;
+                z-index: 0;
+            }}
+            .step {{
+                text-align: center;
+                flex: 1;
+                position: relative;
+                z-index: 1;
+            }}
+            .step .step-icon {{
+                width: 30px;
+                height: 30px;
+                border-radius: 50%;
+                background: #dee2e6;
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                color: white;
+                font-size: 14px;
+                font-weight: 700;
+                margin-bottom: 5px;
+            }}
+            .step.active .step-icon {{
+                background: #28a745;
+            }}
+            .step.completed .step-icon {{
+                background: #28a745;
+            }}
+            .step .step-label {{
+                font-size: 11px;
+                color: #888;
+                text-transform: uppercase;
+                letter-spacing: 0.5px;
+            }}
+            .step.active .step-label {{
+                color: #28a745;
+                font-weight: 600;
+            }}
+            .step.completed .step-label {{
+                color: #28a745;
+                font-weight: 600;
+            }}
+            .footer {{
+                background: #f8f9fa;
+                padding: 20px 30px;
+                text-align: center;
+                border-top: 1px solid #e9ecef;
+                font-size: 12px;
+                color: #888;
+            }}
+            .footer .shop-name {{
+                font-size: 15px;
+                font-weight: 700;
+                color: #1a1a2e;
+                margin-bottom: 3px;
+            }}
+            .footer .shop-info {{
+                color: #666;
+                margin: 2px 0;
+                font-size: 12px;
+            }}
+            @media (max-width: 600px) {{
+                .content {{
+                    padding: 20px 15px;
+                }}
+                .order-ref .order-number {{
+                    font-size: 22px;
+                }}
+                .progress-steps {{
+                    flex-wrap: wrap;
+                }}
+                .step {{
+                    flex: 0 0 33%;
+                    margin-bottom: 10px;
+                }}
+            }}
+        </style>
+    </head>
+    <body>
+        <div class="email-container">
+            <div class="header">
+                <h1>🎨 Assempah fie Graphics</h1>
+                <div class="subtitle">📍 Kokomlemle, Accra • 📞 0243210009</div>
+            </div>
+
+            <div class="content">
+                <div class="greeting">Dear <span>{customer_name}</span>,</div>
+
+                <p style="color: #555; font-size: 14px; line-height: 1.6;">
+                    Great news! Your order is now <strong>ready for pickup</strong>! 🎉
+                </p>
+
+                <div class="status-card">
+                    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap;">
+                        <div>
+                            <div class="stage"><strong>📋 Status:</strong> <span class="status-badge">Ready for Pickup</span></div>
+                            <div class="stage" style="margin-top: 5px;"><strong>✅ Stage:</strong> Complete</div>
+                            <div class="stage" style="margin-top: 5px;"><strong>👤 Prepared By:</strong> {prepared_by}</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="order-ref">
+                    <div class="order-label">📦 Order Reference</div>
+                    <div class="order-number">#{order_ref}</div>
+                </div>
+
+                <div class="progress-steps">
+                    <div class="step completed">
+                        <div class="step-icon">✓</div>
+                        <div class="step-label">Order Placed</div>
+                    </div>
+                    <div class="step completed">
+                        <div class="step-icon">✓</div>
+                        <div class="step-label">Printed</div>
+                    </div>
+                    <div class="step completed">
+                        <div class="step-icon">✓</div>
+                        <div class="step-label">Cutting</div>
+                    </div>
+                    <div class="step active">
+                        <div class="step-icon">📦</div>
+                        <div class="step-label">Ready</div>
+                    </div>
+                </div>
+
+                <div style="background: #e8f5e9; padding: 15px; border-radius: 8px; margin: 20px 0; text-align: center;">
+                    <p style="margin: 0; font-size: 16px; font-weight: 600; color: #2e7d32;">
+                        📍 Your order is ready for pickup at our location!
+                    </p>
+                    <p style="margin: 5px 0 0; font-size: 13px; color: #555;">
+                        Kokomlemle, Accra
+                    </p>
+                </div>
+
+                <p style="color: #666; font-size: 13px; line-height: 1.6; margin-top: 10px; text-align: center;">
+                    Please come to our shop to collect your order.
+                </p>
+
+                <p style="color: #1a1a2e; font-size: 13px; margin: 15px 0 5px; font-weight: 600; text-align: center;">
+                    📢 Questions? Call us: 0243210009
+                </p>
+            </div>
+
+            <div class="footer">
+                <div class="shop-name">✨ A Graphics ✨</div>
+                <div class="shop-info">📍 Kokomlemle, Accra • 📞 0243210009</div>
+                <div class="shop-info">📧 info@Agraphics.com</div>
+                <p style="margin-top: 10px; font-size: 11px; color: #bbb;">
+                    © {year} A Graphics. All rights reserved.
+                </p>
+            </div>
+        </div>
+    </body>
+    </html>
+    """
+
+
+def send_ready_sms_now(clean_phone, customer_name, order_ref):
+    """
+    Actually sends the SMS. Runs on a background timer thread, so it must NOT
+    touch the database or Flask request/app context. Everything it needs is
+    passed in as plain values.
+    """
     try:
-        order = HeldCart.query.get_or_404(order_id)
+        if not SMS_API_KEY:
+            print("⚠️ SMSONLINEGH_API_KEY is not set, SMS not sent")
+            return False
+
+        now = datetime.now()
+        sms_message = (
+            f"Order #{order_ref}\n"
+            f"Dear {customer_name},\n"
+            f"Your order is now ready for pickup!\n\n"
+            f"Date: {now.strftime('%d-%m-%Y %I:%M %p')}\n\n"
+            f"Location: Kokomlemle, Accra\n"
+            f"Hours: Mon-Sat 8am - 8pm\n\n"
+            f"Contact Us:\n"
+            f"Email: afgghana@gmail.com\n"
+            f"Phone: 0243210009 / 0531100380"
+        )
+
+        headers = {
+            'Host': SMS_HOST,
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+            'Authorization': f'key {SMS_API_KEY}'
+        }
+
+        msg_data = {
+            'text': sms_message,
+            'type': 0,  # 0 for standard SMS
+            'sender': SMS_SENDER_ID,
+            'destinations': [clean_phone]
+        }
+
+        http_conn = httpClient.HTTPSConnection(SMS_HOST, timeout=30)
+        try:
+            http_conn.request('POST', SMS_REQUEST_URI, json.dumps(msg_data), headers)
+            response = http_conn.getresponse()
+            body = response.read()
+        finally:
+            http_conn.close()
+
+        if response.status == 200:
+            print(f"✅ Delayed ready-for-pickup SMS sent to {clean_phone} (order #{order_ref}): {body}")
+            return True
+
+        print(f"⚠️ SMS sending failed with status {response.status}: {body}")
+        return False
+
+    except Exception as sms_error:
+        print(f"⚠️ Failed to send delayed ready-for-pickup SMS: {str(sms_error)}")
+        return False
+
+
+def schedule_ready_sms(clean_phone, customer_name, order_ref, delay_seconds=SMS_DELAY_SECONDS):
+    """Schedule the SMS to go out after delay_seconds. Returns the scheduled send time."""
+    timer = threading.Timer(
+        delay_seconds,
+        send_ready_sms_now,
+        args=(clean_phone, customer_name, order_ref)
+    )
+    timer.daemon = True  # don't block server shutdown
+    timer.start()
+    return datetime.now() + timedelta(seconds=delay_seconds)
+
+
+# ---------------------------------------------------------------------------
+# Route
+# ---------------------------------------------------------------------------
+@guest.route("/cutting_order/<order_ref>", methods=["POST", "PUT"])
+@flask_praetorian.auth_required
+def cutting_order(order_ref):
+    try:
+        # Accepts a numeric id ("123") or an order number ("DP46278")
+        order = find_held_order(order_ref)
+        if not order:
+            return jsonify({"error": "Order not found"}), 404
+
         current_user = flask_praetorian.current_user()
-        sms= SmsBundle.query.filter_by(id="1").first()
-                
-        
-        
+        sms = SmsBundle.query.filter_by(id="1").first()
+
+        # What the customer sees as the order reference
+        display_ref = order.order_number or order.id
+
         # Parse existing items
         try:
             items = json.loads(order.items) if order.items else []
         except json.JSONDecodeError:
             items = []
-        
-        # Get the item index from request (if you're updating a specific item)
-        data = request.get_json()
-        item_index = data.get('item_index') if data else None
-        
-        # Find and update the specific item
+
+        # Optional item index (update a single item instead of all of them)
+        data = request.get_json(silent=True) or {}
+        item_index = data.get('item_index')
+
         item_found = False
         updated_item = None
-        
+
         if item_index is not None:
-            # Update by index
             if 0 <= item_index < len(items):
                 items[item_index]['confirmed'] = "ready for pickup"
-                # items[item_index]['checked_by'] = str(current_user.firstname + " " + current_user.lastname)
                 items[item_index]['cutting_status'] = "ready for pickup"
                 item_found = True
                 updated_item = items[item_index]
         else:
-            # Update all items in the order
             for item in items:
                 item['confirmed'] = "ready for pickup"
                 item['cutting_status'] = "ready for pickup"
                 item_found = True
                 updated_item = item
-        
+
         if not item_found:
             return jsonify({"error": "Item not found in order"}), 404
 
         if sms:
             sms.size = str(int(sms.size) - 5)
 
-        
         # Update order items and status
         order.items = json.dumps(items)
         order.status = "ready for pickup"
         db.session.commit()
-        
+
+        prepared_by = f"{current_user.firstname} {current_user.lastname}"
+
         # --- GET CUSTOMER INFORMATION ---
         customer_email = None
         customer_name = "Valued Customer"
         phone_number = None
-        
-        # Get customer using customer_id from order
+
         if order.customer_id:
             customer = Customer.query.filter_by(id=order.customer_id).first()
             if customer:
                 customer_email = getattr(customer, 'email', None)
                 phone_number = getattr(customer, 'phone', None)
-                customer_name = getattr(customer, 'firstname', '') + ' ' + getattr(customer, 'lastname', '')
-                if not customer_name or customer_name.strip() == '':
-                    customer_name = "Valued Customer"
-        
-        # Initialize flags
+                full_name = f"{getattr(customer, 'firstname', '') or ''} {getattr(customer, 'lastname', '') or ''}".strip()
+                if full_name:
+                    customer_name = full_name
+
         email_sent = False
-        sms_sent = False
-        
-        # ========== SEND EMAIL CONFIRMATION ==========
+        sms_scheduled = False
+        sms_scheduled_for = None
+
+        # ========== SEND EMAIL (immediately) ==========
         if customer_email:
             try:
                 now = datetime.now()
-                # Build simple email HTML
-                html_content = f"""
-                <!DOCTYPE html>
-                <html>
-                <head>
-                    <meta charset="UTF-8">
-                    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-                    <title>Order Ready for Pickup - A Graphics</title>
-                    <style>
-                        body {{
-                            font-family: 'Segoe UI', Arial, sans-serif;
-                            margin: 0;
-                            padding: 0;
-                            background-color: #f8f9fa;
-                            color: #333;
-                        }}
-                        .email-container {{
-                            max-width: 500px;
-                            margin: 20px auto;
-                            background-color: #ffffff;
-                            border-radius: 12px;
-                            overflow: hidden;
-                            box-shadow: 0 4px 20px rgba(0,0,0,0.08);
-                        }}
-                        .header {{
-                            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
-                            padding: 25px 20px;
-                            text-align: center;
-                            border-bottom: 4px solid #28a745;
-                        }}
-                        .header h1 {{
-                            color: #ffffff;
-                            font-size: 22px;
-                            margin: 0;
-                            font-weight: 700;
-                            letter-spacing: 1px;
-                        }}
-                        .header .subtitle {{
-                            color: #e0e0e0;
-                            font-size: 13px;
-                            margin: 5px 0 0;
-                            opacity: 0.9;
-                        }}
-                        .content {{
-                            padding: 25px 30px;
-                        }}
-                        .greeting {{
-                            font-size: 17px;
-                            color: #1a1a2e;
-                            margin-bottom: 15px;
-                            font-weight: 600;
-                        }}
-                        .greeting span {{
-                            color: #28a745;
-                        }}
-                        .status-card {{
-                            background: linear-gradient(135deg, #f0fff4 0%, #e8f5e9 100%);
-                            border-left: 4px solid #28a745;
-                            padding: 15px 20px;
-                            border-radius: 8px;
-                            margin: 20px 0;
-                        }}
-                        .status-card .stage {{
-                            font-size: 14px;
-                            color: #555;
-                            margin: 3px 0;
-                        }}
-                        .status-card .stage strong {{
-                            color: #1a1a2e;
-                        }}
-                        .status-badge {{
-                            display: inline-block;
-                            padding: 4px 14px;
-                            border-radius: 20px;
-                            font-size: 13px;
-                            font-weight: 600;
-                            text-transform: uppercase;
-                            letter-spacing: 0.5px;
-                            background: #28a745;
-                            color: white;
-                            margin: 5px 0;
-                        }}
-                        .order-ref {{
-                            background: #f8f9fa;
-                            border-radius: 8px;
-                            padding: 15px 20px;
-                            margin: 20px 0;
-                            text-align: center;
-                            border: 2px dashed #28a745;
-                        }}
-                        .order-ref .order-number {{
-                            font-size: 28px;
-                            font-weight: 700;
-                            color: #1a1a2e;
-                            letter-spacing: 2px;
-                        }}
-                        .order-ref .order-label {{
-                            font-size: 13px;
-                            color: #888;
-                            text-transform: uppercase;
-                            letter-spacing: 1px;
-                        }}
-                        .progress-steps {{
-                            display: flex;
-                            justify-content: space-between;
-                            margin: 25px 0;
-                            position: relative;
-                        }}
-                        .progress-steps::before {{
-                            content: '';
-                            position: absolute;
-                            top: 15px;
-                            left: 10%;
-                            right: 10%;
-                            height: 2px;
-                            background: #dee2e6;
-                            z-index: 0;
-                        }}
-                        .step {{
-                            text-align: center;
-                            flex: 1;
-                            position: relative;
-                            z-index: 1;
-                        }}
-                        .step .step-icon {{
-                            width: 30px;
-                            height: 30px;
-                            border-radius: 50%;
-                            background: #dee2e6;
-                            display: inline-flex;
-                            align-items: center;
-                            justify-content: center;
-                            color: white;
-                            font-size: 14px;
-                            font-weight: 700;
-                            margin-bottom: 5px;
-                        }}
-                        .step.active .step-icon {{
-                            background: #28a745;
-                        }}
-                        .step.completed .step-icon {{
-                            background: #28a745;
-                        }}
-                        .step .step-label {{
-                            font-size: 11px;
-                            color: #888;
-                            text-transform: uppercase;
-                            letter-spacing: 0.5px;
-                        }}
-                        .step.active .step-label {{
-                            color: #28a745;
-                            font-weight: 600;
-                        }}
-                        .step.completed .step-label {{
-                            color: #28a745;
-                            font-weight: 600;
-                        }}
-                        .footer {{
-                            background: #f8f9fa;
-                            padding: 20px 30px;
-                            text-align: center;
-                            border-top: 1px solid #e9ecef;
-                            font-size: 12px;
-                            color: #888;
-                        }}
-                        .footer .shop-name {{
-                            font-size: 15px;
-                            font-weight: 700;
-                            color: #1a1a2e;
-                            margin-bottom: 3px;
-                        }}
-                        .footer .shop-info {{
-                            color: #666;
-                            margin: 2px 0;
-                            font-size: 12px;
-                        }}
-                        @media (max-width: 600px) {{
-                            .content {{
-                                padding: 20px 15px;
-                            }}
-                            .order-ref .order-number {{
-                                font-size: 22px;
-                            }}
-                            .progress-steps {{
-                                flex-wrap: wrap;
-                            }}
-                            .step {{
-                                flex: 0 0 33%;
-                                margin-bottom: 10px;
-                            }}
-                        }}
-                    </style>
-                </head>
-                <body>
-                    <div class="email-container">
-                        <div class="header">
-                            <h1>🎨 Assempah fie Graphics</h1>
-                            <div class="subtitle">📍 Kokomlemle, Accra • 📞 0243210009</div>
-                        </div>
-                        
-                        <div class="content">
-                            <div class="greeting">Dear <span>{customer_name}</span>,</div>
-                            
-                            <p style="color: #555; font-size: 14px; line-height: 1.6;">
-                                Great news! Your order is now <strong>ready for pickup</strong>! 🎉
-                            </p>
-                            
-                            <div class="status-card">
-                                <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap;">
-                                    <div>
-                                        <div class="stage"><strong>📋 Status:</strong> <span class="status-badge">Ready for Pickup</span></div>
-                                        <div class="stage" style="margin-top: 5px;"><strong>✅ Stage:</strong> Complete</div>
-                                        <div class="stage" style="margin-top: 5px;"><strong>👤 Prepared By:</strong> {current_user.firstname} {current_user.lastname}</div>
-                                    </div>
-                                </div>
-                            </div>
-                            
-                            <div class="order-ref">
-                                <div class="order-label">📦 Order Reference</div>
-                                <div class="order-number">#{order_id}</div>
-                            </div>
-                            
-                            <div class="progress-steps">
-                                <div class="step completed">
-                                    <div class="step-icon">✓</div>
-                                    <div class="step-label">Order Placed</div>
-                                </div>
-                                <div class="step completed">
-                                    <div class="step-icon">✓</div>
-                                    <div class="step-label">Printed</div>
-                                </div>
-                                <div class="step completed">
-                                    <div class="step-icon">✓</div>
-                                    <div class="step-label">Cutting</div>
-                                </div>
-                                <div class="step active">
-                                    <div class="step-icon">📦</div>
-                                    <div class="step-label">Ready</div>
-                                </div>
-                            </div>
-                            
-                            <div style="background: #e8f5e9; padding: 15px; border-radius: 8px; margin: 20px 0; text-align: center;">
-                                <p style="margin: 0; font-size: 16px; font-weight: 600; color: #2e7d32;">
-                                    📍 Your order is ready for pickup at our location!
-                                </p>
-                                <p style="margin: 5px 0 0; font-size: 13px; color: #555;">
-                                    Kokomlemle, Accra
-                                </p>
-                            </div>
-                            
-                            <p style="color: #666; font-size: 13px; line-height: 1.6; margin-top: 10px; text-align: center;">
-                                Please come to our shop to collect your order.
-                            </p>
-                            
-                            <p style="color: #1a1a2e; font-size: 13px; margin: 15px 0 5px; font-weight: 600; text-align: center;">
-                                📢 Questions? Call us: 0243210009
-                            </p>
-                        </div>
-                        
-                        <div class="footer">
-                            <div class="shop-name">✨ A Graphics ✨</div>
-                            <div class="shop-info">📍 Kokomlemle, Accra • 📞 0243210009</div>
-                            <div class="shop-info">📧 info@Agraphics.com</div>
-                            <p style="margin-top: 10px; font-size: 11px; color: #bbb;">
-                                © {now.year} A Graphics. All rights reserved.
-                            </p>
-                        </div>
-                    </div>
-                </body>
-                </html>
-                """
-                
-                # Send email
-                from flask_mail import Message
-                
+                html_content = build_ready_email_html(
+                    customer_name=customer_name,
+                    prepared_by=prepared_by,
+                    order_ref=display_ref,
+                    year=now.year
+                )
+
                 msg = Message(
-                    subject=f"✅ Order #{order_id} - Ready for Pickup - A Graphics",
+                    subject=f"✅ Order #{display_ref} - Ready for Pickup - A Graphics",
                     html=html_content,
                     sender="afgghana@gmail.com",
                     recipients=[customer_email]
                 )
-                
+
                 mail.send(msg)
                 email_sent = True
-                print(f"✅ Ready for pickup email sent to {customer_email} for order #{order_id}")
-                
+                print(f"✅ Ready for pickup email sent to {customer_email} for order #{display_ref}")
+
             except Exception as email_error:
                 print(f"⚠️ Failed to send ready for pickup email to {customer_email}: {str(email_error)}")
                 email_sent = False
         else:
-            print(f"ℹ️ No email provided for order #{order_id}, skipping email notification")
+            print(f"ℹ️ No email provided for order #{display_ref}, skipping email notification")
 
-        # ========== SEND 
-        #  CONFIRMATION ==========
+        # ========== SCHEDULE SMS (sent after 10 minutes) ==========
         if phone_number:
             try:
-                # Clean phone number - remove spaces and ensure proper format
                 clean_phone = ''.join(filter(str.isdigit, str(phone_number)))
-                
-                # Ensure it's a valid Ghana number (starts with 0 and is 10 digits)
+
+                # Valid Ghana number: 10 digits starting with 0
                 if len(clean_phone) == 10 and clean_phone.startswith('0'):
-                    # Get current time for SMS
-                    now = datetime.now()
-                    
-                    # Get attendant name
-                    attendant = order.waiter if order.waiter else f"{current_user.firstname} {current_user.lastname}"
-                    
-                    # Build SMS message
-                    sms_message = f"""
-
-
-Order #{order_id}
-Dear {customer_name},
-Your order is now ready for pickup!
-
-Date: {now.strftime('%d-%m-%Y %I:%M %p')}
-
-
-Location: Kokomlemle, Accra
-Hours: Mon-Sat 8am - 8pm
-
-Contact Us:
-Email: afgghana@gmail.com
-Phone: 0243210009 / 0531100380
-"""
-                    
-                    # Send SMS using the API
-                    host = 'api.smsonlinegh.com'
-                    requestURI = '/v5/message/sms/send'
-                    apiKey = 'a7142fa4296ea493c9e2bd20352edf0d8c4191204fc126b7487408222a4fec27'
-                    
-                    headers = {
-                        'Host': host,
-                        'Content-Type': 'application/json',
-                        'Accept': 'application/json',
-                        'Authorization': f'key {apiKey}'
-                    }
-                    
-                    msg_data = {
-                        'text': sms_message.strip(),
-                        'type': 0,  # 0 for standard SMS
-                        'sender': 'Assempa Fie',  # Sender ID (max 11 characters)
-                        'destinations': [clean_phone]
-                    }
-                    
-                    httpConn = httpClient.HTTPConnection(host)
-                    httpConn.request('POST', requestURI, json.dumps(msg_data), headers)
-                    
-                    response = httpConn.getresponse()
-                    status = response.status
-                    
-                    if status == 200:
-                        response_data = response.read()
-                        print(f"✅ Ready for pickup SMSs sent successfully to {clean_phone}: {response_data}")
-                        sms_sent = True
-                    else:
-                        print(f"⚠️ SMS sending failed with status {status}: {response.read()}")
-                        sms_sent = False
-                    
-                    httpConn.close()
-                    
+                    send_at = schedule_ready_sms(clean_phone, customer_name, display_ref)
+                    sms_scheduled = True
+                    sms_scheduled_for = send_at.isoformat()
+                    print(f"🕒 SMS for order #{display_ref} scheduled for {send_at.strftime('%H:%M:%S')} "
+                          f"({SMS_DELAY_SECONDS // 60} min delay)")
                 else:
                     print(f"⚠️ Invalid phone number format: {clean_phone}")
-                    sms_sent = False
-                    
-            except Exception as sms_error:
-                print(f"⚠️ Failed to send ready for pickup SMS: {str(sms_error)}")
-                sms_sent = False
-        else:
-            print(f"ℹ️ No phone number provided for order #{order_id}, skipping SMS notification")
 
-        
+            except Exception as sms_error:
+                print(f"⚠️ Failed to schedule ready for pickup SMS: {str(sms_error)}")
+                sms_scheduled = False
+        else:
+            print(f"ℹ️ No phone number provided for order #{display_ref}, skipping SMS notification")
+
         # ========== RETURN RESPONSE ==========
         return jsonify({
             "message": "Order is ready for pickup",
-            "order_id": order_id,
+            "order_id": order.id,
+            "order_number": order.order_number,
             "status": "ready for pickup",
-            "checked_by": current_user.firstname + " " + current_user.lastname,
+            "checked_by": prepared_by,
             "cutting_status": "ready for pickup",
             "item_updated": updated_item,
             "email_sent": email_sent,
-            "sms_sent": sms_sent,
+            "sms_sent": False,  # SMS goes out after the delay
+            "sms_scheduled": sms_scheduled,
+            "sms_scheduled_for": sms_scheduled_for,
             "customer_name": customer_name,
             "customer_email": customer_email,
             "customer_phone": phone_number
         }), 200
-        
+
     except Exception as e:
         db.session.rollback()
         print(f"❌ Error in cutting_order: {str(e)}")
-        import traceback
         traceback.print_exc()
         return jsonify({"error": str(e)}), 500
 
