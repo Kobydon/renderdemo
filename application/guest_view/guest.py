@@ -9256,18 +9256,26 @@ def get_held_order_by_customer(customer_id):
 
 
 
-
-from sqlalchemy import or_
-
-@guest.route('/track_order/<int:hold_id>', methods=['GET'])
+@guest.route('/track_order/<hold_id>', methods=['GET'])
 def track_order(hold_id):
     try:
+        hold_id = str(hold_id).strip()
+
+        if not hold_id:
+            return jsonify({"error": "Order ID is required"}), 400
+
+        # 1. Look up by order_number first (string column, e.g. "DP46278").
         held_order = HeldCart.query.filter(
-            or_(
-                HeldCart.id == hold_id,
-                HeldCart.order_number == hold_id
-            )
+            HeldCart.order_number == hold_id
         ).first()
+
+        # 2. Fall back to the integer primary key, but only if the value is
+        #    numeric. Comparing the integer id column to a string like
+        #    "DP46278" makes Postgres raise InvalidTextRepresentation.
+        if not held_order and hold_id.isdigit():
+            held_order = HeldCart.query.filter(
+                HeldCart.id == int(hold_id)
+            ).first()
 
         if not held_order:
             return jsonify({"error": "Held order not found"}), 404
@@ -9310,14 +9318,21 @@ def track_order(hold_id):
             "contain_digital_printing": held_order.contain_digital_printing,
             "contain_large_format": held_order.contain_large_format,
             "contain_label": held_order.contain_label,
-            "contain_dtf": held_order.contain_dtf
+            "contain_dtf": held_order.contain_dtf,
+            # Delivery fields
+            "delivery_status": held_order.delivery_status,
+            "delivered_by": held_order.delivered_by,
+            "delivery_contact": held_order.delivery_contact,
+            "delivery_address": held_order.delivery_address,
+            "delivery_note": held_order.delivery_note,
+            "delivery_date": held_order.delivery_date.isoformat()
+                if getattr(held_order.delivery_date, "isoformat", None) else held_order.delivery_date
         }), 200
 
     except Exception as e:
+        db.session.rollback()  # keep the session usable after a failed query
         print(f"Error loading held order: {str(e)}")
         return jsonify({"error": str(e)}), 500
-
-
 @guest.route('/load_held_orders_batch', methods=['POST'])
 @flask_praetorian.auth_required
 def load_held_orders_batch():
