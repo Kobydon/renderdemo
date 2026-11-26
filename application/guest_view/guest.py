@@ -11223,11 +11223,11 @@ def send_ready_sms_now(clean_phone, customer_name, order_ref):
             f"Order #{order_ref}\n"
             f"Dear {customer_name},\n"
             f"Your order is now ready for pickup!\n\n"
-            f"Date: {now.strftime('%d-%m-%Y %I:%M %p')}\n\n"
-            f"Location: Kokomlemle, Accra\n"
-            f"Hours: Mon-Sat 8am - 8pm\n\n"
-            f"Contact Us:\n"
-            f"Email: afgghana@gmail.com\n"
+            # f"Date: {now.strftime('%d-%m-%Y %I:%M %p')}\n\n"
+            # f"Location: Kokomlemle, Accra\n"
+            # f"Hours: Mon-Sat 8am - 8pm\n\n"
+            # f"Contact Us:\n"
+            # f"Email: afgghana@gmail.com\n"
             f"Phone: 0243210009 / 0531100380"
         )
 
